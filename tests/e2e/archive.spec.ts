@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, test } from '@playwright/test';
 import MiniSearch from 'minisearch';
 import { getSearchOptions, type SearchDocument } from '../../src/catalog/search';
-import type { CatalogCollection } from '../../src/catalog/types';
+import type { CatalogCollection, CatalogItem } from '../../src/catalog/types';
 import { formatFileCount, groupOfficialItems } from '../../src/lib/archive';
 import { loadCatalog } from '../../src/lib/catalog';
 import { catalogItemCountLabel } from '../../src/lib/homepage';
@@ -18,6 +18,60 @@ function expectedGame(slug: string): CatalogCollection {
   const game = expectedGames.find((candidate) => candidate.slug === slug);
   if (!game) throw new Error(`generated catalog is missing game ${slug}`);
   return game;
+}
+
+function expectedOfficialGroupItems(slug: string, heading: string): CatalogItem[] {
+  const group = groupOfficialItems(expectedGame(slug), expectedItemById).find(
+    (candidate) => candidate.heading === heading,
+  );
+  if (!group) throw new Error(`generated catalog is missing ${heading} for ${slug}`);
+  return group.items;
+}
+
+function searchFileDocument(
+  id: string,
+  titleHe: string,
+  overrides: Partial<SearchDocument> = {},
+): SearchDocument {
+  const category = overrides.category ?? 'פתרונות';
+  const viewUrl = `https://drive.google.com/file/d/${id}/view`;
+
+  return {
+    id: `file:${id}`,
+    kind: 'file',
+    titleHe,
+    aliasesHe: '',
+    pathHe: titleHe,
+    relationshipsHe: '',
+    tagsHe: '',
+    categoriesHe: category,
+    descriptionHe: '',
+    textHe: '',
+    href: viewUrl,
+    category,
+    categories: [category],
+    filename: `${id}.bin`,
+    path: `${category}/${id}.bin`,
+    mimeType: 'application/octet-stream',
+    size: 42,
+    collectionLinks: [],
+    viewUrl,
+    downloadUrl: null,
+    ...overrides,
+  };
+}
+
+function serializedSearchIndex(documents: readonly SearchDocument[]): string {
+  const index = new MiniSearch<SearchDocument>(getSearchOptions());
+  index.addAll([...documents]);
+  return JSON.stringify(index);
+}
+
+async function useSearchIndex(page: Page, documents: readonly SearchDocument[]): Promise<void> {
+  const body = serializedSearchIndex(documents);
+  await page.route(searchIndexPattern, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body }),
+  );
 }
 
 async function expectWithinViewport(page: Page, locator: Locator): Promise<void> {
@@ -128,6 +182,9 @@ test('homepage is a Hebrew RTL, cover-first entry to the archive', async ({ page
 });
 
 test('Piposh 1 is an official-material hub with direct Drive actions', async ({ page }) => {
+  const solutions = expectedOfficialGroupItems('piposh-1', 'פתרונות');
+  expect(solutions).toHaveLength(1);
+  const solution = solutions[0]!;
   await page.goto(site.route('games/piposh-1/'));
 
   await expect(page.getByRole('heading', { level: 1, name: 'פיפוש 1' })).toBeVisible();
@@ -136,7 +193,11 @@ test('Piposh 1 is an official-material hub with direct Drive actions', async ({ 
   await expect(page.getByRole('heading', { name: 'פתרונות' })).toBeVisible();
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toBeVisible();
-  await expect(page.getByText('פיפוש 1 - פתרון.docx', { exact: true })).toBeVisible();
+  await expect(page.getByText(solution.name, { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: `צפייה ב־Drive — ${solution.name}` })).toHaveAttribute(
+    'href',
+    solution.viewUrl,
+  );
   await expect(
     page.getByRole('link', { name: 'הורדה — piposh1.exe' }),
   ).toHaveAttribute('href', /drive\.google\.com/u);
@@ -253,6 +314,9 @@ test('Latin-only search is unsupported while mixed queries use their Hebrew word
 });
 
 test('search submission and category changes rerun the current Hebrew query', async ({ page }) => {
+  const solutions = expectedOfficialGroupItems('piposh-1', 'פתרונות');
+  expect(solutions).toHaveLength(1);
+  const solution = solutions[0]!;
   let indexRequests = 0;
   await page.route(searchIndexPattern, async (route) => {
     indexRequests += 1;
@@ -270,7 +334,10 @@ test('search submission and category changes rerun the current Hebrew query', as
   await expect(page.getByRole('link', { name: 'פתיחת אוסף — פיפוש 1' })).toBeVisible();
 
   await page.getByLabel('סוג חומר').selectOption('פתרונות');
-  await expect(page.getByText('פיפוש 1 - פתרון.docx', { exact: true })).toBeVisible();
+  await expect(page.getByText(solution.name, { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: `צפייה ב־Drive — ${solution.name}` }),
+  ).toHaveAttribute('href', solution.viewUrl);
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toHaveCount(0);
   expect(indexRequests).toBe(1);
 });
@@ -363,23 +430,21 @@ for (const failure of ['aborted', 'non-OK', 'corrupt'] as const) {
 }
 
 test('unexpected stored search metadata fails safely without unsafe result links', async ({ page }) => {
-  await page.route(searchIndexPattern, async (route) => {
-    const response = await route.fetch();
-    const serialized = JSON.parse(await response.text()) as {
-      storedFields: Record<string, { href?: string; viewUrl?: string; downloadUrl?: string }>;
-    };
-    serialized.storedFields['0']!.href = 'javascript:alert(1)';
-    serialized.storedFields['6']!.viewUrl = 'data:text/html,unsafe';
-    serialized.storedFields['6']!.downloadUrl = '//unsafe.example/file';
-    await route.fulfill({
-      response,
-      contentType: 'application/json',
-      body: JSON.stringify(serialized),
-    });
-  });
-  await page.goto(site.route('search/?q=%D7%A4%D7%99%D7%A4%D7%95%D7%A9'));
+  await useSearchIndex(page, [
+    searchFileDocument('safe-security-result', 'בדיקת אבטחה'),
+    searchFileDocument('unsafe-security-result', 'בדיקת אבטחה', {
+      href: 'javascript:alert(1)',
+      viewUrl: 'data:text/html,unsafe',
+      downloadUrl: '//unsafe.example/file',
+    }),
+  ]);
+  await page.goto(site.route('search/?q=%D7%91%D7%93%D7%99%D7%A7%D7%AA%20%D7%90%D7%91%D7%98%D7%97%D7%94'));
 
   await expect(page.locator('[data-search-status]')).toContainText('לא הצלחנו לטעון');
+  await expect(page.locator('[data-search-results] > li')).toHaveCount(0);
+  await expect(
+    page.locator('[data-search-root]').getByRole('link', { name: 'כל הארכיון' }),
+  ).toBeVisible();
   await expect(page.locator('[data-search-root] a[href^="javascript:"]')).toHaveCount(0);
   await expect(page.locator('[data-search-root] a[href^="data:"]')).toHaveCount(0);
   await expect(page.locator('[data-search-root] a[href^="//"]')).toHaveCount(0);
@@ -387,27 +452,20 @@ test('unexpected stored search metadata fails safely without unsafe result links
 
 for (const corruption of ['file without view URL', 'file disguised as collection'] as const) {
   test(`search rejects ${corruption} without partial results`, async ({ page }) => {
-    await page.route(searchIndexPattern, async (route) => {
-      const response = await route.fetch();
-      const serialized = JSON.parse(await response.text()) as {
-        storedFields: Record<string, Record<string, unknown>>;
-      };
-      const englishFile = serialized.storedFields['6']!;
-      if (corruption === 'file without view URL') {
-        englishFile.viewUrl = null;
-      } else {
-        englishFile.kind = 'collection';
-        englishFile.titleHe = 'מהדורה זרה';
-        englishFile.href = '/games/piposh-1/';
-      }
-      await route.fulfill({
-        response,
-        contentType: 'application/json',
-        body: JSON.stringify(serialized),
-      });
-    });
+    const malformed =
+      corruption === 'file without view URL'
+        ? searchFileDocument('malformed-result', 'בדיקת תקלה', { viewUrl: null })
+        : searchFileDocument('malformed-result', 'בדיקת תקלה', {
+            kind: 'collection',
+            titleHe: 'בדיקת תקלה',
+            href: '/games/piposh-1/',
+          });
+    await useSearchIndex(page, [
+      searchFileDocument('safe-result', 'בדיקת תקלה'),
+      malformed,
+    ]);
 
-    await page.goto(site.route('search/?q=%D7%A4%D7%99%D7%A4%D7%95%D7%A9%201'));
+    await page.goto(site.route('search/?q=%D7%91%D7%93%D7%99%D7%A7%D7%AA%20%D7%AA%D7%A7%D7%9C%D7%94'));
     await expect(page.locator('[data-search-status]')).toContainText('לא הצלחנו לטעון');
     await expect(page.locator('[data-search-results] > li')).toHaveCount(0);
     await expect(
@@ -441,17 +499,24 @@ test('search result actions expose exact metadata and safe Drive links', async (
 });
 
 test('search has honest empty, singular, and plural count wording', async ({ page }) => {
+  await useSearchIndex(page, [
+    searchFileDocument('single-solution', 'בודד', { category: 'פתרונות' }),
+    searchFileDocument('single-game', 'בודד', { category: 'משחקים מלאים' }),
+    searchFileDocument('plural-one', 'רבים'),
+    searchFileDocument('plural-two', 'רבים'),
+  ]);
   await page.goto(site.route('search/?q=%D7%A7%D7%A9%D7%A7%D7%95%D7%A9'));
   await expect(page.locator('[data-search-status]')).toHaveText(
     'לא מצאנו תוצאות. אפילו לא מתחת לשטיח.',
   );
 
-  await page.goto(site.route('search/?q=%D7%9E%D7%AA%D7%97%D7%99%D7%9C%D7%99%D7%9D'));
+  await page.goto(site.route('search/?q=%D7%91%D7%95%D7%93%D7%93'));
+  await expect(page.locator('[data-search-status]')).toHaveText('2 תוצאות');
   await page.getByLabel('סוג חומר').selectOption('פתרונות');
   await expect(page.locator('[data-search-status]')).toHaveText('תוצאה אחת');
 
-  await page.goto(site.route('search/?q=%D7%A4%D7%99%D7%A4%D7%95%D7%A9'));
-  await expect(page.locator('[data-search-status]')).toHaveText(/^[2-9]\d* תוצאות$/u);
+  await page.goto(site.route('search/?q=%D7%A8%D7%91%D7%99%D7%9D'));
+  await expect(page.locator('[data-search-status]')).toHaveText('2 תוצאות');
 });
 
 test('search reports the true total while rendering at most 100 results', async ({ page }) => {
@@ -477,15 +542,7 @@ test('search reports the true total while rendering at most 100 results', async 
     viewUrl: `https://drive.google.com/file/d/${index}/view`,
     downloadUrl: null,
   }));
-  const index = new MiniSearch<SearchDocument>(getSearchOptions());
-  index.addAll(documents);
-  await page.route(searchIndexPattern, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(index),
-    }),
-  );
+  await useSearchIndex(page, documents);
 
   await page.goto(site.route('search/?q=%D7%90%D7%95%D7%A6%D7%A8'));
   await expect(page.locator('[data-search-status]')).toHaveText(

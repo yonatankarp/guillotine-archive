@@ -9,7 +9,7 @@ import {
   type DriveGateway,
   type RemoteEntry,
 } from '../src/catalog/drive-gateway';
-import type { Catalog } from '../src/catalog/types';
+import type { Catalog, CuratorConfig } from '../src/catalog/types';
 
 interface FixtureDocument {
   rootId: string;
@@ -34,6 +34,21 @@ export interface SyncFixtureDependencies {
 const repositoryRoot = resolve(import.meta.dirname, '..');
 // Fixture output is checked in CI and must remain reproducible across invocations.
 export const FIXTURE_GENERATED_AT = '2026-08-26T00:00:00.000Z';
+
+/**
+ * Production cover IDs identify files outside the tiny local fixture tree. Fixture builds keep
+ * every other editorial choice but deliberately exercise the site's honest fallback covers.
+ */
+export function omitProductionCoverSelections(
+  curator: Readonly<CuratorConfig>,
+): CuratorConfig {
+  return {
+    ...curator,
+    collections: curator.collections.map(({ coverFileId: _coverFileId, ...collection }) => ({
+      ...collection,
+    })),
+  };
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -174,7 +189,7 @@ export async function syncFixture(
   const fixture = parseFixtureDocument(await readFile(fixturePath, 'utf8'));
   const gateway = createFixtureGateway(fixture);
   const files = await scanDrive(fixture.rootId, gateway);
-  const curator = await loadCurator(curatorPath);
+  const curator = omitProductionCoverSelections(await loadCurator(curatorPath));
   const catalog = await buildCatalog({
     files,
     curator,

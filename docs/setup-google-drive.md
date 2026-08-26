@@ -132,7 +132,12 @@ PLAYWRIGHT_USE_DIST=1 SITE_URL=https://example.github.io BASE_PATH=/guillotine-a
 ```
 
 The fixture sync is deterministic, needs no Google credentials, and is the right default for local
-development. A real local import uses `npm run sync:drive` and requires the same two environment
+development. It intentionally omits production cover selections because those Drive IDs do not
+exist in the small local fixture; fixture pages therefore use the same honest fallback covers as a
+game without a selected scan. This affects only fixture synchronization. Production sync keeps the
+configured cover IDs and fails instead of silently ignoring a missing or unreadable selected cover.
+
+A real local import uses `npm run sync:drive` and requires the same two environment
 values as GitHub. Keep those values in a secure local secret store and out of commands that may be
 recorded. Never commit credentials, `.astro/archive-baseline.json`, generated catalog/search data,
 downloaded cover output, or curator reports.

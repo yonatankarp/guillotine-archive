@@ -29,4 +29,12 @@ describe('owner operations guidance', () => {
       'Do not put either value in repository variables, workflow files, commits, artifacts, or generated catalog data.',
     );
   });
+
+  test('explains why fixture builds omit production cover selections', async () => {
+    const setup = await readFile('docs/setup-google-drive.md', 'utf8');
+
+    expect(setup).toMatch(/fixture.+omit.+production cover/isu);
+    expect(setup).toMatch(/fallback cover/iu);
+    expect(setup).toMatch(/production sync.+cover IDs/isu);
+  });
 });

@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -19,6 +20,14 @@ import {
 const repositoryRoot = resolve(import.meta.dirname, '../..');
 const curatorPath = join(repositoryRoot, 'curator/collections.yml');
 const fixturePath = join(repositoryRoot, 'tests/fixtures/drive-tree.json');
+const generatedCatalogPath = join(repositoryRoot, 'src/generated/catalog.json');
+const catalogForCoverAudit = existsSync(generatedCatalogPath)
+  ? (JSON.parse(readFileSync(generatedCatalogPath, 'utf8')) as Catalog)
+  : null;
+const realCatalogForCoverAudit =
+  catalogForCoverAudit !== null && catalogForCoverAudit.items.length >= 1000
+    ? catalogForCoverAudit
+    : null;
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
@@ -78,13 +87,77 @@ describe('production curator configuration', () => {
     ]);
     expect(new Set(curator.collections.map(({ slug }) => slug))).toHaveLength(6);
     expect(curator.collections.every(({ type }) => type === 'game')).toBe(true);
-    expect(curator.collections.every(({ coverFileId }) => coverFileId === undefined)).toBe(true);
+    expect(
+      Object.fromEntries(curator.collections.map(({ slug, coverFileId }) => [slug, coverFileId])),
+    ).toEqual({
+      'piposh-1': '1JoYCVI1nah80Px76RYT85YdQr9rIPxNG',
+      'piposh-2': '0Bwqx7RiWdM3YcnVNS09PUGR4aFk',
+      'halom-shehitgashem': '0B2YRfkQTdJ96MnFNUnlRdlhkdjQ',
+      'betochhei-harating': '0Bwqx7RiWdM3YVEVKUEFweVo0ZW8',
+      vogimon: '0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ',
+      'piposh-revolution': undefined,
+    });
     expect(curator.collections.some(({ summaryHe }) => summaryHe.includes('קיבינימאט'))).toBe(true);
     expect(curator.collections.find(({ slug }) => slug === 'vogimon')).toMatchObject({
       titleHe: 'ווג׳ימון',
+      summaryHe:
+        'המשחק המלא, הבטא, החוברת והעטיפה. כל מה שצריך כדי להיכנס לכדור קטן ולהתחרט מיד.',
       aliasesHe: expect.arrayContaining(['ווגימון', 'ווג_ימון']),
     });
+    expect(curator.collections.find(({ slug }) => slug === 'betochhei-harating')?.summaryHe).toBe(
+      'שלוש גרסאות, תיקונים, הוראות ופתרון. גם מאחורי הקלעים מישהו היה צריך לסדר את הקבצים.',
+    );
+    expect(curator.collections.find(({ slug }) => slug === 'piposh-revolution')?.summaryHe).toBe(
+      'שלוש גרסאות, מפה, מוזיקה ופתרון. המהפכה אולי כאוטית; המדפים שלה לא.',
+    );
   });
+
+  test.skipIf(realCatalogForCoverAudit === null)(
+    'audits selected cover IDs against their inspected real Drive paths when a generated catalog is present',
+    async () => {
+      const curator = await loadCurator(curatorPath);
+      const inspectedSelections = [
+        {
+          slug: 'piposh-1',
+          id: '1JoYCVI1nah80Px76RYT85YdQr9rIPxNG',
+          path: 'משחקים מלאים/פיפוש 1/פיפוש 1 - אריזה/711419-piposh-hollywood-windows-front-cover.jpg',
+        },
+        {
+          slug: 'piposh-2',
+          id: '0Bwqx7RiWdM3YcnVNS09PUGR4aFk',
+          path: 'משחקים מלאים/פיפוש 2/פיפוש 2 - עטיפה/Front.jpg',
+        },
+        {
+          slug: 'halom-shehitgashem',
+          id: '0B2YRfkQTdJ96MnFNUnlRdlhkdjQ',
+          path: 'משחקים מלאים/חלום שהתגשם/אריזה/Front.jpg',
+        },
+        {
+          slug: 'betochhei-harating',
+          id: '0Bwqx7RiWdM3YVEVKUEFweVo0ZW8',
+          path: 'משחקים מלאים/בתככי הרייטינג/תככי הרייטינג - עטיפה/Front(4).png',
+        },
+        {
+          slug: 'vogimon',
+          id: '0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ',
+          path: "משחקים מלאים/ווג'ימון/ווג'ימון - עטיפה/Scan.jpg",
+        },
+      ] as const;
+
+      for (const expected of inspectedSelections) {
+        expect(curator.collections.find(({ slug }) => slug === expected.slug)?.coverFileId).toBe(
+          expected.id,
+        );
+        expect(realCatalogForCoverAudit?.items.find(({ id }) => id === expected.id)).toMatchObject({
+          path: expected.path,
+          mimeType: expect.stringMatching(/^image\//u),
+        });
+      }
+      expect(
+        curator.collections.find(({ slug }) => slug === 'piposh-revolution')?.coverFileId,
+      ).toBeUndefined();
+    },
+  );
 
   test('keeps every curated rule official and leaves press and fan materials independent', async () => {
     const curator = await loadCurator(curatorPath);
@@ -115,17 +188,31 @@ describe('production curator configuration', () => {
       ['p1-en', 'משחקים מלאים/פיפוש 1 - אנגלית/piposh1-english.exe', 'piposh-1', 'מהדורות רשמיות בשפות זרות'],
       ['p1-ru', 'משחקים מלאים/פיפוש 1 - רוסית/piposh1-russian.exe', 'piposh-1', 'מהדורות רשמיות בשפות זרות'],
       ['p1-book', 'משחקים מלאים/פיפוש 1/פיפוש 1 - חוברת שירים/Scan_001.jpg', 'piposh-1', 'חוברות'],
+      ['p1-package', 'משחקים מלאים/פיפוש 1/פיפוש 1 - אריזה/Front.jpg', 'piposh-1', 'אריזה'],
       ['p1-audio', 'שירים/דיסקים מלאים/פיפוש 1 - דיסק אודיו/דיסק אדיו.rar', 'piposh-1', 'דיסק אודיו'],
+      ['p1-solution-native', 'פתרונות/פיפוש 1 - פתרון', 'piposh-1', 'פתרונות'],
+      ['p1-solution-docx', 'פתרונות/פיפוש 1 - פתרון.docx', 'piposh-1', 'פתרונות'],
       ['p2-cover', 'משחקים מלאים/פיפוש 2/פיפוש 2 - עטיפה/Front.jpg', 'piposh-2', 'עטיפה וחוברת'],
       ['p2-song', 'שירים/פיפוש 2 שירים/שיר פתיחה.AIF', 'piposh-2', 'מוזיקה'],
+      ['p2-solution-native', 'פתרונות/פיפוש 2 - פתרון', 'piposh-2', 'פתרונות'],
+      ['p2-solution-docx', 'פתרונות/פיפוש 2 - פתרון.docx', 'piposh-2', 'פתרונות'],
       ['dream-pack', 'משחקים מלאים/חלום שהתגשם/אריזה/Back.jpg', 'halom-shehitgashem', 'אריזה'],
       ['dream-cheat', 'משחקים מלאים/חלום שהתגשם/ציטים/Piposh.rar', 'halom-shehitgashem', 'צ׳יטים'],
       ['rating-patch', 'משחקים מלאים/בתככי הרייטינג/קבצי תיקון/lua5.1.dll', 'betochhei-harating', 'קבצי תיקון'],
+      ['rating-rosh1', 'משחקים מלאים/בתככי הרייטינג - ראש1/rating-rosh1.iso', 'betochhei-harating', 'גרסאות המשחק'],
+      ['rating-help-native', 'משחקים מלאים/בתככי הרייטינג/הוראות!', 'betochhei-harating', 'הוראות'],
       ['rating-help', 'משחקים מלאים/בתככי הרייטינג/הוראות!.docx', 'betochhei-harating', 'הוראות'],
-      ['vogimon', 'משחקים מלאים/ווג_ימון/vegimonfull.exe', 'vogimon', 'המשחק המלא'],
+      ['rating-solution-native', 'פתרונות/תככי הרייטינג - פתרון', 'betochhei-harating', 'פתרונות'],
+      ['rating-solution-docx', 'פתרונות/תככי הרייטינג - פתרון.docx', 'betochhei-harating', 'פתרונות'],
+      ['vogimon', "משחקים מלאים/ווג'ימון/vegimonfull.exe", 'vogimon', 'המשחק המלא'],
+      ['vogimon-book', "משחקים מלאים/ווג'ימון/ווג'ימון - חוברת/Scan_000.jpg", 'vogimon', 'חוברת'],
+      ['vogimon-cover', "משחקים מלאים/ווג'ימון/ווג'ימון - עטיפה/Scan.jpg", 'vogimon', 'עטיפה'],
       ['vogimon-demo', 'דמואים/Vegimon_Beta1.0/SETUP.EXE', 'vogimon', 'דמו בטא רשמי'],
+      ['revolution-v3', 'משחקים מלאים/פיפוש המהפכה/גרסה 3 - יונתן/piposh3d_cd1.iso', 'piposh-revolution', 'גרסאות המשחק'],
       ['revolution-map', 'משחקים מלאים/פיפוש המהפכה/פיפוש המהפכה - מפת משחק/מפה 11.jpg', 'piposh-revolution', 'מפת המשחק'],
       ['revolution-audio', 'שירים/דיסקים מלאים/פיפוש המהפכה - דיסק אודיו/01 Track 1.mp3', 'piposh-revolution', 'דיסק אודיו'],
+      ['revolution-solution-native', 'פתרונות/פיפוש המהפכה - פתרון', 'piposh-revolution', 'פתרונות'],
+      ['revolution-solution-docx', 'פתרונות/פיפוש המהפכה - פתרון.docx', 'piposh-revolution', 'פתרונות'],
     ] as const;
     const systemFiles = [
       {
@@ -151,6 +238,16 @@ describe('production curator configuration', () => {
         path,
       })),
       ...systemFiles,
+      {
+        ...driveFile('press'),
+        name: 'ביקורת.jpg',
+        path: 'עיתונות/פיפוש 1/ביקורת.jpg',
+      },
+      {
+        ...driveFile('fan'),
+        name: 'fan.zip',
+        path: 'משחקי מעריצים/פיפוש 1/fan.zip',
+      },
     ];
     const catalog = resolveRelationships(files, curator, '2026-08-26T12:00:00.000Z');
 
@@ -161,6 +258,19 @@ describe('production curator configuration', () => {
     for (const { id } of systemFiles) {
       expect(catalog.items.find((item) => item.id === id)?.collectionLinks, id).toEqual([]);
       expect(catalog.collections.some(({ itemIds }) => itemIds.includes(id)), id).toBe(false);
+    }
+    for (const id of ['press', 'fan']) {
+      expect(catalog.items.find((item) => item.id === id)?.collectionLinks, id).toEqual([]);
+      expect(catalog.collections.some(({ itemIds }) => itemIds.includes(id)), id).toBe(false);
+    }
+    for (const collection of catalog.collections) {
+      expect(new Set(collection.itemIds).size, collection.slug).toBe(collection.itemIds.length);
+    }
+    for (const item of catalog.items) {
+      const linkKeys = item.collectionLinks.map(({ slug, relationship, groupHe }) =>
+        JSON.stringify([slug, relationship, groupHe ?? null]),
+      );
+      expect(new Set(linkKeys).size, item.id).toBe(linkKeys.length);
     }
   });
 });
@@ -179,6 +289,8 @@ describe('fixture synchronization', () => {
 
     expect(catalog.generatedAt).toBe('2026-08-26T12:00:00.000Z');
     expect(catalog.items.map(({ id }) => id)).toHaveLength(3);
+    expect(catalog.collections.every(({ coverFileId }) => coverFileId === undefined)).toBe(true);
+    expect(catalog.collections.every(({ coverUrl }) => coverUrl === null)).toBe(true);
     expect(catalog.items.map(({ path }) => path).sort()).toEqual(
       [
         'משחקים מלאים/פיפוש 1/גרסה 2/piposh1.exe',
@@ -221,6 +333,35 @@ describe('fixture synchronization', () => {
 
     expect(build).toHaveBeenCalledWith(expect.objectContaining({ minimumFileCount: 1 }));
     expect(receivedInput?.curator.minimumFileCount).toBe(1000);
+  });
+
+  test('omits only production cover selections without mutating the loaded curator', async () => {
+    const root = await temporaryRoot();
+    const sourceCurator = await loadCurator(curatorPath);
+    const sourceBefore = structuredClone(sourceCurator);
+    let receivedInput: BuildCatalogInput | undefined;
+    const build: typeof defaultBuildCatalog = vi.fn(async (input) => {
+      receivedInput = input;
+      return emptyCatalog();
+    });
+
+    await syncFixture(
+      { root, curatorPath, fixturePath, log: () => undefined },
+      {
+        buildCatalog: build,
+        loadCurator: vi.fn(async () => sourceCurator),
+      },
+    );
+
+    const expectedFixtureCurator = structuredClone(sourceCurator);
+    for (const collection of expectedFixtureCurator.collections) {
+      delete collection.coverFileId;
+    }
+    expect(receivedInput?.curator).toEqual(expectedFixtureCurator);
+    expect(sourceCurator).toEqual(sourceBefore);
+    expect(
+      sourceCurator.collections.filter(({ coverFileId }) => coverFileId !== undefined),
+    ).toHaveLength(5);
   });
 
   test('uses a fixed default timestamp and writes byte-identical fixture artifacts', async () => {

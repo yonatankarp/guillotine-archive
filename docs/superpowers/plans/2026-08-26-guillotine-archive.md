@@ -1326,6 +1326,19 @@ console.log(`fixture sync complete: ${files.length} files`);
 
 - [ ] **Step 4: Implement production synchronization with explicit environment errors**
 
+The production entry point must also read a persisted prior successful file count from an
+ignored local baseline file (for example `.astro/archive-baseline.json`) and pass it to
+`buildCatalog` as `previousFileCount`. A missing baseline is allowed only for the first run,
+which still relies on the curator's production `minimumFileCount`. Malformed baseline data
+must fail clearly. After `buildCatalog` succeeds, atomically replace the baseline with the new
+validated `catalog.items.length`; failed synchronization must leave the previous baseline
+unchanged. Implement the `readArchiveBaseline` and `writeArchiveBaselineAtomically` helpers in
+this entry-point file and add sync-entry-point tests for their read/pass/save behavior.
+The production download adapter must enforce response-size or streaming byte limits before
+buffering when Drive metadata has a null size; apply a bounded response to cover downloads as
+well as text extraction. Keep the current Buffer gateway API for Task 8, but test these bounds
+in the production wiring so oversized remote responses cannot allocate without limit.
+
 Create `scripts/sync-drive.ts`:
 
 ```ts
@@ -1344,7 +1357,9 @@ const root = resolve(import.meta.dirname, '..');
 const gateway = createGoogleDriveGateway(credentialsJson);
 const files = await scanDrive(rootFolderId, gateway);
 const curator = await loadCurator(resolve(root, 'curator/collections.yml'));
-await buildCatalog({ files, curator, root, generatedAt: new Date().toISOString(), download: gateway.download });
+const previousFileCount = await readArchiveBaseline(root);
+const catalog = await buildCatalog({ files, curator, root, generatedAt: new Date().toISOString(), previousFileCount, download: gateway.download });
+await writeArchiveBaselineAtomically(root, catalog.items.length);
 console.log(`Drive sync complete: ${files.length} files`);
 ```
 
@@ -2292,6 +2307,16 @@ Run: `npm test -- tests/workflows/deploy-pages.test.ts`
 Expected: FAIL because the workflow file does not exist.
 
 - [ ] **Step 3: Create the fail-safe daily deployment workflow**
+
+Before `Sync Google Drive`, restore the most recent successful ignored archive-baseline file
+from a GitHub Actions cache or workflow artifact. After synchronization and all validation
+succeed, save the newly written baseline for the next daily run. This persistence is required
+because a fresh Actions checkout has no generated catalog from which to derive shrink history.
+Task 13 must select and pin a tested, current action version for the chosen cache/artifact
+mechanism rather than guessing that version in advance. The workflow contract test must assert
+restore-before-sync and save-after-success ordering. The first run has no persisted baseline
+and is protected by the curator minimum count. Task 13 must also retain the Task 8 production
+response-size/stream bounds for null-size text metadata and cover downloads.
 
 Create `.github/workflows/deploy-pages.yml`:
 

@@ -8,10 +8,17 @@ import { sitePath } from '../lib/url';
 
 <BaseLayout title="ארכיון גיליוטין">
   <section class="hero" aria-labelledby="hero-title">
-    <div>
+    <div class="hero-title-block">
       <p class="issue-label">תיק ציבורי / לעיון חופשי</p>
       <h1 id="hero-title">ארכיון גיליוטין</h1>
     </div>
+    <img
+      class="hero-character"
+      src={sitePath('assets/characters/hezi.png')}
+      alt="חזי מפיפוש מציץ אל הארכיון"
+      width="145"
+      height="365"
+    />
     <div class="hero-copy">
       <p>כל המשחקים, החוברות והמוזיקה שההיסטוריה השאירה אצלנו. קיבינימאט, עכשיו גם אפשר למצוא אותם.</p>
       <form

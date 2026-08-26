@@ -170,9 +170,10 @@ main {
   isolation: isolate;
   min-height: min(500px, 68vh);
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(15rem, 0.75fr);
+  grid-template-areas: "title character copy";
+  grid-template-columns: minmax(0, 1.15fr) minmax(7.5rem, 0.35fr) minmax(15rem, 0.85fr);
   align-items: center;
-  gap: clamp(2rem, 7vw, 7rem);
+  gap: clamp(0.75rem, 2.5vw, 2rem);
   padding: clamp(2rem, 7vw, 5.4rem);
   overflow: hidden;
   border: var(--line) solid var(--ink);
@@ -203,6 +204,23 @@ main {
   inset: auto 45% -10rem auto;
   background: var(--cyan);
   transform: rotate(24deg);
+}
+
+.hero-title-block {
+  position: relative;
+  z-index: 1;
+  grid-area: title;
+}
+
+.hero-character {
+  width: clamp(7.5rem, 10vw, 8.4rem);
+  height: auto;
+  max-width: 100%;
+  display: block;
+  grid-area: character;
+  align-self: end;
+  justify-self: center;
+  object-fit: contain;
 }
 
 .issue-label {
@@ -237,6 +255,9 @@ main {
 }
 
 .hero-copy {
+  position: relative;
+  z-index: 1;
+  grid-area: copy;
   align-self: end;
   padding: clamp(1rem, 2.5vw, 1.5rem);
   border: var(--line) solid var(--ink);
@@ -521,8 +542,12 @@ main {
 
   .hero {
     min-height: 0;
+    grid-template-areas:
+      "title"
+      "character"
+      "copy";
     grid-template-columns: 1fr;
-    gap: 2.5rem;
+    gap: 1.5rem;
   }
 
   .hero h1 {
@@ -532,6 +557,11 @@ main {
   .hero-copy {
     width: min(100%, 32rem);
     transform: none;
+  }
+
+  .hero-character {
+    width: 7rem;
+    align-self: center;
   }
 
   .game-grid {

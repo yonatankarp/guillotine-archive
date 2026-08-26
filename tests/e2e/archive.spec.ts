@@ -12,6 +12,19 @@ async function expectWithinViewport(page: Page, locator: Locator): Promise<void>
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 0.5);
 }
 
+async function expectNotOverlapping(first: Locator, second: Locator): Promise<void> {
+  const [firstBox, secondBox] = await Promise.all([first.boundingBox(), second.boundingBox()]);
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  const overlaps = !(
+    firstBox!.x + firstBox!.width <= secondBox!.x
+    || secondBox!.x + secondBox!.width <= firstBox!.x
+    || firstBox!.y + firstBox!.height <= secondBox!.y
+    || secondBox!.y + secondBox!.height <= firstBox!.y
+  );
+  expect(overlaps).toBe(false);
+}
+
 test('homepage is a Hebrew RTL, cover-first entry to the archive', async ({ page }) => {
   await page.goto('/');
 
@@ -45,6 +58,25 @@ test('homepage is a Hebrew RTL, cover-first entry to the archive', async ({ page
   await expect(page.getByText('תיק ציבורי / לעיון חופשי')).toBeVisible();
   await expect(page.getByText('תיק ציבורי / מס׳ 1997')).toHaveCount(0);
 
+  const character = page.getByRole('img', { name: 'חזי מפיפוש מציץ אל הארכיון' });
+  await expect(character).toBeVisible();
+  await expect(character).toHaveAttribute('src', '/assets/characters/hezi.png');
+  await expect(character).toHaveAttribute('width', '145');
+  await expect(character).toHaveAttribute('height', '365');
+  expect(
+    await character.evaluate((image: HTMLImageElement) => ({
+      complete: image.complete,
+      naturalWidth: image.naturalWidth,
+      naturalHeight: image.naturalHeight,
+    })),
+  ).toEqual({ complete: true, naturalWidth: 145, naturalHeight: 365 });
+  await expect(character).toHaveCSS('filter', 'none');
+  await expect(character).toHaveCSS('mix-blend-mode', 'normal');
+  await expect(character).toHaveCSS('opacity', '1');
+  await expect(character).toHaveCSS('object-fit', 'contain');
+  await expectNotOverlapping(character, page.getByRole('heading', { level: 1 }));
+  await expectNotOverlapping(character, page.getByRole('search'));
+
   const skipLink = page.getByRole('link', { name: 'דלגו לתוכן' });
   await page.keyboard.press('Tab');
   await expect(skipLink).toBeFocused();
@@ -58,6 +90,7 @@ test('homepage is a Hebrew RTL, cover-first entry to the archive', async ({ page
   expect(hasHorizontalOverflow).toBe(false);
   await expectWithinViewport(page, page.locator('.site-header'));
   await expectWithinViewport(page, page.locator('.hero'));
+  await expectWithinViewport(page, character);
   await expectWithinViewport(page, page.locator('.search-controls'));
   for (const tile of await gameTiles.all()) await expectWithinViewport(page, tile);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);

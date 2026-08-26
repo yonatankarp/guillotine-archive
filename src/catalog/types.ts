@@ -23,8 +23,16 @@ export interface CuratedCollection {
   exclude: CuratorRule[];
 }
 
+export interface CuratedFileMetadata {
+  titleHe?: string;
+  descriptionHe?: string;
+  aliasesHe?: string[];
+  tagsHe?: string[];
+}
+
 export interface CuratorConfig {
   minimumFileCount?: number;
+  files?: Record<string, CuratedFileMetadata>;
   collections: CuratedCollection[];
 }
 

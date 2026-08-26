@@ -30,11 +30,20 @@ describe('owner operations guidance', () => {
     );
   });
 
-  test('explains why fixture builds omit production cover selections', async () => {
+  test('explains why fixture builds omit production-only Drive references', async () => {
     const setup = await readFile('docs/setup-google-drive.md', 'utf8');
 
     expect(setup).toMatch(/fixture.+omit.+production cover/isu);
+    expect(setup).toMatch(/fixture.+omit.+production file override/isu);
     expect(setup).toMatch(/fallback cover/iu);
-    expect(setup).toMatch(/production sync.+cover IDs/isu);
+    expect(setup).toMatch(/production sync.+cover IDs.+file overrides/isu);
+  });
+
+  test('documents Drive-ID file metadata overrides and their validation boundary', async () => {
+    const setup = await readFile('docs/setup-google-drive.md', 'utf8');
+
+    expect(setup).toContain('files:');
+    expect(setup).toMatch(/Drive file ID.+titleHe.+aliasesHe.+tagsHe/isu);
+    expect(setup).toMatch(/missing Drive item ID.+fails/iu);
   });
 });

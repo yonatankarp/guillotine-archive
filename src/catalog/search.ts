@@ -58,8 +58,12 @@ const HEBREW_SEPARATORS = /[\u05BE\u05C0\u05C3\u05C6]/gu;
 const QUOTE_MARKS = /["'`׳״“”‘’]+/gu;
 const PUNCTUATION_OR_SYMBOLS = /[\p{P}\p{S}]+/gu;
 const HEBREW_LETTERS = /[\u05D0-\u05EA]+/gu;
+const SEARCH_TERMS =
+  /[\u05D0-\u05EA]+|(?<![\p{L}\p{Nd}])\p{Nd}+(?![\p{L}\p{Nd}])/gu;
 const HEBREW_TERM = /^[\u05D0-\u05EA]+$/u;
 const NUMERIC_TERM = /^\p{Nd}+$/u;
+const COVERS_AND_MANUALS_FACET = 'עטיפות וחוברות';
+const COVERS_AND_MANUALS_GROUP = /אריזה|עטיפ|חובר/u;
 const SEARCH_FIELD_TIERS: Readonly<Record<string, number>> = {
   titleHe: 0,
   aliasesHe: 0,
@@ -88,10 +92,14 @@ export function extractHebrewTokens(value: string): string[] {
   return normalizeHebrew(value).match(HEBREW_LETTERS) ?? [];
 }
 
-function processHebrewTerm(term: string): string | null {
+function extractSearchTokens(value: string): string[] {
+  return normalizeHebrew(value).match(SEARCH_TERMS) ?? [];
+}
+
+function processSearchTerm(term: string): string | null {
   const normalized = normalizeHebrew(term);
 
-  return HEBREW_TERM.test(normalized) ? normalized : null;
+  return HEBREW_TERM.test(normalized) || NUMERIC_TERM.test(normalized) ? normalized : null;
 }
 
 function supportedQueryKey(value: string): string {
@@ -127,8 +135,8 @@ export function getSearchOptions(): Options<SearchDocument> {
       'viewUrl',
       'downloadUrl',
     ],
-    tokenize: extractHebrewTokens,
-    processTerm: processHebrewTerm,
+    tokenize: extractSearchTokens,
+    processTerm: processSearchTerm,
     idField: 'id',
   };
 }
@@ -266,7 +274,7 @@ function uniqueHebrewSearchValues(values: Iterable<string | undefined>): string[
 
   for (const value of values) {
     if (value) {
-      const normalized = extractHebrewTokens(value).join(' ');
+      const normalized = extractSearchTokens(value).join(' ');
 
       if (normalized) {
         normalizedValues.add(normalized);
@@ -277,14 +285,36 @@ function uniqueHebrewSearchValues(values: Iterable<string | undefined>): string[
   return [...normalizedValues];
 }
 
+function semanticFacets(item: Catalog['items'][number]): string[] {
+  const hasCoversOrManuals = item.collectionLinks.some(
+    ({ groupHe, relationship }) =>
+      relationship === 'part-of-release' &&
+      groupHe !== undefined &&
+      COVERS_AND_MANUALS_GROUP.test(groupHe),
+  );
+
+  return hasCoversOrManuals ? [COVERS_AND_MANUALS_FACET] : [];
+}
+
+function itemFilterCategories(item: Catalog['items'][number]): string[] {
+  return uniqueStrings([item.category, ...semanticFacets(item)]);
+}
+
 function collectionCategories(catalog: Readonly<Catalog>, itemIds: readonly string[]): string[] {
   const officialItemIds = new Set(itemIds);
 
   return uniqueStrings(
     catalog.items
       .filter((item) => officialItemIds.has(item.id))
-      .map((item) => item.category),
+      .flatMap(itemFilterCategories),
   );
+}
+
+export function searchFilterValues(catalog: Readonly<Catalog>): string[] {
+  return uniqueStrings([
+    ...catalog.categories,
+    ...catalog.items.flatMap(semanticFacets),
+  ]);
 }
 
 export function buildSearchIndex(catalog: Readonly<Catalog>): string {
@@ -323,21 +353,22 @@ export function buildSearchIndex(catalog: Readonly<Catalog>): string {
     const relationships = uniqueHebrewSearchValues(
       item.collectionLinks.flatMap((link) => [link.titleHe, link.groupHe]),
     );
+    const filterCategories = itemFilterCategories(item);
 
     documents.push({
       id: `file:${item.id}`,
       kind: 'file',
       titleHe: item.titleHe ?? '',
       aliasesHe: item.aliasesHe.join(' '),
-      pathHe: extractHebrewTokens(item.path).join(' '),
+      pathHe: extractSearchTokens(item.path).join(' '),
       relationshipsHe: relationships.join(' '),
       tagsHe: item.tagsHe.join(' '),
-      categoriesHe: item.category,
+      categoriesHe: filterCategories.join(' '),
       descriptionHe: item.descriptionHe ?? '',
       textHe: item.extractedTextHe ?? '',
       href: item.viewUrl,
       category: item.category,
-      categories: [item.category],
+      categories: filterCategories,
       filename: item.name,
       path: item.path,
       mimeType: item.mimeType,

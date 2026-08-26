@@ -9,7 +9,7 @@ import { loadCurator } from '../../src/catalog/curator';
 import type { DriveGateway } from '../../src/catalog/drive-gateway';
 import { resolveRelationships } from '../../src/catalog/relationships';
 import { createSearchEngine, getSearchOptions, type SearchDocument } from '../../src/catalog/search';
-import type { Catalog, DriveFile } from '../../src/catalog/types';
+import type { Catalog, CuratorConfig, DriveFile } from '../../src/catalog/types';
 import { syncFixture } from '../../scripts/sync-fixture';
 import {
   readArchiveBaseline,
@@ -335,9 +335,36 @@ describe('fixture synchronization', () => {
     expect(receivedInput?.curator.minimumFileCount).toBe(1000);
   });
 
-  test('omits only production cover selections without mutating the loaded curator', async () => {
+  test('builds safely when the production curator has a file override outside the fixture', async () => {
     const root = await temporaryRoot();
-    const sourceCurator = await loadCurator(curatorPath);
+    const sourceCurator: CuratorConfig = {
+      ...(await loadCurator(curatorPath)),
+      files: {
+        'production-only-id': { titleHe: 'כותרת ייצור' },
+      },
+    };
+    const sourceBefore = structuredClone(sourceCurator);
+
+    await expect(
+      syncFixture(
+        { root, fixturePath, log: () => undefined },
+        { loadCurator: vi.fn(async () => sourceCurator) },
+      ),
+    ).resolves.toMatchObject({ items: expect.any(Array) });
+    expect(sourceCurator).toEqual(sourceBefore);
+  });
+
+  test('omits production covers and file overrides without mutating the loaded curator', async () => {
+    const root = await temporaryRoot();
+    const sourceCurator: CuratorConfig = {
+      ...(await loadCurator(curatorPath)),
+      files: {
+        'production-only-id': {
+          titleHe: 'כותרת ייצור',
+          aliasesHe: ['שם ייצור'],
+        },
+      },
+    };
     const sourceBefore = structuredClone(sourceCurator);
     let receivedInput: BuildCatalogInput | undefined;
     const build: typeof defaultBuildCatalog = vi.fn(async (input) => {
@@ -354,6 +381,7 @@ describe('fixture synchronization', () => {
     );
 
     const expectedFixtureCurator = structuredClone(sourceCurator);
+    expectedFixtureCurator.files = {};
     for (const collection of expectedFixtureCurator.collections) {
       delete collection.coverFileId;
     }

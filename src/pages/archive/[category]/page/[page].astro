@@ -1,0 +1,28 @@
+---
+import CategoryArchivePage from '../../../../components/CategoryArchivePage.astro';
+import { archivePageNumbers, paginateArchiveItems } from '../../../../lib/archive';
+import { catalog } from '../../../../lib/catalog';
+import { categoryRoutes } from '../../../../lib/url';
+
+export function getStaticPaths() {
+  return categoryRoutes(catalog.categories).flatMap(({ category, slug }) => {
+    const itemCount = catalog.items.filter((item) => item.category === category).length;
+    return archivePageNumbers(itemCount).slice(1).map((page) => ({
+      params: { category: slug, page: String(page) },
+      props: { category, slug, page },
+    }));
+  });
+}
+
+interface Props {
+  category: string;
+  slug: string;
+  page: number;
+}
+
+const { category, slug, page } = Astro.props;
+const categoryItems = catalog.items.filter((item) => item.category === category);
+const archivePage = paginateArchiveItems(categoryItems, page);
+---
+
+<CategoryArchivePage category={category} slug={slug} {...archivePage} />

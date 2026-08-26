@@ -38,6 +38,10 @@ function uniqueValues(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
+function selectorKey(match: string, value: string): string {
+  return JSON.stringify([match, value]);
+}
+
 export function validateCatalog(
   catalog: Readonly<Catalog>,
   curator: Readonly<CuratorConfig>,
@@ -74,6 +78,12 @@ export function validateCatalog(
   const itemIds = new Set(catalog.items.map(({ id }) => id));
   const coverIdsByPortableTarget = new Map<string, string>();
 
+  for (const fileId of Object.keys(curator.files ?? {})) {
+    if (!itemIds.has(fileId)) {
+      errors.push(`file metadata override references missing Drive item ID: ${fileId}`);
+    }
+  }
+
   for (const item of catalog.items) {
     const relationshipsBySlug = new Map<string, Set<string>>();
 
@@ -109,6 +119,19 @@ export function validateCatalog(
   }
 
   for (const collection of curator.collections) {
+    const excludedSelectors = new Set(
+      collection.exclude.map(({ match, value }) => selectorKey(match, value)),
+    );
+    const reportedContradictions = new Set<string>();
+    for (const rule of collection.rules) {
+      const key = selectorKey(rule.match, rule.value);
+      if (!excludedSelectors.has(key) || reportedContradictions.has(key)) continue;
+      reportedContradictions.add(key);
+      errors.push(
+        `collection ${collection.slug} has contradictory include/exclude selector: ${rule.match} ${rule.value}`,
+      );
+    }
+
     if (collection.coverFileId) {
       if (!/^[A-Za-z0-9_-]+$/u.test(collection.coverFileId)) {
         errors.push(

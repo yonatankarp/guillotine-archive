@@ -6,6 +6,7 @@ import {
   extractHebrewTokens,
   getSearchOptions,
   normalizeHebrew,
+  searchFilterValues,
   type ArchiveSearchResult,
   type SearchDocument,
 } from '../../src/catalog/search';
@@ -215,6 +216,49 @@ describe('Hebrew search index', () => {
     expect(search.search('piposh1 פיפוש').at(0)?.id).toBe('collection:piposh-2');
   });
 
+  test('uses digits accompanying Hebrew terms to rank numbered sibling files', () => {
+    const firstLink = {
+      slug: 'piposh-1',
+      titleHe: 'פיפוש 1',
+      relationship: 'part-of-release' as const,
+      groupHe: 'גרסאות המשחק',
+    };
+    const secondLink = {
+      slug: 'piposh-2',
+      titleHe: 'פיפוש 2',
+      relationship: 'part-of-release' as const,
+      groupHe: 'גרסאות המשחק',
+    };
+    const source = catalog({
+      collections: [
+        collection({ slug: 'piposh-1', titleHe: 'פיפוש 1', itemIds: ['first'] }),
+        collection({ slug: 'piposh-2', titleHe: 'פיפוש 2', itemIds: ['second'] }),
+      ],
+      items: [
+        item({
+          id: 'first',
+          name: 'first.exe',
+          path: 'משחקים מלאים/פיפוש 1/first.exe',
+          collectionLinks: [firstLink],
+        }),
+        item({
+          id: 'second',
+          name: 'second.exe',
+          path: 'משחקים מלאים/פיפוש 2/second.exe',
+          collectionLinks: [secondLink],
+        }),
+      ],
+    });
+    const { search } = loadCatalogIndex(source);
+
+    const firstQuery = search.search('פיפוש 1').map(({ id }) => id);
+    const secondQuery = search.search('פיפוש 2').map(({ id }) => id);
+    expect(firstQuery.indexOf('file:first')).toBeLessThan(firstQuery.indexOf('file:second'));
+    expect(secondQuery.indexOf('file:second')).toBeLessThan(secondQuery.indexOf('file:first'));
+    expect(search.search('123')).toEqual([]);
+    expect(search.search('piposh 2')).toEqual([]);
+  });
+
   test('supports Hebrew prefixes and fuzzy matching only for terms of four letters or more', () => {
     const { search } = loadCatalogIndex(catalog());
 
@@ -418,15 +462,15 @@ describe('Hebrew search index', () => {
         item({
           id: 'canonical',
           path: 'foreign/canonical.exe',
-          collectionLinks: [{ ...baseLink, titleHe: 'פיפוש' }],
+          collectionLinks: [{ ...baseLink, titleHe: 'פיפוש 1' }],
         }),
         item({
           id: 'variants',
           path: 'foreign/variants.exe',
           collectionLinks: [
-            { ...baseLink, titleHe: 'פיפוש' },
+            { ...baseLink, titleHe: 'פיפוש 1' },
             { ...baseLink, titleHe: 'פִּיפּוֹשׁ 1' },
-            { ...baseLink, titleHe: 'פיפוש-2' },
+            { ...baseLink, titleHe: 'פיפוש-1' },
           ],
         }),
       ],
@@ -584,6 +628,36 @@ describe('Hebrew search index', () => {
       'file:music',
     ]);
     expect(search.search('מוזיקה').map(({ id }) => id)).toContain('collection:piposh-1');
+  });
+
+  test('adds a covers-and-manuals facet from official material groups', () => {
+    const officialLink = {
+      slug: 'piposh-1',
+      titleHe: 'פיפוש 1',
+      relationship: 'part-of-release' as const,
+    };
+    const source = catalog({
+      collections: [collection({ itemIds: ['manual', 'game'] })],
+      items: [
+        item({
+          id: 'manual',
+          path: 'משחקים מלאים/פיפוש 1/חוברת/Scan.jpg',
+          collectionLinks: [{ ...officialLink, groupHe: 'חוברות' }],
+        }),
+        item({
+          id: 'game',
+          path: 'משחקים מלאים/פיפוש 1/game.exe',
+          collectionLinks: [{ ...officialLink, groupHe: 'גרסאות המשחק' }],
+        }),
+      ],
+    });
+    const { search } = loadCatalogIndex(source);
+
+    expect(searchFilterValues(source)).toEqual(['משחקים מלאים', 'עטיפות וחוברות']);
+    expect(search.search('פיפוש', { category: 'עטיפות וחוברות' }).map(({ id }) => id)).toEqual([
+      'collection:piposh-1',
+      'file:manual',
+    ]);
   });
 
   test('orders collections before stronger file matches and supports a positive result limit', () => {

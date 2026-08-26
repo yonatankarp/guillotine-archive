@@ -1,6 +1,9 @@
 ---
 import { catalog } from '../lib/catalog';
+import { searchFilterValues } from '../catalog/search';
 import { sitePath } from '../lib/url';
+
+const filterValues = searchFilterValues(catalog);
 ---
 
 <section
@@ -38,7 +41,7 @@ import { sitePath } from '../lib/url';
       <label for="category-filter">סוג חומר</label>
       <select id="category-filter" name="category" data-search-category>
         <option value="">הכול</option>
-        {catalog.categories.map((value) => <option value={value}>{value}</option>)}
+        {filterValues.map((value) => <option value={value}>{value}</option>)}
       </select>
     </div>
   </form>

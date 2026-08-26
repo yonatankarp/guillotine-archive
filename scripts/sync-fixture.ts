@@ -35,15 +35,11 @@ const repositoryRoot = resolve(import.meta.dirname, '..');
 // Fixture output is checked in CI and must remain reproducible across invocations.
 export const FIXTURE_GENERATED_AT = '2026-08-26T00:00:00.000Z';
 
-/**
- * Production cover IDs identify files outside the tiny local fixture tree. Fixture builds keep
- * every other editorial choice but deliberately exercise the site's honest fallback covers.
- */
-export function omitProductionCoverSelections(
-  curator: Readonly<CuratorConfig>,
-): CuratorConfig {
+/** Omits production covers and file metadata overrides outside the tiny fixture tree. */
+export function adaptCuratorForFixture(curator: Readonly<CuratorConfig>): CuratorConfig {
   return {
     ...curator,
+    files: {},
     collections: curator.collections.map(({ coverFileId: _coverFileId, ...collection }) => ({
       ...collection,
     })),
@@ -189,7 +185,7 @@ export async function syncFixture(
   const fixture = parseFixtureDocument(await readFile(fixturePath, 'utf8'));
   const gateway = createFixtureGateway(fixture);
   const files = await scanDrive(fixture.rootId, gateway);
-  const curator = omitProductionCoverSelections(await loadCurator(curatorPath));
+  const curator = adaptCuratorForFixture(await loadCurator(curatorPath));
   const catalog = await buildCatalog({
     files,
     curator,

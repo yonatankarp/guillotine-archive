@@ -154,7 +154,13 @@ describe('resolveRelationships', () => {
           rules: [
             { match: 'path-prefix', value: 'חומר', relationship: 'part-of-release' },
           ],
-          exclude: [{ match: 'file-id', value: 'skip', relationship: 'about' }],
+          exclude: [
+            {
+              match: 'exact-path',
+              value: 'חומר/skip.bin',
+              relationship: 'about',
+            },
+          ],
         }),
       ],
     };
@@ -166,6 +172,43 @@ describe('resolveRelationships', () => {
 
     expect(catalog.collections[0]?.itemIds).toEqual(['keep']);
     expect(catalog.items.find(({ id }) => id === 'skip')?.collectionLinks).toEqual([]);
+  });
+
+  test('applies file metadata overrides without mutating configured values or Drive files', () => {
+    const files = [
+      driveFile('curated-id', 'חומר/curated.bin'),
+      driveFile('default-id', 'חומר/default.bin'),
+    ];
+    const config: CuratorConfig = {
+      files: {
+        'curated-id': {
+          titleHe: 'כותרת עברית',
+          descriptionHe: 'תיאור עברי',
+          aliasesHe: ['שם חלופי'],
+          tagsHe: ['תגית'],
+        },
+      },
+      collections: [],
+    };
+    const filesBefore = structuredClone(files);
+    const configBefore = structuredClone(config);
+
+    const catalog = resolveRelationships(files, config);
+
+    expect(catalog.items[0]).toMatchObject({
+      titleHe: 'כותרת עברית',
+      descriptionHe: 'תיאור עברי',
+      aliasesHe: ['שם חלופי'],
+      tagsHe: ['תגית'],
+    });
+    expect(catalog.items[1]).not.toHaveProperty('titleHe');
+    expect(catalog.items[1]).not.toHaveProperty('descriptionHe');
+    expect(catalog.items[1]?.aliasesHe).toEqual([]);
+    expect(catalog.items[1]?.tagsHe).toEqual([]);
+    expect(files).toEqual(filesBefore);
+    expect(config).toEqual(configBefore);
+    expect(catalog.items[0]?.aliasesHe).not.toBe(config.files?.['curated-id']?.aliasesHe);
+    expect(catalog.items[0]?.tagsHe).not.toBe(config.files?.['curated-id']?.tagsHe);
   });
 
   test('deduplicates identical overlapping links but preserves distinct relationship and group links', () => {

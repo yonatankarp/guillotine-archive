@@ -17,6 +17,49 @@ type FileWithOptionalActions = Pick<CatalogItem, 'name' | 'downloadUrl'> & {
 
 const FALLBACK_OFFICIAL_GROUP = 'חומרים רשמיים';
 
+export const ARCHIVE_PAGE_SIZE = 100;
+
+export interface ArchivePage<T> {
+  items: T[];
+  page: number;
+  pageCount: number;
+  itemCount: number;
+}
+
+export function archivePageNumbers(
+  itemCount: number,
+  pageSize = ARCHIVE_PAGE_SIZE,
+): number[] {
+  if (!Number.isSafeInteger(itemCount) || itemCount < 0) {
+    throw new Error('invalid archive item count');
+  }
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1) {
+    throw new Error('invalid archive page size');
+  }
+
+  const pageCount = Math.max(1, Math.ceil(itemCount / pageSize));
+  return Array.from({ length: pageCount }, (_, index) => index + 1);
+}
+
+export function paginateArchiveItems<T>(
+  items: readonly T[],
+  page: number,
+  pageSize = ARCHIVE_PAGE_SIZE,
+): ArchivePage<T> {
+  const pageCount = archivePageNumbers(items.length, pageSize).length;
+  if (!Number.isSafeInteger(page) || page < 1 || page > pageCount) {
+    throw new Error('invalid archive page');
+  }
+
+  const start = (page - 1) * pageSize;
+  return {
+    items: items.slice(start, start + pageSize),
+    page,
+    pageCount,
+    itemCount: items.length,
+  };
+}
+
 export function groupOfficialItems(
   collection: CatalogCollection,
   itemById: ReadonlyMap<string, CatalogItem>,

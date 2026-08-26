@@ -332,6 +332,50 @@ describe('validateCatalog', () => {
     ]);
   });
 
+  test('reports missing file metadata override references', () => {
+    const config = curator({
+      files: {
+        missing: { titleHe: 'כותרת חסרה' },
+      },
+    });
+
+    expect(validateCatalog(catalog([catalogItem('known')]), config).errors).toEqual([
+      'file metadata override references missing Drive item ID: missing',
+    ]);
+  });
+
+  test('rejects identical include and exclude selectors but permits narrower exclusions', () => {
+    const contradictory = curator({
+      collections: [
+        curatedCollection({
+          rules: [
+            { match: 'exact-path', value: 'חומר/file.bin', relationship: 'part-of-release' },
+          ],
+          exclude: [
+            { match: 'exact-path', value: 'חומר/file.bin', relationship: 'about' },
+          ],
+        }),
+      ],
+    });
+    const narrowerExclusion = curator({
+      collections: [
+        curatedCollection({
+          rules: [
+            { match: 'path-prefix', value: 'חומר', relationship: 'part-of-release' },
+          ],
+          exclude: [
+            { match: 'exact-path', value: 'חומר/skip.bin', relationship: 'part-of-release' },
+          ],
+        }),
+      ],
+    });
+
+    expect(validateCatalog(catalog([catalogItem('known')]), contradictory).errors).toEqual([
+      'collection piposh-1 has contradictory include/exclude selector: exact-path חומר/file.bin',
+    ]);
+    expect(validateCatalog(catalog([catalogItem('known')]), narrowerExclusion).errors).toEqual([]);
+  });
+
   test('reports unclassified IDs in item order with one deterministic warning', () => {
     const source = catalog([
       catalogItem('second'),
@@ -352,6 +396,25 @@ describe('validateCatalog', () => {
 });
 
 describe('buildCatalog', () => {
+  test('fails validation before downloads when a file metadata override target is missing', async () => {
+    const root = await temporaryRoot();
+    const download = vi.fn<(fileId: string) => Promise<Buffer>>();
+
+    await expect(
+      buildCatalog({
+        files: [driveFile('known')],
+        curator: curator({ files: { missing: { tagsHe: ['חסר'] } } }),
+        root,
+        generatedAt: '2026-08-26T12:00:00.000Z',
+        download,
+      }),
+    ).rejects.toThrow(/file metadata override references missing Drive item ID: missing/);
+    expect(await readJson(join(root, 'reports/curator-report.json'))).toMatchObject({
+      errors: ['file metadata override references missing Drive item ID: missing'],
+    });
+    expect(download).not.toHaveBeenCalled();
+  });
+
   test('sanitizes every exported failure object and diagnostic report recursively', async () => {
     const secretValues = [
       'Bearer eyJhbGciOiJIUzI1NiJ9.recursive-secret',

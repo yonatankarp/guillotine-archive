@@ -76,6 +76,62 @@ describe('parseCatalog', () => {
 
     expect(() => parseCatalog(JSON.stringify(candidate))).toThrow('generated catalog is invalid');
   });
+
+  describe.each([
+    ['javascript URL', 'javascript:alert(1)'],
+    ['data URL', 'data:text/html,unsafe'],
+    ['FTP URL', 'ftp://drive.google.com/file/d/one/view'],
+    ['HTTP URL', 'http://drive.google.com/file/d/one/view'],
+    ['credential-bearing URL', 'https://user:password@drive.google.com/file/d/one/view'],
+    ['unrelated host', 'https://example.com/file/d/one/view'],
+    ['lookalike host', 'https://drive.google.com.example.com/file/d/one/view'],
+  ])('with an unsafe %s', (_description, url) => {
+    test.each(['viewUrl', 'downloadUrl'] as const)('rejects it as %s', (field) => {
+      const candidate = {
+        ...validCatalog,
+        items: [{ ...validItem, [field]: url }],
+      };
+
+      expect(() => parseCatalog(JSON.stringify(candidate)), field).toThrow(
+        'generated catalog is invalid',
+      );
+    });
+  });
+
+  test.each([
+    {
+      viewUrl: 'https://drive.google.com/file/d/one/view?resourcekey=opaque-key',
+      downloadUrl: 'https://drive.google.com/uc?export=download&id=one&resourcekey=opaque-key',
+    },
+    {
+      viewUrl: 'https://docs.google.com/document/d/one/edit?usp=drive_link',
+      downloadUrl: 'https://docs.google.com/document/d/one/export?format=pdf',
+    },
+    {
+      viewUrl: 'https://drive.google.com/open?id=one',
+      downloadUrl: null,
+    },
+  ])('accepts HTTPS Drive and Docs URL shapes, including null downloads', (urls) => {
+    const candidate = {
+      ...validCatalog,
+      items: [{ ...validItem, ...urls }],
+    };
+
+    expect(parseCatalog(JSON.stringify(candidate)).items[0]).toMatchObject(urls);
+  });
+
+  test.each([
+    ['viewUrl', 'https://drive.google.com/file/d/different-item/view'],
+    ['viewUrl', 'https://docs.google.com/document/d/different-item/edit'],
+    ['downloadUrl', 'https://drive.google.com/uc?export=download&id=different-item'],
+  ] as const)('rejects a %s that references a different Drive item', (field, url) => {
+    const candidate = {
+      ...validCatalog,
+      items: [{ ...validItem, [field]: url }],
+    };
+
+    expect(() => parseCatalog(JSON.stringify(candidate))).toThrow('generated catalog is invalid');
+  });
 });
 
 describe('loadCatalog', () => {

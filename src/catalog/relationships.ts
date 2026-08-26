@@ -4,6 +4,7 @@ import type {
   CatalogItem,
   CollectionLink,
   CuratedCollection,
+  CuratedFileMetadata,
   CuratorConfig,
   CuratorRule,
   DriveFile,
@@ -44,13 +45,17 @@ function copyCollection(collection: CuratedCollection): CuratedCollection {
   };
 }
 
-function copyFile(file: DriveFile): CatalogItem {
+function copyFile(file: DriveFile, metadata?: CuratedFileMetadata): CatalogItem {
   return {
     ...file,
     parentIds: [...file.parentIds],
     category: categoryFromPath(file.path),
-    aliasesHe: [],
-    tagsHe: [],
+    ...(metadata?.titleHe === undefined ? {} : { titleHe: metadata.titleHe }),
+    ...(metadata?.descriptionHe === undefined
+      ? {}
+      : { descriptionHe: metadata.descriptionHe }),
+    aliasesHe: [...(metadata?.aliasesHe ?? [])],
+    tagsHe: [...(metadata?.tagsHe ?? [])],
     collectionLinks: [],
   };
 }
@@ -119,7 +124,14 @@ export function resolveRelationships(
   curatorConfig: Readonly<CuratorConfig>,
   generatedAt = new Date().toISOString(),
 ): Catalog {
-  const items = files.map(copyFile);
+  const items = files.map((file) =>
+    copyFile(
+      file,
+      curatorConfig.files && Object.hasOwn(curatorConfig.files, file.id)
+        ? curatorConfig.files[file.id]
+        : undefined,
+    ),
+  );
   const collections: CatalogCollection[] = curatorConfig.collections.map((sourceCollection) => {
     const collection = copyCollection(sourceCollection);
     const itemIds: string[] = [];

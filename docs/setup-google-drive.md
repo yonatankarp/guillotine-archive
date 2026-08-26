@@ -87,8 +87,8 @@ The build job runs in this order:
 4. synchronize Drive and generate the catalog, search index, covers, and curator report;
 5. run unit tests;
 6. build the production site with its project Pages base path;
-7. preview the already-built `dist` directory with the same project base path and run desktop
-   Chromium browser tests against that artifact without rebuilding it;
+7. preview the already-built `dist` directory with the same project base path and run every
+   configured Chromium viewport project against that artifact without rebuilding it;
 8. upload only `reports/curator-report.json` as the short-lived `curator-report` artifact;
 9. save the new baseline and upload the Pages artifact only after all validation succeeds;
 10. deploy in a separate job that depends on the complete build job.
@@ -114,13 +114,28 @@ the failed run does not publish its generated output.
 Use `curator/collections.yml` for durable editorial decisions. Add or refine official release
 relationships and cover IDs there, then check the change locally:
 
+Exceptional files can receive Hebrew search metadata without being assigned to a collection. Add
+an entry under `files:` keyed by the stable Drive file ID; `titleHe`, `descriptionHe`, `aliasesHe`,
+and `tagsHe` are optional:
+
+```yaml
+files:
+  DRIVE_FILE_ID:
+    titleHe: כותרת עברית
+    aliasesHe: [שם חלופי]
+    tagsHe: [תגית]
+```
+
+The production sync validates every key. An override that references a missing Drive item ID fails
+the build instead of silently leaving stale editorial metadata behind.
+
 ```bash
 npm ci
 npx playwright install chromium
 npm run sync:fixture
 npm test
 npm run build
-npm run test:e2e -- --project="Desktop Chrome"
+npm run test:e2e
 ```
 
 To reproduce the GitHub project Pages artifact gate locally, build and preview with the same
@@ -128,14 +143,15 @@ environment values:
 
 ```bash
 SITE_URL=https://example.github.io BASE_PATH=/guillotine-archive npm run build
-PLAYWRIGHT_USE_DIST=1 SITE_URL=https://example.github.io BASE_PATH=/guillotine-archive npm run test:e2e -- --project="Desktop Chrome"
+PLAYWRIGHT_USE_DIST=1 SITE_URL=https://example.github.io BASE_PATH=/guillotine-archive npm run test:e2e
 ```
 
 The fixture sync is deterministic, needs no Google credentials, and is the right default for local
-development. It intentionally omits production cover selections because those Drive IDs do not
-exist in the small local fixture; fixture pages therefore use the same honest fallback covers as a
-game without a selected scan. This affects only fixture synchronization. Production sync keeps the
-configured cover IDs and fails instead of silently ignoring a missing or unreadable selected cover.
+development. It intentionally omits production cover selections and production file overrides
+because those Drive IDs do not exist in the small local fixture; fixture pages therefore use the
+same honest fallback covers as a game without a selected scan. This affects only fixture
+synchronization. Production sync keeps the configured cover IDs and file overrides, and fails
+instead of silently ignoring a missing or unreadable referenced file.
 
 A real local import uses `npm run sync:drive` and requires the same two environment
 values as GitHub. Keep those values in a secure local secret store and out of commands that may be

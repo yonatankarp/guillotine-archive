@@ -8,6 +8,22 @@ const nonblankString = z
   .refine((value) => value.trim().length > 0);
 const exactTrimmedNonblankString = nonblankString.refine((value) => value === value.trim());
 const absoluteUrl = exactTrimmedNonblankString.pipe(z.url());
+const driveUrl = absoluteUrl.refine((value) => {
+  const url = new URL(value);
+  return (
+    url.protocol === 'https:' &&
+    (url.hostname === 'drive.google.com' || url.hostname === 'docs.google.com') &&
+    url.username === '' &&
+    url.password === ''
+  );
+});
+function driveUrlReferencesItem(value: string, itemId: string): boolean {
+  const url = new URL(value);
+  const pathId = url.pathname.match(/\/d\/([^/]+)/u)?.[1];
+  const referencedId =
+    pathId === undefined ? url.searchParams.get('id') : decodeURIComponent(pathId);
+  return referencedId === itemId;
+}
 const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
 const relationshipKind = z.enum(['part-of-release', 'about', 'inspired-by']);
 const curatorRule = z
@@ -52,8 +68,8 @@ const catalogItem = z
     modifiedTime: nonblankString.nullable(),
     path: nonblankString,
     parentIds: z.array(nonblankString),
-    viewUrl: absoluteUrl,
-    downloadUrl: absoluteUrl.nullable(),
+    viewUrl: driveUrl,
+    downloadUrl: driveUrl.nullable(),
     category: nonblankString,
     titleHe: nonblankString.optional(),
     descriptionHe: nonblankString.optional(),
@@ -62,7 +78,12 @@ const catalogItem = z
     extractedTextHe: z.string().optional(),
     collectionLinks: z.array(collectionLink),
   })
-  .strict();
+  .strict()
+  .refine(
+    (item) =>
+      driveUrlReferencesItem(item.viewUrl, item.id) &&
+      (item.downloadUrl === null || driveUrlReferencesItem(item.downloadUrl, item.id)),
+  );
 const catalogSchema = z
   .object({
     generatedAt: nonblankString,

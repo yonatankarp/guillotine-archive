@@ -2,6 +2,63 @@ import { describe, expect, test } from 'vitest';
 import { parseCurator } from '../../src/catalog/curator';
 
 describe('parseCurator', () => {
+  test('parses Drive-ID-keyed file metadata and defaults the mapping to empty', () => {
+    const config = parseCurator(`
+files:
+  drive-file_1:
+    titleHe: כותרת עברית
+    descriptionHe: תיאור עברי
+    aliasesHe: [שם חלופי]
+    tagsHe: [תגית]
+collections: []
+`);
+
+    expect(config.files).toEqual({
+      'drive-file_1': {
+        titleHe: 'כותרת עברית',
+        descriptionHe: 'תיאור עברי',
+        aliasesHe: ['שם חלופי'],
+        tagsHe: ['תגית'],
+      },
+    });
+    expect(parseCurator('collections: []').files).toEqual({});
+  });
+
+  test.each(['../outside', 'folder/id', 'file.id', '__proto__', 'constructor', 'prototype'])(
+    'rejects unsafe Drive file ID key %s',
+    (fileId) => {
+      expect(() =>
+        parseCurator(`
+files:
+  "${fileId}":
+    titleHe: כותרת
+collections: []
+`),
+      ).toThrow();
+    },
+  );
+
+  test('rejects unknown and blank file metadata', () => {
+    expect(() =>
+      parseCurator(`
+files:
+  valid-id:
+    titleHe: כותרת
+    unknownHe: ערך
+collections: []
+`),
+    ).toThrow();
+
+    expect(() =>
+      parseCurator(`
+files:
+  valid-id:
+    aliasesHe: ["   "]
+collections: []
+`),
+    ).toThrow();
+  });
+
   test('parses collection metadata and path-prefix rules', () => {
     const config = parseCurator(`
 minimumFileCount: 1000

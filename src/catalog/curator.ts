@@ -6,6 +6,18 @@ import type { CuratorConfig } from './types';
 const relationshipKindSchema = z.enum(['part-of-release', 'about', 'inspired-by']);
 const ruleMatchSchema = z.enum(['path-prefix', 'exact-path', 'file-id']);
 const nonblankStringSchema = z.string().refine((value) => value.trim().length > 0);
+const driveFileIdSchema = z
+  .string()
+  .regex(/^(?!(?:__proto__|prototype|constructor)$)[A-Za-z0-9_-]+$/u);
+
+const curatedFileMetadataSchema = z
+  .object({
+    titleHe: nonblankStringSchema.optional(),
+    descriptionHe: nonblankStringSchema.optional(),
+    aliasesHe: z.array(nonblankStringSchema).optional(),
+    tagsHe: z.array(nonblankStringSchema).optional(),
+  })
+  .strict();
 
 const curatorRuleSchema = z
   .object({
@@ -35,12 +47,24 @@ const curatedCollectionSchema = z
 const curatorConfigSchema = z
   .object({
     minimumFileCount: z.number().int().positive().default(1),
+    files: z.record(driveFileIdSchema, curatedFileMetadataSchema).default({}),
     collections: z.array(curatedCollectionSchema),
   })
   .strict();
 
 export function parseCurator(source: string): CuratorConfig {
-  const config = curatorConfigSchema.parse(parse(source));
+  const parsed: unknown = parse(source);
+  // Check raw keys because object reconstruction can otherwise lose the special __proto__ key.
+  if (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    'files' in parsed &&
+    typeof parsed.files === 'object' &&
+    parsed.files !== null
+  ) {
+    for (const fileId of Object.keys(parsed.files)) driveFileIdSchema.parse(fileId);
+  }
+  const config = curatorConfigSchema.parse(parsed);
   const slugs = new Set<string>();
 
   for (const collection of config.collections) {

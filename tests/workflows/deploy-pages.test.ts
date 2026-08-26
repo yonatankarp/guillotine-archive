@@ -261,7 +261,7 @@ describe('GitHub Pages deployment workflow', () => {
     });
   });
 
-  test('uses reproducible installs, a desktop Chromium gate, and no credential persistence', async () => {
+  test('uses reproducible installs, every configured Playwright project, and no credential persistence', async () => {
     const { workflow } = await loadWorkflow();
     const buildSteps = steps(
       record(record(workflow.jobs, 'jobs').build, 'jobs.build'),
@@ -280,9 +280,7 @@ describe('GitHub Pages deployment workflow', () => {
       'npx playwright install --with-deps chromium',
     );
     expect(namedStep(buildSteps, 'Run unit tests').run).toBe('npm test');
-    expect(namedStep(buildSteps, 'Run browser tests').run).toBe(
-      'npm run test:e2e -- --project="Desktop Chrome"',
-    );
+    expect(namedStep(buildSteps, 'Run browser tests').run).toBe('npm run test:e2e');
     expect(namedStep(buildSteps, 'Run browser tests').env).toEqual({
       PLAYWRIGHT_USE_DIST: '1',
       SITE_URL: 'https://${{ github.repository_owner }}.github.io',

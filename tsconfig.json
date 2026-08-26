@@ -1,0 +1,16 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "types": ["node"]
+  },
+  "include": [
+    ".astro/types.d.ts",
+    "src",
+    "scripts",
+    "tests",
+    "astro.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
+}

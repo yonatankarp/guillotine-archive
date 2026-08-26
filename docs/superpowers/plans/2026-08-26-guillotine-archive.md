@@ -6,7 +6,7 @@
 
 **Architecture:** Astro pre-renders the public pages from a generated catalog. A TypeScript synchronization pipeline reads Drive through a read-only adapter, applies version-controlled curator rules, extracts supported Hebrew text, optimizes selected covers, and writes deterministic catalog and MiniSearch artifacts. GitHub Actions runs that pipeline daily, validates it, and deploys only successful builds.
 
-**Tech Stack:** Node.js 22, Astro 7, TypeScript 7, Zod 4, Google APIs client, MiniSearch 7, Mammoth, html-to-text, Sharp, Vitest 4, Playwright 1.62, axe-core, GitHub Actions, GitHub Pages.
+**Tech Stack:** Node.js 22, Astro 7, TypeScript 6, Zod 4, Google APIs client, MiniSearch 7, Mammoth, html-to-text, Sharp, Vitest 4, Playwright 1.62, axe-core, GitHub Actions, GitHub Pages.
 
 ---
 
@@ -101,7 +101,7 @@ Create `package.json` with pinned direct dependencies:
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22 <23"
+    "node": ">=22.12 <23"
   },
   "scripts": {
     "dev": "astro dev",
@@ -132,7 +132,7 @@ Create `package.json` with pinned direct dependencies:
     "@types/html-to-text": "9.0.4",
     "@types/node": "22.20.1",
     "tsx": "4.23.12",
-    "typescript": "7.0.2",
+    "typescript": "6.0.3",
     "vitest": "4.1.11"
   }
 }
@@ -170,7 +170,7 @@ Create `tsconfig.json`:
   "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
     "noUncheckedIndexedAccess": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["node"]
   },
   "include": [".astro/types.d.ts", "src", "scripts", "tests", "astro.config.ts", "vitest.config.ts", "playwright.config.ts"]
 }
@@ -251,7 +251,8 @@ dist/
 coverage/
 playwright-report/
 test-results/
-.env
+.env*
+!.env.example
 .DS_Store
 reports/*.json
 public/generated/

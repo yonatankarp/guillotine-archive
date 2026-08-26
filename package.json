@@ -1,0 +1,41 @@
+{
+  "name": "guillotine-archive",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12 <23"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "sync:fixture": "tsx scripts/sync-fixture.ts",
+    "sync:drive": "tsx scripts/sync-drive.ts",
+    "assets:characters": "tsx scripts/process-character-assets.ts"
+  },
+  "dependencies": {
+    "@astrojs/check": "0.9.10",
+    "astro": "7.2.7",
+    "googleapis": "176.0.0",
+    "html-to-text": "10.0.1",
+    "mammoth": "1.12.1",
+    "minisearch": "7.2.0",
+    "sharp": "0.35.3",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.62.1",
+    "@types/html-to-text": "9.0.4",
+    "@types/node": "22.20.1",
+    "tsx": "4.23.12",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11"
+  }
+}

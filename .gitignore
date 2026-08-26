@@ -1,1 +1,14 @@
 .worktrees/
+node_modules/
+dist/
+.astro/
+coverage/
+playwright-report/
+test-results/
+.env*
+!.env.example
+.DS_Store
+reports/*.json
+public/generated/
+public/data/search-index.json
+src/generated/catalog.json

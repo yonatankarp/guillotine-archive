@@ -105,7 +105,7 @@ export function loadCatalog(path: string, allowMissing = true): Catalog {
 
 export const catalog = loadCatalog(
   resolve('src/generated/catalog.json'),
-  import.meta.env.DEV || process.env.NODE_ENV === 'test',
+  import.meta.env?.DEV === true || process.env.NODE_ENV === 'test',
 );
 export const games = catalog.collections.filter((collection) => collection.type === 'game');
 export const itemById = new Map(catalog.items.map((item) => [item.id, item]));

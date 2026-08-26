@@ -59,6 +59,7 @@ const QUOTE_MARKS = /["'`׳״“”‘’]+/gu;
 const PUNCTUATION_OR_SYMBOLS = /[\p{P}\p{S}]+/gu;
 const HEBREW_LETTERS = /[\u05D0-\u05EA]+/gu;
 const HEBREW_TERM = /^[\u05D0-\u05EA]+$/u;
+const NUMERIC_TERM = /^\p{Nd}+$/u;
 const SEARCH_FIELD_TIERS: Readonly<Record<string, number>> = {
   titleHe: 0,
   aliasesHe: 0,
@@ -91,6 +92,13 @@ function processHebrewTerm(term: string): string | null {
   const normalized = normalizeHebrew(term);
 
   return HEBREW_TERM.test(normalized) ? normalized : null;
+}
+
+function supportedQueryKey(value: string): string {
+  return normalizeHebrew(value)
+    .split(' ')
+    .filter((term) => HEBREW_TERM.test(term) || NUMERIC_TERM.test(term))
+    .join(' ');
 }
 
 export function getSearchOptions(): Options<SearchDocument> {
@@ -155,13 +163,25 @@ function compareResultIds(left: string, right: string): number {
   return left < right ? -1 : 1;
 }
 
-function compareSearchResults(left: ArchiveSearchResult, right: ArchiveSearchResult): number {
+function compareSearchResults(
+  left: ArchiveSearchResult,
+  right: ArchiveSearchResult,
+  normalizedQuery: string,
+): number {
   const leftKindRank = left.kind === 'collection' ? 0 : 1;
   const rightKindRank = right.kind === 'collection' ? 0 : 1;
   const kindDifference = leftKindRank - rightKindRank;
 
   if (kindDifference !== 0) {
     return kindDifference;
+  }
+
+  const exactTitleDifference =
+    Number(supportedQueryKey(right.titleHe) === normalizedQuery) -
+    Number(supportedQueryKey(left.titleHe) === normalizedQuery);
+
+  if (exactTitleDifference !== 0) {
+    return exactTitleDifference;
   }
 
   const tierDifference = bestMatchTier(left) - bestMatchTier(right);
@@ -207,7 +227,10 @@ export function createSearchEngine(existing?: MiniSearch<SearchDocument>): Searc
       const filtered = category
         ? matches.filter((result) => result.categories.includes(category))
         : matches;
-      const ordered = [...filtered].sort(compareSearchResults);
+      const normalizedQuery = supportedQueryKey(query);
+      const ordered = [...filtered].sort((left, right) =>
+        compareSearchResults(left, right, normalizedQuery),
+      );
 
       if (
         queryOptions.limit !== undefined &&

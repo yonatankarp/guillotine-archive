@@ -145,6 +145,76 @@ describe('Hebrew search index', () => {
     expect(search.search('piposh')).toEqual([]);
   });
 
+  test('ranks an exact numbered Hebrew collection title before sibling titles', () => {
+    const source = catalog({
+      collections: [
+        collection({
+          slug: 'piposh-1',
+          titleHe: 'פיפוש 1',
+          aliasesHe: ['פיפוש הראשון', 'פיפוש אחד'],
+          tagsHe: ['פיפוש', 'הרפתקה', 'קומדיה', 'גיליוטין', 'אנגלית', 'רוסית'],
+          summaryHe: 'פיפוש עולה למטוס, התעלומה עולה איתו',
+          descriptionHe: 'שלוש גרסאות בעברית, מהדורות רשמיות בשפות זרות והפתרון',
+          itemIds: ['english', 'hebrew', 'solution'],
+        }),
+        collection({
+          slug: 'piposh-2',
+          titleHe: 'פיפוש 2',
+          aliasesHe: ['פיפוש שתיים'],
+          tagsHe: ['פיפוש', 'הרפתקה', 'קומדיה', 'גיליוטין'],
+          summaryHe: 'פיפוש שוב הסתבך; הארכיון דווקא מסודר',
+          itemIds: [],
+        }),
+        collection({
+          slug: 'halom-shehitgashem',
+          titleHe: 'חלום שהתגשם',
+          aliasesHe: ['פיפוש חלום שהתגשם'],
+          tagsHe: ['פיפוש'],
+          summaryHe: 'חלום, חוברת ודיסק אודיו',
+          itemIds: [],
+        }),
+        collection({
+          slug: 'betochhei-harating',
+          titleHe: 'בתככי הרייטינג',
+          aliasesHe: ['תככי הרייטינג'],
+          tagsHe: ['פיפוש'],
+          summaryHe: 'שתי גרסאות, תיקונים והוראות',
+          itemIds: [],
+        }),
+        collection({
+          slug: 'piposh-revolution',
+          titleHe: 'פיפוש המהפכה',
+          aliasesHe: ['פיפוש שלוש', 'המהפכה'],
+          tagsHe: ['פיפוש'],
+          summaryHe: 'המהפכה אולי כאוטית',
+          itemIds: [],
+        }),
+      ],
+      items: [
+        item({ id: 'english' }),
+        item({
+          id: 'hebrew',
+          name: 'piposh1.exe',
+          path: 'משחקים מלאים/פיפוש 1/גרסה 2/piposh1.exe',
+        }),
+        item({
+          id: 'solution',
+          name: 'פיפוש 1 - פתרון.docx',
+          path: 'פתרונות/פיפוש 1 - פתרון.docx',
+          category: 'פתרונות',
+          extractedTextHe: 'זהו פתרון רשמי למשחק פיפוש הראשון',
+        }),
+      ],
+    });
+    const { search } = loadCatalogIndex(source);
+
+    for (const query of ['פיפוש 1', 'piposh פיפוש 1', 'פיפוש—1', 'פיפוש / 1']) {
+      expect(search.search(query).at(0)?.id, query).toBe('collection:piposh-1');
+    }
+    expect(search.search('piposh1')).toEqual([]);
+    expect(search.search('piposh1 פיפוש').at(0)?.id).toBe('collection:piposh-2');
+  });
+
   test('supports Hebrew prefixes and fuzzy matching only for terms of four letters or more', () => {
     const { search } = loadCatalogIndex(catalog());
 

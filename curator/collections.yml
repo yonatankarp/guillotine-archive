@@ -1,0 +1,95 @@
+minimumFileCount: 1000
+collections:
+  - slug: piposh-1
+    titleHe: פיפוש 1
+    type: game
+    year: 1999
+    summaryHe: פיפוש עולה למטוס, התעלומה עולה איתו, וקיבינימאט — עכשיו גם הקבצים מצטרפים לחקירה.
+    descriptionHe: שלוש גרסאות בעברית, מהדורות רשמיות בשפות זרות, החוברות, דיסק האודיו והפתרון — כולם באותו תיק חקירה.
+    aliasesHe: [פיפוש הראשון, פיפוש אחד]
+    tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין, אנגלית, רוסית]
+    rules:
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 1/גרסה 1, relationship: part-of-release, groupHe: גרסאות בעברית }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 1/גרסה 2, relationship: part-of-release, groupHe: גרסאות בעברית }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 1/גרסה 3, relationship: part-of-release, groupHe: גרסאות בעברית }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 1 - אנגלית, relationship: part-of-release, groupHe: מהדורות רשמיות בשפות זרות }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 1 - רוסית, relationship: part-of-release, groupHe: מהדורות רשמיות בשפות זרות }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 1/פיפוש 1 - חוברת משחק, relationship: part-of-release, groupHe: חוברות }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 1/פיפוש 1 - חוברת שירים, relationship: part-of-release, groupHe: חוברות }
+      - { match: path-prefix, value: שירים/דיסקים מלאים/פיפוש 1 - דיסק אודיו, relationship: part-of-release, groupHe: דיסק אודיו }
+      - { match: exact-path, value: פתרונות/פיפוש 1 - פתרון.docx, relationship: part-of-release, groupHe: פתרונות }
+    exclude: []
+
+  - slug: piposh-2
+    titleHe: פיפוש 2
+    type: game
+    summaryHe: שתי גרסאות, עטיפה, חוברת, מוזיקה ופתרון. פיפוש שוב הסתבך; הארכיון דווקא מסודר.
+    aliasesHe: [פיפוש שתיים]
+    tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
+    rules:
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 2/גרסה 1, relationship: part-of-release, groupHe: גרסאות המשחק }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 2/גרסה 2, relationship: part-of-release, groupHe: גרסאות המשחק }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש 2/פיפוש 2 - עטיפה, relationship: part-of-release, groupHe: עטיפה וחוברת }
+      - { match: path-prefix, value: שירים/פיפוש 2 שירים, relationship: part-of-release, groupHe: מוזיקה }
+      - { match: exact-path, value: פתרונות/פיפוש 2 - פתרון.docx, relationship: part-of-release, groupHe: פתרונות }
+    exclude:
+      - { match: exact-path, value: משחקים מלאים/פיפוש 2/פיפוש 2 - עטיפה/.DS_Store, relationship: part-of-release }
+
+  - slug: halom-shehitgashem
+    titleHe: חלום שהתגשם
+    type: game
+    summaryHe: שתי גרסאות של החלום, וכל מה שהתעורר לידן — חוברת, צ׳יטים ודיסק אודיו.
+    aliasesHe: [פיפוש חלום שהתגשם]
+    tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
+    rules:
+      - { match: path-prefix, value: משחקים מלאים/חלום שהתגשם/גרסה 1, relationship: part-of-release, groupHe: גרסאות המשחק }
+      - { match: path-prefix, value: משחקים מלאים/חלום שהתגשם/גרסה 2, relationship: part-of-release, groupHe: גרסאות המשחק }
+      - { match: path-prefix, value: משחקים מלאים/חלום שהתגשם/אריזה, relationship: part-of-release, groupHe: אריזה }
+      - { match: path-prefix, value: משחקים מלאים/חלום שהתגשם/חלום שהתגשם - חוברת, relationship: part-of-release, groupHe: חוברת }
+      - { match: path-prefix, value: משחקים מלאים/חלום שהתגשם/ציטים, relationship: part-of-release, groupHe: צ׳יטים }
+      - { match: path-prefix, value: שירים/דיסקים מלאים/חלום שהתגשם - דיסק אודיו, relationship: part-of-release, groupHe: דיסק אודיו }
+    exclude: []
+
+  - slug: betochhei-harating
+    titleHe: בתככי הרייטינג
+    type: game
+    summaryHe: שתי גרסאות, תיקונים, הוראות ופתרון. גם מאחורי הקלעים מישהו היה צריך לסדר את הקבצים.
+    aliasesHe: [תככי הרייטינג]
+    tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
+    rules:
+      - { match: path-prefix, value: משחקים מלאים/בתככי הרייטינג/גרסה 1, relationship: part-of-release, groupHe: גרסאות המשחק }
+      - { match: path-prefix, value: משחקים מלאים/בתככי הרייטינג/גרסה 2, relationship: part-of-release, groupHe: גרסאות המשחק }
+      - { match: path-prefix, value: משחקים מלאים/בתככי הרייטינג/קבצי תיקון, relationship: part-of-release, groupHe: קבצי תיקון }
+      - { match: exact-path, value: משחקים מלאים/בתככי הרייטינג/הוראות!.docx, relationship: part-of-release, groupHe: הוראות }
+      - { match: path-prefix, value: משחקים מלאים/בתככי הרייטינג/תככי הרייטינג - עטיפה, relationship: part-of-release, groupHe: עטיפה }
+      - { match: path-prefix, value: משחקים מלאים/בתככי הרייטינג/תככי הרייטינג - חוברת, relationship: part-of-release, groupHe: חוברת }
+      - { match: exact-path, value: פתרונות/תככי הרייטינג - פתרון.docx, relationship: part-of-release, groupHe: פתרונות }
+    exclude: []
+
+  - slug: vogimon
+    titleHe: ווג׳ימון
+    type: game
+    summaryHe: המשחק המלא, הבטא, החוברת והעטיפה. ארבעה פריטים, ואף אחד מהם לא ביקש להיכנס לכדור קטן.
+    aliasesHe: [ווגימון, ווג_ימון]
+    tagsHe: [ווגימון, קומדיה, גיליוטין]
+    rules:
+      - { match: exact-path, value: משחקים מלאים/ווג_ימון/vegimonfull.exe, relationship: part-of-release, groupHe: המשחק המלא }
+      - { match: path-prefix, value: משחקים מלאים/ווג_ימון/ווג_ימון - חוברת, relationship: part-of-release, groupHe: חוברת }
+      - { match: path-prefix, value: משחקים מלאים/ווג_ימון/ווג_ימון - עטיפה, relationship: part-of-release, groupHe: עטיפה }
+      - { match: path-prefix, value: דמואים/Vegimon_Beta1.0, relationship: part-of-release, groupHe: דמו בטא רשמי }
+    exclude:
+      - { match: exact-path, value: דמואים/Vegimon_Beta1.0/Thumbs.db, relationship: part-of-release }
+
+  - slug: piposh-revolution
+    titleHe: פיפוש המהפכה
+    type: game
+    summaryHe: שתי גרסאות, מפה, מוזיקה ופתרון. המהפכה אולי כאוטית; המדפים שלה לא.
+    aliasesHe: [פיפוש שלוש, המהפכה]
+    tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
+    rules:
+      - { match: path-prefix, value: משחקים מלאים/פיפוש המהפכה/גרסה 1, relationship: part-of-release, groupHe: גרסאות המשחק }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש המהפכה/גרסה 2, relationship: part-of-release, groupHe: גרסאות המשחק }
+      - { match: path-prefix, value: משחקים מלאים/פיפוש המהפכה/פיפוש המהפכה - מפת משחק, relationship: part-of-release, groupHe: מפת המשחק }
+      - { match: path-prefix, value: שירים/דיסקים מלאים/פיפוש המהפכה - דיסק אודיו, relationship: part-of-release, groupHe: דיסק אודיו }
+      - { match: exact-path, value: פתרונות/פיפוש המהפכה - פתרון.docx, relationship: part-of-release, groupHe: פתרונות }
+    exclude: []

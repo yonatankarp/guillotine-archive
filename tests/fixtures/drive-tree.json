@@ -1,0 +1,85 @@
+{
+  "rootId": "root",
+  "children": {
+    "root": [
+      {
+        "id": "folder-games",
+        "name": "משחקים מלאים",
+        "mimeType": "application/vnd.google-apps.folder",
+        "modifiedTime": "2026-08-26T10:00:00.000Z",
+        "parents": ["root"]
+      },
+      {
+        "id": "folder-solutions",
+        "name": "פתרונות",
+        "mimeType": "application/vnd.google-apps.folder",
+        "modifiedTime": "2026-08-26T10:00:00.000Z",
+        "parents": ["root"]
+      }
+    ],
+    "folder-games": [
+      {
+        "id": "folder-piposh-hebrew",
+        "name": "פיפוש 1",
+        "mimeType": "application/vnd.google-apps.folder",
+        "modifiedTime": "2026-08-26T10:00:00.000Z",
+        "parents": ["folder-games"]
+      },
+      {
+        "id": "folder-piposh-english",
+        "name": "פיפוש 1 - אנגלית",
+        "mimeType": "application/vnd.google-apps.folder",
+        "modifiedTime": "2026-08-26T10:00:00.000Z",
+        "parents": ["folder-games"]
+      }
+    ],
+    "folder-piposh-hebrew": [
+      {
+        "id": "folder-piposh-version-2",
+        "name": "גרסה 2",
+        "mimeType": "application/vnd.google-apps.folder",
+        "modifiedTime": "2026-08-26T10:00:00.000Z",
+        "parents": ["folder-piposh-hebrew"]
+      }
+    ],
+    "folder-piposh-version-2": [
+      {
+        "id": "piposh-hebrew",
+        "name": "piposh1.exe",
+        "mimeType": "application/x-msdownload",
+        "size": "1048576",
+        "modifiedTime": "2026-08-26T10:00:00.000Z",
+        "parents": ["folder-piposh-version-2"],
+        "webViewLink": "https://drive.google.com/file/d/piposh-hebrew/view",
+        "webContentLink": "https://drive.google.com/uc?export=download&id=piposh-hebrew"
+      }
+    ],
+    "folder-piposh-english": [
+      {
+        "id": "piposh-english",
+        "name": "piposh1-english.exe",
+        "mimeType": "application/x-msdownload",
+        "size": "1048576",
+        "modifiedTime": "2026-08-26T10:00:00.000Z",
+        "parents": ["folder-piposh-english"],
+        "webViewLink": "https://drive.google.com/file/d/piposh-english/view",
+        "webContentLink": "https://drive.google.com/uc?export=download&id=piposh-english"
+      }
+    ],
+    "folder-solutions": [
+      {
+        "id": "piposh-solution",
+        "name": "פיפוש 1 - פתרון.docx",
+        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "size": "980",
+        "modifiedTime": "2026-08-26T10:00:00.000Z",
+        "parents": ["folder-solutions"],
+        "webViewLink": "https://drive.google.com/file/d/piposh-solution/view",
+        "webContentLink": "https://drive.google.com/uc?export=download&id=piposh-solution"
+      }
+    ]
+  },
+  "docxText": {
+    "piposh-solution": "פתרון מלא לפיפוש 1: מתחילים במטוס וממשיכים בזהירות."
+  }
+}

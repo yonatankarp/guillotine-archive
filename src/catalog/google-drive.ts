@@ -1,15 +1,40 @@
 import { google } from 'googleapis';
+import type { drive_v3 } from 'googleapis';
 import type { DriveGateway, RemoteEntry } from './drive-gateway';
 
 const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 const FILE_FIELDS =
   'nextPageToken,files(id,name,mimeType,size,modifiedTime,parents,webViewLink,webContentLink)';
+export const MAX_DRIVE_DOWNLOAD_BYTES = 32 * 1024 * 1024;
+
+// googleapis declares files.get with six overloads. Expand them so this adapter's
+// option type stays tied to the generated API instead of accepting Axios-only fields.
+type OverloadArguments<T> = T extends {
+  (...args: infer A1): unknown;
+  (...args: infer A2): unknown;
+  (...args: infer A3): unknown;
+  (...args: infer A4): unknown;
+  (...args: infer A5): unknown;
+  (...args: infer A6): unknown;
+}
+  ? A1 | A2 | A3 | A4 | A5 | A6
+  : never;
+type SecondArgument<T> = T extends [unknown, infer Second, ...unknown[]] ? Second : never;
+export type DriveGetOptions = Exclude<
+  SecondArgument<OverloadArguments<drive_v3.Resource$Files['get']>>,
+  (...args: never[]) => unknown
+>;
+
+const DOWNLOAD_OPTIONS = {
+  responseType: 'arraybuffer',
+  maxContentLength: MAX_DRIVE_DOWNLOAD_BYTES,
+} satisfies DriveGetOptions;
 
 export interface DriveFilesClient {
   list(params: DriveListRequest): Promise<{
     data: { files?: unknown[] | null; nextPageToken?: string | null };
   }>;
-  get(params: DriveMediaRequest, options: ArrayBufferOptions): Promise<{ data: unknown }>;
+  get(params: DriveMediaRequest, options: DriveGetOptions): Promise<{ data: unknown }>;
 }
 
 interface DriveListRequest {
@@ -26,10 +51,6 @@ interface DriveMediaRequest {
   fileId: string;
   alt: 'media';
   supportsAllDrives: true;
-}
-
-interface ArrayBufferOptions {
-  responseType: 'arraybuffer';
 }
 
 export function createGoogleDriveGateway(credentialsJson: string): DriveGateway {
@@ -71,13 +92,32 @@ export function createDriveGatewayFromFilesClient(files: DriveFilesClient): Driv
     },
 
     async download(fileId) {
-      const response = await files.get(
-        { fileId, alt: 'media', supportsAllDrives: true },
-        { responseType: 'arraybuffer' },
-      );
-      return Buffer.from(response.data as ArrayBuffer);
+      try {
+        const response = await files.get(
+          { fileId, alt: 'media', supportsAllDrives: true },
+          DOWNLOAD_OPTIONS,
+        );
+        const buffer = toDownloadBuffer(response.data);
+
+        if (buffer.byteLength > MAX_DRIVE_DOWNLOAD_BYTES) {
+          throw new Error('response too large');
+        }
+
+        return buffer;
+      } catch {
+        throw new Error('Drive file download failed');
+      }
     },
   };
+}
+
+function toDownloadBuffer(value: unknown): Buffer {
+  if (value instanceof ArrayBuffer) return Buffer.from(value);
+  if (ArrayBuffer.isView(value)) {
+    return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
+  }
+
+  throw new Error('malformed response');
 }
 
 function toRemoteEntry(file: unknown): RemoteEntry {

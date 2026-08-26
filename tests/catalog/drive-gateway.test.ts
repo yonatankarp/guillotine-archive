@@ -6,6 +6,7 @@ import {
   type RemoteEntry,
 } from '../../src/catalog/drive-gateway';
 import {
+  MAX_DRIVE_DOWNLOAD_BYTES,
   createDriveGatewayFromFilesClient,
   type DriveFilesClient,
 } from '../../src/catalog/google-drive';
@@ -210,7 +211,44 @@ describe('createDriveGatewayFromFilesClient', () => {
     await expect(gateway.download('file-id')).resolves.toEqual(Buffer.from([1, 2, 3]));
     expect(get).toHaveBeenCalledWith(
       { fileId: 'file-id', alt: 'media', supportsAllDrives: true },
-      { responseType: 'arraybuffer' },
+      {
+        responseType: 'arraybuffer',
+        maxContentLength: MAX_DRIVE_DOWNLOAD_BYTES,
+      },
     );
+  });
+
+  test('accepts an exact-boundary download and rejects an oversized response generically', async () => {
+    const get = vi
+      .fn<DriveFilesClient['get']>()
+      .mockResolvedValueOnce({ data: new ArrayBuffer(MAX_DRIVE_DOWNLOAD_BYTES) })
+      .mockResolvedValueOnce({ data: new ArrayBuffer(MAX_DRIVE_DOWNLOAD_BYTES + 1) });
+    const gateway = createDriveGatewayFromFilesClient({ list: vi.fn(), get });
+
+    await expect(gateway.download('at-limit')).resolves.toHaveLength(MAX_DRIVE_DOWNLOAD_BYTES);
+    await expect(gateway.download('too-large')).rejects.toThrow('Drive file download failed');
+  });
+
+  test('preserves the selected bytes of an ArrayBuffer view', async () => {
+    const source = Uint8Array.from([9, 1, 2, 3, 8]);
+    const data = new Uint8Array(source.buffer, 1, 3);
+    const gateway = createDriveGatewayFromFilesClient({
+      list: vi.fn(),
+      get: vi.fn<DriveFilesClient['get']>().mockResolvedValue({ data }),
+    });
+
+    await expect(gateway.download('view')).resolves.toEqual(Buffer.from([1, 2, 3]));
+  });
+
+  test('replaces transport and malformed-response details with a safe download error', async () => {
+    const secret = 'private_key material';
+    const get = vi
+      .fn<DriveFilesClient['get']>()
+      .mockRejectedValueOnce(new Error(secret))
+      .mockResolvedValueOnce({ data: 'not binary' });
+    const gateway = createDriveGatewayFromFilesClient({ list: vi.fn(), get });
+
+    await expect(gateway.download('transport')).rejects.toThrow(/^Drive file download failed$/);
+    await expect(gateway.download('malformed')).rejects.toThrow('Drive file download failed');
   });
 });

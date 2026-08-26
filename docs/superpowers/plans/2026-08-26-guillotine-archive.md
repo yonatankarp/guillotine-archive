@@ -752,7 +752,7 @@ Create `tests/catalog/search.test.ts`:
 ```ts
 import MiniSearch from 'minisearch';
 import { describe, expect, it } from 'vitest';
-import { buildSearchIndex, createSearchEngine, extractHebrewTokens, normalizeHebrew } from '../../src/catalog/search';
+import { buildSearchIndex, createSearchEngine, extractHebrewTokens, getSearchOptions, normalizeHebrew, type SearchDocument } from '../../src/catalog/search';
 import type { Catalog } from '../../src/catalog/types';
 
 const catalog: Catalog = {
@@ -767,16 +767,24 @@ describe('Hebrew search', () => {
     expect(normalizeHebrew('פִּיפּוֹשׁ מלך')).toBe(normalizeHebrew('פיפוש מלכ'));
   });
 
+  it('separates Hebrew punctuation while removing quote marks inside words', () => {
+    expect(normalizeHebrew('בית־ספר')).toBe('בית ספר');
+    expect(normalizeHebrew('צה״ל')).toBe('צהל');
+    expect(normalizeHebrew('ג׳ורג׳')).toBe('גורג');
+  });
+
   it('does not produce supported query tokens from Latin filenames', () => {
     expect(extractHebrewTokens('piposh1-english.exe')).toEqual([]);
   });
 
   it('finds an English-named edition through Hebrew collection metadata', () => {
     const serialized = buildSearchIndex(catalog);
-    const engine = createSearchEngine(MiniSearch.loadJSON(serialized, createSearchEngine().options));
+    const engine = createSearchEngine(MiniSearch.loadJSON<SearchDocument>(serialized, getSearchOptions()));
     const ids = engine.search('פיפוש 1').map((result) => result.id);
+    expect(ids[0]).toBe('collection:piposh-1');
     expect(ids).toContain('collection:piposh-1');
     expect(ids).toContain('file:english');
+    expect(engine.search('פיפוש', { category: 'משחקים מלאים', limit: 1 })).toHaveLength(1);
     expect(engine.search('piposh')).toEqual([]);
   });
 });
@@ -794,21 +802,68 @@ Create `src/catalog/search.ts`:
 
 ```ts
 import MiniSearch, { type Options, type SearchResult } from 'minisearch';
-import type { Catalog } from './types';
+import type { Catalog, CollectionLink } from './types';
 
-interface SearchDocument {
-  id: string;
+export interface SearchResultMetadata {
   kind: 'collection' | 'file';
   titleHe: string;
-  aliasesHe: string;
-  pathHe: string;
-  tagsHe: string;
-  textHe: string;
   href: string;
   category: string;
+  categories: string[];
   filename: string;
-  viewUrl: string;
-  downloadUrl: string;
+  path: string;
+  mimeType: string;
+  size: number | null;
+  collectionLinks: CollectionLink[];
+  viewUrl: string | null;
+  downloadUrl: string | null;
+}
+
+export interface SearchDocument extends SearchResultMetadata {
+  id: string;
+  aliasesHe: string;
+  pathHe: string;
+  relationshipsHe: string;
+  tagsHe: string;
+  categoriesHe: string;
+  descriptionHe: string;
+  textHe: string;
+}
+
+type MiniSearchResultFields = Pick<SearchResult, 'terms' | 'queryTerms' | 'score' | 'match'>;
+export type ArchiveSearchResult = MiniSearchResultFields & SearchResultMetadata & { id: string };
+export interface ArchiveSearchOptions { category?: string; limit?: number; }
+
+const fieldTiers: Readonly<Record<string, number>> = {
+  titleHe: 0, aliasesHe: 0,
+  pathHe: 1, relationshipsHe: 1,
+  tagsHe: 2, categoriesHe: 2, descriptionHe: 2,
+  textHe: 3,
+};
+
+function bestTier(result: ArchiveSearchResult): number {
+  if (!result.match || typeof result.match !== 'object') return 4;
+  let tier = 4;
+  for (const fields of Object.values(result.match as Record<string, unknown>)) {
+    if (!Array.isArray(fields)) continue;
+    for (const field of fields) {
+      if (typeof field === 'string') tier = Math.min(tier, fieldTiers[field] ?? 4);
+    }
+  }
+  return tier;
+}
+
+function compareResults(left: ArchiveSearchResult, right: ArchiveSearchResult): number {
+  const leftKind = left.kind === 'collection' ? 0 : 1;
+  const rightKind = right.kind === 'collection' ? 0 : 1;
+  const kind = leftKind - rightKind;
+  if (kind) return kind;
+  const tier = bestTier(left) - bestTier(right);
+  if (tier) return tier;
+  const leftScore = Number.isFinite(left.score) ? left.score : Number.NEGATIVE_INFINITY;
+  const rightScore = Number.isFinite(right.score) ? right.score : Number.NEGATIVE_INFINITY;
+  const score = rightScore - leftScore;
+  return score || (left.id === right.id ? 0 : left.id < right.id ? -1 : 1);
 }
 
 const finalLetters: Record<string, string> = { ך: 'כ', ם: 'מ', ן: 'נ', ף: 'פ', ץ: 'צ' };
@@ -816,9 +871,11 @@ const finalLetters: Record<string, string> = { ך: 'כ', ם: 'מ', ן: 'נ', ף:
 export function normalizeHebrew(value: string): string {
   return value
     .normalize('NFKD')
-    .replace(/[\u0591-\u05C7]/gu, '')
+    .replace(/[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/gu, '')
+    .replace(/["'`׳״“”‘’]+/gu, '')
+    .replace(/[\u05BE\u05C0\u05C3\u05C6]/gu, ' ')
     .replace(/[ךםןףץ]/gu, (letter) => finalLetters[letter] ?? letter)
-    .replace(/[״׳'"`.,:;!?()[\]{}\-_/\\]+/gu, ' ')
+    .replace(/[\p{P}\p{S}]+/gu, ' ')
     .replace(/\s+/gu, ' ')
     .trim();
 }
@@ -827,10 +884,10 @@ export function extractHebrewTokens(value: string): string[] {
   return normalizeHebrew(value).match(/[\u05D0-\u05EA]+/gu) ?? [];
 }
 
-function searchOptions(): Options<SearchDocument> {
+export function getSearchOptions(): Options<SearchDocument> {
   return {
-    fields: ['titleHe', 'aliasesHe', 'pathHe', 'tagsHe', 'textHe'],
-    storeFields: ['kind', 'titleHe', 'href', 'category', 'filename', 'viewUrl', 'downloadUrl'],
+    fields: ['titleHe', 'aliasesHe', 'pathHe', 'relationshipsHe', 'tagsHe', 'categoriesHe', 'descriptionHe', 'textHe'],
+    storeFields: ['kind', 'titleHe', 'href', 'category', 'categories', 'filename', 'path', 'mimeType', 'size', 'collectionLinks', 'viewUrl', 'downloadUrl'],
     tokenize: extractHebrewTokens,
     processTerm: (term) => normalizeHebrew(term) || null,
     idField: 'id',
@@ -838,54 +895,93 @@ function searchOptions(): Options<SearchDocument> {
 }
 
 export function createSearchEngine(existing?: MiniSearch<SearchDocument>) {
-  const engine = existing ?? new MiniSearch<SearchDocument>(searchOptions());
+  const engine = existing ?? new MiniSearch<SearchDocument>(getSearchOptions());
   return {
-    options: searchOptions(),
+    options: getSearchOptions(),
     engine,
-    search(query: string): SearchResult[] {
+    search(query: string, options: ArchiveSearchOptions = {}): ArchiveSearchResult[] {
       if (extractHebrewTokens(query).length === 0) return [];
-      return engine.search(query, {
+      const matches = engine.search(query, {
         prefix: true,
         fuzzy: (term) => term.length >= 4 ? 0.2 : false,
-        boost: { titleHe: 5, aliasesHe: 4, pathHe: 3, tagsHe: 2, textHe: 1 },
-      });
+        boost: { titleHe: 5, aliasesHe: 4, pathHe: 3, relationshipsHe: 3, tagsHe: 2, categoriesHe: 2, descriptionHe: 2, textHe: 1 },
+      }) as ArchiveSearchResult[];
+      const { category } = options;
+      const filtered = category ? matches.filter((result) => result.categories.includes(category)) : matches;
+      const ordered = [...filtered].sort(compareResults);
+      return options.limit && Number.isFinite(options.limit) && options.limit > 0
+        ? ordered.slice(0, Math.max(1, Math.floor(options.limit)))
+        : ordered;
     },
   };
+}
+
+function uniqueStrings(values: Iterable<string | undefined>): string[] {
+  return [...new Set([...values].filter((value): value is string => Boolean(value)))];
+}
+
+function uniqueHebrewSearchValues(values: Iterable<string | undefined>): string[] {
+  return [...new Set([...values]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => extractHebrewTokens(value).join(' '))
+    .filter(Boolean))];
+}
+
+function collectionCategories(catalog: Catalog, itemIds: readonly string[]): string[] {
+  const officialIds = new Set(itemIds);
+  return uniqueStrings(catalog.items.filter((item) => officialIds.has(item.id)).map((item) => item.category));
 }
 
 export function buildSearchIndex(catalog: Catalog): string {
   const documents: SearchDocument[] = [];
   for (const collection of catalog.collections) {
+    const categories = collectionCategories(catalog, collection.itemIds);
     documents.push({
       id: `collection:${collection.slug}`,
       kind: 'collection',
       titleHe: collection.titleHe,
       aliasesHe: collection.aliasesHe.join(' '),
       pathHe: '',
+      relationshipsHe: '',
       tagsHe: collection.tagsHe.join(' '),
-      textHe: [collection.summaryHe, collection.descriptionHe ?? ''].join(' '),
-      href: `/games/${collection.slug}/`,
-      category: collection.type,
+      categoriesHe: categories.join(' '),
+      descriptionHe: [collection.summaryHe, collection.descriptionHe ?? ''].filter(Boolean).join(' '),
+      textHe: '',
+      href: collection.type === 'game' ? `/games/${collection.slug}/` : '/archive/',
+      category: categories[0] ?? '',
+      categories,
       filename: '',
-      viewUrl: '',
-      downloadUrl: '',
+      path: '',
+      mimeType: '',
+      size: null,
+      collectionLinks: [],
+      viewUrl: null,
+      downloadUrl: null,
     });
   }
   for (const item of catalog.items) {
-    const inherited = item.collectionLinks.map((link) => link.titleHe).join(' ');
+    const relationships = uniqueHebrewSearchValues(item.collectionLinks.flatMap((link) => [link.titleHe, link.groupHe]));
     documents.push({
       id: `file:${item.id}`,
       kind: 'file',
-      titleHe: [item.titleHe ?? '', inherited].join(' '),
+      titleHe: item.titleHe ?? '',
       aliasesHe: item.aliasesHe.join(' '),
       pathHe: extractHebrewTokens(item.path).join(' '),
+      relationshipsHe: relationships.join(' '),
       tagsHe: item.tagsHe.join(' '),
-      textHe: item.extractedTextHe,
+      categoriesHe: item.category,
+      descriptionHe: item.descriptionHe ?? '',
+      textHe: item.extractedTextHe ?? '',
       href: item.viewUrl,
       category: item.category,
+      categories: [item.category],
       filename: item.name,
+      path: item.path,
+      mimeType: item.mimeType,
+      size: item.size,
+      collectionLinks: item.collectionLinks.map((link) => ({ ...link })),
       viewUrl: item.viewUrl,
-      downloadUrl: item.downloadUrl ?? '',
+      downloadUrl: item.downloadUrl,
     });
   }
   const engine = createSearchEngine().engine;
@@ -898,7 +994,7 @@ export function buildSearchIndex(catalog: Catalog): string {
 
 Run: `npm test -- tests/catalog/search.test.ts`
 
-Expected: 3 tests pass, including the explicit absence of Latin-only query support.
+Expected: normalization, normalized relationship deduplication, archive-scale hard relevance tiers, collection-first ordering, category filtering, display limits, typed string IDs, and the explicit absence of Latin-only query support all pass.
 
 - [ ] **Step 5: Commit Hebrew search**
 
@@ -1781,7 +1877,6 @@ git commit -m "feat: add interlinked game and archive pages"
 ### Task 11: Add interactive Hebrew search and failure fallback
 
 **Files:**
-- Modify: `src/catalog/search.ts`
 - Create: `src/components/ArchiveSearch.astro`
 - Create: `src/scripts/search-client.ts`
 - Create: `src/pages/search.astro`
@@ -1826,20 +1921,18 @@ Run: `npm run test:e2e -- --project=desktop-chromium --grep "search"`
 
 Expected: FAIL because `/search/` and the browser search component do not exist.
 
-- [ ] **Step 3: Export the shared MiniSearch options**
+- [ ] **Step 3: Reuse the shared typed MiniSearch contract**
 
-In `src/catalog/search.ts`, rename `searchOptions` to the exported function below and update both internal calls to use `getSearchOptions()`:
+Task 6 already exports `getSearchOptions`, `ArchiveSearchResult`, and the category-aware `createSearchEngine` wrapper. Browser code must load the serialized index with those exact options and call the wrapper for collection-first ordering and category-array filtering. Keep the search unbounded long enough to retain the true total, then cap rendering separately:
 
 ```ts
-export function getSearchOptions(): Options<SearchDocument> {
-  return {
-    fields: ['titleHe', 'aliasesHe', 'pathHe', 'tagsHe', 'textHe'],
-    storeFields: ['kind', 'titleHe', 'href', 'category', 'filename', 'viewUrl', 'downloadUrl'],
-    tokenize: extractHebrewTokens,
-    processTerm: (term) => normalizeHebrew(term) || null,
-    idField: 'id',
-  };
-}
+const engine = createSearchEngine(
+  MiniSearch.loadJSON<SearchDocument>(serialized, getSearchOptions()),
+);
+const matches = engine.search(query, {
+  category: selectedCategory || undefined,
+});
+const visibleMatches = matches.slice(0, 100);
 ```
 
 - [ ] **Step 4: Create the search markup**
@@ -1892,8 +1985,8 @@ import { catalog } from '../lib/catalog';
 Create `src/scripts/search-client.ts`:
 
 ```ts
-import MiniSearch, { type SearchResult } from 'minisearch';
-import { createSearchEngine, extractHebrewTokens, getSearchOptions } from '../catalog/search';
+import MiniSearch from 'minisearch';
+import { createSearchEngine, extractHebrewTokens, getSearchOptions, type ArchiveSearchResult, type SearchDocument } from '../catalog/search';
 
 const root = document.querySelector<HTMLElement>('[data-search-root]');
 const form = root?.querySelector<HTMLFormElement>('[data-search-form]');
@@ -1915,7 +2008,7 @@ function appendText(parent: HTMLElement, tag: 'strong' | 'small' | 'span', text:
   return node;
 }
 
-function renderResult(result: SearchResult): HTMLLIElement {
+function renderResult(result: ArchiveSearchResult): HTMLLIElement {
   const item = document.createElement('li');
   const title = result.kind === 'collection' ? String(result.titleHe) : String(result.filename);
   const link = document.createElement('a');
@@ -1940,16 +2033,22 @@ async function start(): Promise<void> {
   try {
     const response = await fetch(`${base}data/search-index.json`);
     if (!response.ok) throw new Error(`search index returned ${response.status}`);
-    const engine = createSearchEngine(MiniSearch.loadJSON(await response.text(), getSearchOptions()));
+    const engine = createSearchEngine(MiniSearch.loadJSON<SearchDocument>(await response.text(), getSearchOptions()));
     const run = () => {
       const query = input.value.trim();
       list.replaceChildren();
       if (query && extractHebrewTokens(query).length === 0) { status.textContent = 'החיפוש באתר הוא בעברית.'; return; }
       if (!query) { status.textContent = 'כתבו משהו בעברית. המחשב כבר יילחץ בעצמו.'; return; }
-      const matches = engine.search(query).filter((result) => !category.value || result.category === category.value);
-      matches.sort((left, right) => left.kind === right.kind ? right.score - left.score : left.kind === 'collection' ? -1 : 1);
-      for (const match of matches) list.append(renderResult(match));
-      status.textContent = matches.length > 0 ? `${matches.length} תוצאות` : 'לא מצאנו. אפילו לא מתחת לשטיח.';
+      const matches = engine.search(query, { category: category.value || undefined });
+      const visibleMatches = matches.slice(0, 100);
+      for (const match of visibleMatches) list.append(renderResult(match));
+      if (matches.length === 0) {
+        status.textContent = 'לא מצאנו. אפילו לא מתחת לשטיח.';
+      } else if (matches.length > 100) {
+        status.textContent = `${matches.length} תוצאות. מוצגות רק 100 התוצאות הראשונות.`;
+      } else {
+        status.textContent = `${matches.length} תוצאות`;
+      }
     };
     form.addEventListener('submit', (event) => { event.preventDefault(); run(); });
     category.addEventListener('change', run);

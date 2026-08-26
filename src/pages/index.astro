@@ -1,13 +1,58 @@
-<!doctype html>
-<html lang="he" dir="rtl">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <title>ארכיון גיליוטין</title>
-  </head>
-  <body>
-    <main>
-      <h1>ארכיון גיליוטין</h1>
-    </main>
-  </body>
-</html>
+---
+import GameTile from '../components/GameTile.astro';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { games } from '../lib/catalog';
+import { homepageGameSummary } from '../lib/homepage';
+import { sitePath } from '../lib/url';
+---
+
+<BaseLayout title="ארכיון גיליוטין">
+  <section class="hero" aria-labelledby="hero-title">
+    <div>
+      <p class="issue-label">תיק ציבורי / לעיון חופשי</p>
+      <h1 id="hero-title">ארכיון גיליוטין</h1>
+    </div>
+    <div class="hero-copy">
+      <p>כל המשחקים, החוברות והמוזיקה שההיסטוריה השאירה אצלנו. קיבינימאט, עכשיו גם אפשר למצוא אותם.</p>
+      <form
+        class="search-form"
+        action={sitePath('search/')}
+        method="get"
+        role="search"
+        aria-label="חיפוש בארכיון"
+      >
+        <label class="visually-hidden" for="home-search">חיפוש בארכיון</label>
+        <div class="search-controls">
+          <input
+            id="home-search"
+            name="q"
+            type="search"
+            placeholder="מה מחפשים? בעברית, בבקשה."
+            autocomplete="off"
+            aria-describedby="home-search-hint"
+          />
+          <button type="submit">לחקור</button>
+        </div>
+        <span class="search-hint" id="home-search-hint">החיפוש הרשמי מבין עברית. שמות קבצים בשפות אחרות יופיעו דרך המשחק שאליו הם שייכים.</span>
+      </form>
+    </div>
+  </section>
+
+  <section class="games-section" aria-labelledby="games-heading">
+    <div class="section-heading">
+      <h2 id="games-heading">ששת החשודים הרגילים</h2>
+      <p>כל משחק הוא תיק מסודר של גרסאות, חוברות, מוזיקה וחומרים רשמיים. לפחות מישהו כאן מתנהג במקצועיות.</p>
+    </div>
+    <ol class="game-grid">
+      {games.map((game, position) => (
+        <li>
+          <GameTile
+            game={game}
+            position={position}
+            summary={homepageGameSummary(game.slug, game.summaryHe)}
+          />
+        </li>
+      ))}
+    </ol>
+  </section>
+</BaseLayout>

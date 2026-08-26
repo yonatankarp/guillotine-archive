@@ -20,5 +20,12 @@ export default defineConfig({
       name: 'Pixel 7',
       use: { ...devices['Pixel 7'] },
     },
+    {
+      name: '320px',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 320, height: 800 },
+      },
+    },
   ],
 });

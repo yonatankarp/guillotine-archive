@@ -1,0 +1,19 @@
+---
+import { sitePath } from '../lib/url';
+---
+
+<header class="site-header">
+  <a class="brand" href={sitePath()} aria-label="ארכיון גיליוטין — דף הבית">
+    <span class="brand-mark" aria-hidden="true">ג׳</span>
+    <span>
+      <strong>ארכיון גיליוטין</strong>
+      <small>המחלקה לעניינים שנשמרו במקרה</small>
+    </span>
+  </a>
+  <nav aria-label="ניווט ראשי">
+    <a href={sitePath('games/')}>משחקים</a>
+    <a href={sitePath('archive/')}>כל הארכיון</a>
+    <a href={sitePath('search/')}>חיפוש</a>
+    <a href={sitePath('about/')}>על הארכיון</a>
+  </nav>
+</header>

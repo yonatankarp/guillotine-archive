@@ -1,0 +1,35 @@
+---
+import Header from '../components/Header.astro';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = 'הארכיון הציבורי למשחקי גיליוטין ולחומרי התקופה',
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#f6f0df" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">דלגו לתוכן</a>
+    <Header />
+    <main id="main">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <p><strong>הבהרה מטעם ההנהלה:</strong> הקבצים המקוריים נשארים ב־Google Drive, ומשם גם מציגים ומורידים אותם.</p>
+    </footer>
+  </body>
+</html>

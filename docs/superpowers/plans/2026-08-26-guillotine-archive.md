@@ -480,180 +480,29 @@ git commit -m "feat: validate curator collection rules"
 - Create: `src/catalog/google-drive.ts`
 - Create: `tests/catalog/drive-gateway.test.ts`
 
-- [ ] **Step 1: Write the failing recursive traversal test**
+- [ ] **Step 1: Write failing scanner and adapter tests**
 
-Create `tests/catalog/drive-gateway.test.ts`:
+Cover stable Hebrew paths, breadth-first traversal, folder-cycle prevention (each folder ID is listed once), duplicate file-ID rejection with both paths, and download policy. Folders stay out of results; Google-native files and shortcuts are always view-only (`downloadUrl: null`), even when a gateway supplies a content link; ordinary files preserve provided content links. Shortcuts are not followed.
 
-```ts
-import { describe, expect, it } from 'vitest';
-import { scanDrive, type DriveGateway, type RemoteEntry } from '../../src/catalog/drive-gateway';
+Exercise the production request logic through an injected structural `files` client: two-page listing, escaped backslashes/apostrophes in parent queries, exact fields/order/page size, Shared Drive flags, malformed response failure, and media-byte download behavior.
 
-const tree: Record<string, RemoteEntry[]> = {
-  root: [
-    { id: 'games', name: 'משחקים מלאים', mimeType: 'application/vnd.google-apps.folder' },
-    { id: 'song', name: 'שיר.mp3', mimeType: 'audio/mpeg', size: '20' },
-  ],
-  games: [
-    { id: 'piposh', name: 'פיפוש 1', mimeType: 'application/vnd.google-apps.folder' },
-  ],
-  piposh: [
-    { id: 'exe', name: 'piposh1.exe', mimeType: 'application/x-msdownload', size: '100' },
-  ],
-};
+- [ ] **Step 2: Implement `scanDrive` identity and download behavior**
 
-const gateway: DriveGateway = {
-  listChildren: async (folderId) => tree[folderId] ?? [],
-  download: async () => Buffer.alloc(0),
-};
+Seed a visited-folder ID set with the root and only enqueue unseen folders. Track emitted file IDs with membership checks (including empty paths) and fail with the duplicate ID and both paths. Preserve remote metadata and view URLs; MIME types starting `application/vnd.google-apps.` are view-only before any content-link consideration. Ordinary binaries preserve a supplied content link or receive the `/uc?export=download&id=` fallback.
 
-describe('scanDrive', () => {
-  it('returns files with stable normalized paths and Drive links', async () => {
-    const files = await scanDrive('root', gateway);
-    expect(files.map((file) => file.path)).toEqual([
-      'משחקים מלאים/פיפוש 1/piposh1.exe',
-      'שיר.mp3',
-    ]);
-    expect(files[0]?.viewUrl).toBe('https://drive.google.com/file/d/exe/view');
-    expect(files[0]?.downloadUrl).toContain('id=exe');
-  });
-});
-```
+- [ ] **Step 3: Implement the production Drive adapter behind an injection seam**
 
-- [ ] **Step 2: Run the test to verify it fails**
+`createGoogleDriveGateway` parses credentials, creates read-only auth, creates the v3 client, and delegates to `createDriveGatewayFromFilesClient`. The latter paginates `files.list` with exact parent filtering, escaped IDs, requested metadata fields, `orderBy: 'folder,name'`, `pageSize: 1000`, `supportsAllDrives: true`, and `includeItemsFromAllDrives: true`. It must fail fast on records missing `id`, `name`, or `mimeType`, rather than skipping them. Downloads use `alt: 'media'`, `supportsAllDrives: true`, and `arraybuffer` responses.
 
-Run: `npm test -- tests/catalog/drive-gateway.test.ts`
-
-Expected: FAIL because the gateway module does not exist.
-
-- [ ] **Step 3: Implement the gateway contract and traversal**
-
-Create `src/catalog/drive-gateway.ts`:
-
-```ts
-import type { DriveFile } from './types';
-
-export const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder';
-
-export interface RemoteEntry {
-  id: string;
-  name: string;
-  mimeType: string;
-  size?: string | null;
-  modifiedTime?: string | null;
-  parents?: string[] | null;
-  webViewLink?: string | null;
-  webContentLink?: string | null;
-}
-
-export interface DriveGateway {
-  listChildren(folderId: string): Promise<RemoteEntry[]>;
-  download(fileId: string): Promise<Buffer>;
-}
-
-export async function scanDrive(rootId: string, gateway: DriveGateway): Promise<DriveFile[]> {
-  const folders: Array<{ id: string; path: string }> = [{ id: rootId, path: '' }];
-  const files: DriveFile[] = [];
-
-  while (folders.length > 0) {
-    const folder = folders.shift();
-    if (!folder) break;
-    const children = await gateway.listChildren(folder.id);
-    for (const child of children) {
-      const path = [folder.path, child.name].filter(Boolean).join('/');
-      if (child.mimeType === DRIVE_FOLDER_MIME) {
-        folders.push({ id: child.id, path });
-        continue;
-      }
-      files.push({
-        id: child.id,
-        name: child.name,
-        mimeType: child.mimeType,
-        size: child.size ? Number(child.size) : null,
-        modifiedTime: child.modifiedTime ?? null,
-        path,
-        parentIds: child.parents ?? [folder.id],
-        viewUrl: child.webViewLink ?? `https://drive.google.com/file/d/${child.id}/view`,
-        downloadUrl: child.webContentLink ?? `https://drive.google.com/uc?export=download&id=${encodeURIComponent(child.id)}`,
-      });
-    }
-  }
-
-  return files.sort((left, right) => left.path.localeCompare(right.path, 'he'));
-}
-```
-
-- [ ] **Step 4: Implement the production Google adapter**
-
-Create `src/catalog/google-drive.ts`:
-
-```ts
-import { google } from 'googleapis';
-import type { DriveGateway, RemoteEntry } from './drive-gateway';
-
-export function createGoogleDriveGateway(credentialsJson: string): DriveGateway {
-  const credentials = JSON.parse(credentialsJson) as Record<string, unknown>;
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/drive.readonly'],
-  });
-  const drive = google.drive({ version: 'v3', auth });
-
-  return {
-    async listChildren(folderId: string): Promise<RemoteEntry[]> {
-      const entries: RemoteEntry[] = [];
-      let pageToken: string | undefined;
-      do {
-        const response = await drive.files.list({
-          q: `'${folderId.replaceAll("'", "\\'")}' in parents and trashed = false`,
-          fields: 'nextPageToken,files(id,name,mimeType,size,modifiedTime,parents,webViewLink,webContentLink)',
-          orderBy: 'folder,name',
-          pageSize: 1000,
-          pageToken,
-        });
-        for (const file of response.data.files ?? []) {
-          if (!file.id || !file.name || !file.mimeType) continue;
-          entries.push({
-            id: file.id,
-            name: file.name,
-            mimeType: file.mimeType,
-            size: file.size,
-            modifiedTime: file.modifiedTime,
-            parents: file.parents,
-            webViewLink: file.webViewLink,
-            webContentLink: file.webContentLink,
-          });
-        }
-        pageToken = response.data.nextPageToken ?? undefined;
-      } while (pageToken);
-      return entries;
-    },
-
-    async download(fileId: string): Promise<Buffer> {
-      const response = await drive.files.get(
-        { fileId, alt: 'media' },
-        { responseType: 'arraybuffer' },
-      );
-      return Buffer.from(response.data as ArrayBuffer);
-    },
-  };
-}
-```
-
-- [ ] **Step 5: Run tests and static checking**
-
-Run:
+- [ ] **Step 4: Verify and commit the Drive boundary**
 
 ```bash
 npm test -- tests/catalog/drive-gateway.test.ts
+npm test
 npm run check
-```
-
-Expected: the traversal test passes and Astro check exits 0.
-
-- [ ] **Step 6: Commit the Drive boundary**
-
-```bash
-git add src/catalog/drive-gateway.ts src/catalog/google-drive.ts tests/catalog/drive-gateway.test.ts
+npx tsc --noEmit
+git diff --check
+git add src/catalog/drive-gateway.ts src/catalog/google-drive.ts tests/catalog/drive-gateway.test.ts docs/superpowers/plans/2026-08-26-guillotine-archive.md
 git commit -m "feat: add read-only Drive scanner"
 ```
 

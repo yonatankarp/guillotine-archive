@@ -8,5 +8,6 @@ export function homepageGameSummary(slug: string, curatedSummary: string): strin
 }
 
 export function catalogItemCountLabel(officialCount: number): string {
-  return officialCount === 0 ? '0 קבצים מקוטלגים' : `${officialCount} פריטים רשמיים`;
+  if (officialCount === 0) return '0 קבצים מקוטלגים';
+  return officialCount === 1 ? 'פריט רשמי אחד' : `${officialCount} פריטים רשמיים`;
 }

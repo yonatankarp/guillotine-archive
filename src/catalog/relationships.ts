@@ -22,7 +22,8 @@ function matchesRule(file: DriveFile, rule: CuratorRule): boolean {
 }
 
 function categoryFromPath(path: string): string {
-  return path.split('/').find((segment) => segment.length > 0) ?? 'אחר';
+  const segments = path.split('/').filter((segment) => segment.length > 0);
+  return segments.length >= 2 ? segments[0]! : 'אחר';
 }
 
 function linkKey(link: CollectionLink): string {

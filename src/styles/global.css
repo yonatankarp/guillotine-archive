@@ -44,7 +44,7 @@ input {
 }
 
 :focus-visible {
-  outline: 4px solid var(--cyan);
+  outline: 4px solid var(--ink);
   outline-offset: 4px;
 }
 

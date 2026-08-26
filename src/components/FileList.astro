@@ -1,0 +1,214 @@
+---
+import type { CatalogItem } from '../catalog/types';
+import {
+  driveActions,
+  fileTypeLabel,
+  formatFileSize,
+  officialCollectionLinks,
+} from '../lib/archive';
+import { sitePath } from '../lib/url';
+
+interface Props {
+  items: CatalogItem[];
+  heading?: string;
+  showCollectionLinks?: boolean;
+}
+
+const { items, heading, showCollectionLinks = false } = Astro.props;
+---
+
+{heading && <h2>{heading}</h2>}
+{
+  items.length === 0 ? (
+    <p class="empty-files">אין כרגע קבצים מקוטלגים במדור הזה.</p>
+  ) : (
+    <ul class="file-list" aria-label={heading ?? 'קבצים בארכיון'}>
+      {items.map((item) => {
+        const actions = driveActions(item);
+        const officialCollections = officialCollectionLinks(item);
+
+        return (
+          <li>
+            <div class="file-copy">
+              <strong><bdi dir="auto">{item.name}</bdi></strong>
+              <p class="file-meta">
+                <span><span class="visually-hidden">סוג קובץ: </span>{fileTypeLabel(item)}</span>
+                <span><span class="visually-hidden">גודל קובץ: </span>{formatFileSize(item.size)}</span>
+              </p>
+              <p class="file-path">
+                <span class="visually-hidden">נתיב בארכיון: </span>
+                <bdi dir="auto">{item.path}</bdi>
+              </p>
+              {showCollectionLinks && officialCollections.length > 0 && (
+                <ul class="collection-links" aria-label="שיוך למהדורות רשמיות">
+                  {officialCollections.map((link) => (
+                    <li>
+                      <a href={sitePath(`games/${link.slug}/`)}>
+                        חלק מהמהדורה הרשמית: {link.titleHe}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {actions.length > 0 && (
+              <div class="file-actions" aria-label={`פעולות עבור ${item.name}`}>
+                {actions.map((action) => (
+                  <a
+                    class:list={['file-action', action.kind]}
+                    href={action.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={action.label}
+                  >
+                    {action.kind === 'view' ? 'צפייה ב־Drive' : 'הורדה'}
+                  </a>
+                ))}
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  )
+}
+
+<style>
+  h2 {
+    margin: 0 0 1rem;
+    font-size: clamp(1.55rem, 3vw, 2.35rem);
+    letter-spacing: -0.035em;
+  }
+
+  .file-list,
+  .collection-links {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .file-list {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .file-list > li {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border: var(--line) solid var(--ink);
+    border-radius: 0.8rem;
+    background: var(--paper-light);
+  }
+
+  .file-copy {
+    min-width: 0;
+  }
+
+  strong,
+  .file-path,
+  .file-meta {
+    overflow-wrap: anywhere;
+  }
+
+  strong {
+    display: block;
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .file-meta,
+  .file-path {
+    margin: 0.35rem 0 0;
+    color: #514b43;
+    font-size: 0.76rem;
+    line-height: 1.5;
+  }
+
+  .file-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.8rem;
+  }
+
+  .file-path bdi {
+    unicode-bidi: isolate;
+  }
+
+  .collection-links {
+    margin-top: 0.6rem;
+  }
+
+  .collection-links a {
+    color: #38332d;
+    font-size: 0.78rem;
+    font-weight: 800;
+    text-underline-offset: 0.2rem;
+  }
+
+  .file-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .file-action {
+    min-height: 2.65rem;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border: var(--line) solid var(--ink);
+    border-radius: 999px;
+    background: white;
+    font-size: 0.8rem;
+    font-weight: 850;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .file-action.download {
+    background: var(--lime);
+  }
+
+  .file-action:hover {
+    background: var(--cyan);
+  }
+
+  .empty-files {
+    margin: 0;
+    padding: 1rem;
+    border: var(--line) dashed var(--ink);
+    border-radius: 0.8rem;
+    background: rgb(255 253 246 / 65%);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 680px) {
+    .file-list > li {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .file-actions {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 390px) {
+    .file-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    .file-action {
+      justify-content: center;
+      white-space: normal;
+    }
+  }
+</style>

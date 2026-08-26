@@ -1,5 +1,20 @@
+import { createHash } from 'node:crypto';
+
 const SUPPORTED_EXTERNAL_URL = /^(?:https?:\/\/|mailto:|tel:)/iu;
 const EXTERNAL_LIKE_URL = /^(?:[a-z][a-z\d+.-]*:|\/\/)/iu;
+
+const CATEGORY_SLUGS = new Map<string, string>([
+  ['משחקים מלאים', 'games'],
+  ['סרטונים', 'videos'],
+  ['עיתונות', 'press'],
+  ['פרטי אספנות', 'collectibles'],
+  ['משחקי מעריצים', 'fan-games'],
+  ['דמואים', 'demos'],
+  ['גרפיקה', 'graphics'],
+  ['פתרונות', 'solutions'],
+  ['שירים', 'music'],
+  ['אחר', 'other'],
+]);
 
 function decodePath(path: string): string {
   let decoded = path;
@@ -47,4 +62,25 @@ export function sitePathForBase(base: string, path = ''): string {
 
 export function sitePath(path = ''): string {
   return sitePathForBase(import.meta.env.BASE_URL, path);
+}
+
+function categoryDigest(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 24);
+}
+
+export function categorySlug(category: string): string {
+  return CATEGORY_SLUGS.get(category) ?? `category-${categoryDigest(category)}`;
+}
+
+export function categoryRoutes(
+  categories: readonly string[],
+): Array<{ category: string; slug: string }> {
+  const usedSlugs = new Set<string>();
+
+  return categories.map((category) => {
+    const slug = categorySlug(category);
+    if (usedSlugs.has(slug)) throw new Error(`duplicate archive category slug: ${slug}`);
+    usedSlugs.add(slug);
+    return { category, slug };
+  });
 }

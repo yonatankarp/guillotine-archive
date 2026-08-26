@@ -1,0 +1,61 @@
+---
+import FileList from '../../components/FileList.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { formatFileCount } from '../../lib/archive';
+import { catalog } from '../../lib/catalog';
+import { categoryRoutes, sitePath } from '../../lib/url';
+
+export function getStaticPaths() {
+  return categoryRoutes(catalog.categories).map(({ category, slug }) => ({
+    params: { category: slug },
+    props: { category },
+  }));
+}
+
+interface Props {
+  category: string;
+}
+
+const { category } = Astro.props;
+const items = catalog.items.filter((item) => item.category === category);
+const itemCountLabel = formatFileCount(items.length);
+---
+
+<BaseLayout title={`${category} — ארכיון גיליוטין`}>
+  <header class="category-intro">
+    <a class="back-link" href={sitePath('archive/')}>חזרה לכל הארכיון</a>
+    <h1>{category}</h1>
+    <p>{itemCountLabel} בקטגוריה הזאת. השמות והנתיבים מוצגים בדיוק כפי שנשמרו בקטלוג.</p>
+  </header>
+
+  <FileList items={items} showCollectionLinks />
+</BaseLayout>
+
+<style>
+  .category-intro {
+    margin-bottom: clamp(2rem, 5vw, 3rem);
+    padding-bottom: 1.2rem;
+    border-bottom: var(--line) solid var(--ink);
+  }
+
+  .back-link {
+    display: inline-block;
+    margin-bottom: 1rem;
+    font-size: 0.82rem;
+    font-weight: 850;
+    text-underline-offset: 0.25rem;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(2.7rem, 8vw, 6rem);
+    letter-spacing: -0.065em;
+    line-height: 0.92;
+    overflow-wrap: anywhere;
+  }
+
+  .category-intro p {
+    margin: 1rem 0 0;
+    line-height: 1.6;
+  }
+</style>

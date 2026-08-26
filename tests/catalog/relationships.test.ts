@@ -292,6 +292,18 @@ describe('resolveRelationships', () => {
     expect(catalog.categories).toEqual(['אחר']);
   });
 
+  test('uses אחר for a root-level file without changing its path or name', () => {
+    const rootFile = driveFile('root-spreadsheet', 'מה חסר_.xlsx');
+    const catalog = resolveRelationships([rootFile], { collections: [] });
+
+    expect(catalog.items[0]).toMatchObject({
+      name: 'מה חסר_.xlsx',
+      path: 'מה חסר_.xlsx',
+      category: 'אחר',
+    });
+    expect(catalog.categories).toEqual(['אחר']);
+  });
+
   test('orders categories by a fixed Hebrew alphabet with deterministic final-letter ties', () => {
     const catalog = resolveRelationships(
       [

@@ -26,4 +26,8 @@ describe('catalogItemCountLabel', () => {
   test('reports the factual official item count', () => {
     expect(catalogItemCountLabel(3)).toBe('3 פריטים רשמיים');
   });
+
+  test('uses grammatical singular for one official item', () => {
+    expect(catalogItemCountLabel(1)).toBe('פריט רשמי אחד');
+  });
 });

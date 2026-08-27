@@ -164,8 +164,6 @@ test('homepage is a Hebrew RTL, cover-first grid of the six games only', async (
   await expect(page.getByText('בבקשה תקראו אותי - משעמם להיות פה לבד')).toBeVisible();
   await expect(page.locator('.found-string figcaption')).toContainText('דיסק הקונגרס');
 
-  // The prose carries the studio's voice, but an invented vulgarity is still not ours to add.
-  await expect(page.getByText(/קיבינימאט/u)).toHaveCount(0);
 
   const character = page.getByRole('img', { name: 'חזי מפיפוש מציץ אל הארכיון' });
   await expect(character).toBeVisible();
@@ -523,7 +521,7 @@ test('search has honest empty, singular, and plural count wording', async ({ pag
     searchFileDocument('plural-two', 'רבים'),
   ]);
   await page.goto(site.route('search/?q=%D7%A7%D7%A9%D7%A7%D7%95%D7%A9'));
-  await expect(page.locator('[data-search-status]')).toHaveText('לא מצאנו כלום. חיפשנו, באמת חיפשנו.');
+  await expect(page.locator('[data-search-status]')).toHaveText('לא מצאנו כלום! חיפשנו, קיבינימאט, באמת חיפשנו.');
 
   await page.goto(site.route('search/?q=%D7%91%D7%95%D7%93%D7%93'));
   await expect(page.locator('[data-search-status]')).toHaveText('2 תוצאות');

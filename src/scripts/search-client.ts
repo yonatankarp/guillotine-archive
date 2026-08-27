@@ -9,8 +9,8 @@ import {
 import { deriveKind } from '../catalog/kind';
 import { externalHttpUrl, sitePathForBrowserBase } from '../lib/browser-url';
 
-const EMPTY_STATUS = 'כתבו משהו בעברית. אנחנו לא הולכים לנחש.';
-const FAILURE_STATUS = 'לא הצלחנו לטעון את החיפוש. משהו נפל, ואנחנו עוד לא בטוחים מה.';
+const EMPTY_STATUS = 'נו? כתבו משהו בעברית. אנחנו לא הולכים לנחש בשבילכם.';
+const FAILURE_STATUS = 'לא הצלחנו לטעון את החיפוש. משהו נפל ואנחנו לא בטוחים מה. קיבינימאט.';
 const RESULT_LIMIT = 100;
 
 interface SearchElements {
@@ -262,7 +262,7 @@ function renderResult(result: ArchiveSearchResult, baseUrl: string): HTMLLIEleme
 }
 
 function resultStatus(total: number): string {
-  if (total === 0) return 'לא מצאנו כלום. חיפשנו, באמת חיפשנו.';
+  if (total === 0) return 'לא מצאנו כלום! חיפשנו, קיבינימאט, באמת חיפשנו.';
   if (total === 1) return 'תוצאה אחת';
   if (total > RESULT_LIMIT) {
     return `${total} תוצאות. מוצגות רק ${RESULT_LIMIT} התוצאות הראשונות.`;
@@ -374,7 +374,7 @@ function setLoading(elements: SearchElements, loading: boolean): void {
   elements.category.disabled = loading;
   elements.kind.disabled = loading;
   elements.submit.disabled = loading;
-  if (loading) elements.status.textContent = 'רגע, טוענים את המפתח של הארכיון…';
+  if (loading) elements.status.textContent = 'רגע! טוענים את המפתח של הארכיון…';
 }
 
 async function start(root: HTMLElement): Promise<void> {

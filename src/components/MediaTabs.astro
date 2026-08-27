@@ -1,0 +1,59 @@
+---
+import type { ReleaseType } from '../catalog/types';
+import { releases } from '../lib/releases';
+import { sitePath } from '../lib/url';
+import { releaseTypeLabel } from './release-view';
+
+/**
+ * The home page is the six games and nothing else. Everything else in the
+ * archive lives behind one of these, because putting 36 further releases under
+ * the games is what buried them in the first place.
+ *
+ * Each tab is a real pre-rendered page with its own URL rather than a client-side
+ * filter, so it is linkable and works without JavaScript.
+ */
+interface Props {
+  /** The type this page is showing, or 'game' on the home page. */
+  active: ReleaseType;
+}
+
+const { active } = Astro.props;
+
+const countByType = new Map<ReleaseType, number>();
+for (const release of releases) {
+  countByType.set(release.type, (countByType.get(release.type) ?? 0) + 1);
+}
+
+/** Games first because they are what people came for; the rest in a fixed order. */
+const ORDER: readonly ReleaseType[] = [
+  'game',
+  'audio-cd',
+  'video',
+  'press',
+  'fan-disc',
+  'fan-game',
+  'demo',
+  'other',
+];
+
+const tabs = ORDER.filter((type) => (countByType.get(type) ?? 0) > 0).map((type) => ({
+  type,
+  labelHe: type === 'game' ? 'המשחקים' : releaseTypeLabel(type),
+  count: countByType.get(type) ?? 0,
+  href: type === 'game' ? sitePath() : sitePath(`browse/type/${type}/`),
+}));
+---
+
+<nav class="media-tabs" aria-label="מדורי הארכיון">
+  <ul>
+    {
+      tabs.map((tab) => (
+        <li>
+          <a href={tab.href} aria-current={tab.type === active ? 'page' : undefined}>
+            {tab.labelHe} <span class="mono">{tab.count}</span>
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>

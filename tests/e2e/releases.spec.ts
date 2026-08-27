@@ -154,26 +154,30 @@ test('the facet grid narrows the release list on real pre-rendered pages', async
   expect(games).toHaveLength(6);
 
   await page.goto(site.route());
-  const allChip = page.getByRole('navigation', { name: 'סינון מהדורות' }).getByRole('link', { name: /הכול/u });
-  await expect(allChip).toHaveAttribute('aria-current', 'page');
+  const tabs = page.getByRole('navigation', { name: 'מדורי הארכיון' });
 
-  const gameChip = page
-    .getByRole('navigation', { name: 'סינון מהדורות' })
-    .locator(`a[href="${site.route('browse/type/game/')}"]`);
-  await expect(gameChip).toHaveCount(1);
-  await expect(gameChip).toContainText('משחק');
-  await expect(gameChip).toContainText(String(games.length));
-  await gameChip.click();
+  /* On the home page the games tab is the current one, and it points home rather
+     than to a filter page, because home already is the games. */
+  const gamesTab = tabs.getByRole('link', { name: /המשחקים/u });
+  await expect(gamesTab).toHaveAttribute('aria-current', 'page');
+  await expect(gamesTab).toContainText(String(games.length));
 
-  await expect(page).toHaveURL(site.url('browse/type/game/'));
-  await expect(page.getByTestId('release-tile')).toHaveCount(games.length);
-  for (const game of games) {
-    await expect(page.locator(`[data-release="${game.slug}"]`)).toHaveCount(1);
+  /* Every other section is one real pre-rendered page behind its own tab. */
+  const musicTab = tabs.locator(`a[href="${site.route('browse/type/audio-cd/')}"]`);
+  await expect(musicTab).toHaveCount(1);
+  const audioDiscs = expectedCatalog.releases.filter(({ type }) => type === 'audio-cd');
+  await expect(musicTab).toContainText(String(audioDiscs.length));
+  await musicTab.click();
+
+  await expect(page).toHaveURL(site.url('browse/type/audio-cd/'));
+  await expect(page.getByTestId('release-tile')).toHaveCount(audioDiscs.length);
+  for (const disc of audioDiscs) {
+    await expect(page.locator(`[data-release="${disc.slug}"]`)).toHaveCount(1);
   }
   await expect(
     page
-      .getByRole('navigation', { name: 'סינון מהדורות' })
-      .locator(`a[href="${site.route('browse/type/game/')}"]`),
+      .getByRole('navigation', { name: 'מדורי הארכיון' })
+      .locator(`a[href="${site.route('browse/type/audio-cd/')}"]`),
   ).toHaveAttribute('aria-current', 'page');
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 

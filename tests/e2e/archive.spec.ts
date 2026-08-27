@@ -98,7 +98,7 @@ async function expectNotOverlapping(first: Locator, second: Locator): Promise<vo
   expect(overlaps).toBe(false);
 }
 
-test('homepage is a Hebrew RTL, cover-first grid of every release', async ({ page }) => {
+test('homepage is a Hebrew RTL, cover-first grid of the six games only', async ({ page }) => {
   await page.goto(site.route());
   await expect(page).toHaveURL(site.url());
 
@@ -106,11 +106,22 @@ test('homepage is a Hebrew RTL, cover-first grid of every release', async ({ pag
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('heading', { level: 1, name: 'ארכיון גיליוטין' })).toHaveCount(1);
 
+  /* The home page is the games and nothing else. Putting the other 36 releases
+     under them is what buried them, so everything else lives behind a tab. */
+  const games = expectedReleases.filter(({ type }) => type === 'game');
   const tiles = page.getByTestId('release-tile');
   expect(expectedReleases).toHaveLength(42);
-  await expect(tiles).toHaveCount(expectedReleases.length);
+  expect(games).toHaveLength(6);
+  await expect(tiles).toHaveCount(games.length);
 
-  for (const release of expectedReleases) {
+  for (const release of expectedReleases.filter(({ type }) => type !== 'game')) {
+    await expect(
+      page.locator(`[data-release="${release.slug}"]`),
+      `${release.slug} is not on the home page`,
+    ).toHaveCount(0);
+  }
+
+  for (const release of games) {
     const tile = page.locator(`[data-release="${release.slug}"]`);
     await expect(tile, `${release.slug} tile`).toHaveCount(1);
     await expect(tile).toHaveAttribute('href', site.route(`release/${release.slug}/`));

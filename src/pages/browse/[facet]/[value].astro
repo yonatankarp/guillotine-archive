@@ -1,5 +1,7 @@
 ---
 import type { GetStaticPaths } from 'astro';
+import type { ReleaseType } from '../../../catalog/types';
+import MediaTabs from '../../../components/MediaTabs.astro';
 import ReleaseGrid from '../../../components/ReleaseGrid.astro';
 import { releaseTypeLabel } from '../../../components/release-view';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
@@ -56,8 +58,14 @@ const facetLabel =
     </p>
   </header>
 
+  <MediaTabs active={facet === 'type' ? (value as ReleaseType) : 'other'} />
+
   <section aria-labelledby="releases-heading">
     <h2 class="visually-hidden" id="releases-heading">מהדורות מסוננות</h2>
-    <ReleaseGrid releases={matching} active={{ facet: facet!, value: value! }} />
+    <ReleaseGrid
+      releases={matching}
+      active={{ facet: facet!, value: value! }}
+      showFacets={facet !== 'type'}
+    />
   </section>
 </BaseLayout>

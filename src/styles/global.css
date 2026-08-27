@@ -1421,3 +1421,47 @@ main {
     transition: none;
   }
 }
+
+/* Archive sections. Real links to pre-rendered pages, not client-side tabs, so
+   each one is shareable and works with JavaScript off. */
+.media-tabs {
+  margin: 0 0 clamp(1.4rem, 3vw, 2.2rem);
+  border-block-end: 1px solid var(--stroke);
+  overflow-x: auto;
+}
+
+.media-tabs ul {
+  display: flex;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: max-content;
+}
+
+.media-tabs a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.55rem 0.85rem;
+  border-block-end: 2px solid transparent;
+  color: var(--dim);
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.media-tabs a:hover {
+  color: var(--text);
+}
+
+.media-tabs a[aria-current='page'] {
+  color: var(--text);
+  border-block-end-color: var(--text);
+  font-weight: 500;
+}
+
+.media-tabs .mono {
+  color: var(--dim);
+  font-size: 0.74rem;
+}

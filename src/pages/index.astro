@@ -1,4 +1,5 @@
 ---
+import MediaTabs from '../components/MediaTabs.astro';
 import ReleaseGrid from '../components/ReleaseGrid.astro';
 import { ARCHIVE_QUOTES } from '../components/archive-quotes';
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -34,23 +35,18 @@ const quote = ARCHIVE_QUOTES[0]!;
     />
   </header>
 
+  <MediaTabs active="game" />
+
   <section aria-labelledby="games-heading">
     <div class="section-heading">
       <h2 id="games-heading">המשחקים</h2>
-      <p>שישה משחקים שיצאו מן האולפן, מן המוקדם למאוחר.</p>
+      <p>
+        שישה משחקים שיצאו מן האולפן, מן המוקדם למאוחר. שאר הארכיון —
+        {supportingReleases.length} מהדורות של מוזיקה, סרטונים, עיתונות וחומרי מעריצים —
+        מסודר במדורים שלמעלה, ואפשר גם <a href={sitePath('search/')}>לחפש בכל הקבצים</a>.
+      </p>
     </div>
     <ReleaseGrid releases={featuredReleases} showSummary showFacets={false} />
   </section>
 
-  <section aria-labelledby="releases-heading">
-    <div class="section-heading">
-      <h2 id="releases-heading">שאר הארכיון</h2>
-      <p>
-        {supportingReleases.length} מהדורות נוספות: דיסקי שמע, סרטונים, עיתונות, דיסקי מעריצים
-        ודמואים. כל אחת היא דיסק אחד או תיקייה אחת כפי שהגיעה. לחיפוש בכל
-        <a href={sitePath('search/')}>הקבצים</a>.
-      </p>
-    </div>
-    <ReleaseGrid releases={supportingReleases} />
-  </section>
 </BaseLayout>

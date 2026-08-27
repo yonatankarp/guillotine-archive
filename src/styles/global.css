@@ -1331,3 +1331,93 @@ main {
   color: var(--dim);
   font-size: 0.78rem;
 }
+
+/* Scans shown as artwork. Tiles keep their natural aspect: these run from 0.58 to
+   1.50 and forcing one ratio is what made the old covers read as broken. */
+.media-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.9rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.media-gallery a {
+  display: grid;
+  gap: 0.45rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.gallery-frame {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 2px;
+  min-height: 6rem;
+}
+
+.gallery-frame img {
+  width: 100%;
+  height: auto;
+  display: block;
+  transition: opacity 160ms ease;
+}
+
+.media-gallery a:hover .gallery-frame img,
+.media-gallery a:focus-visible .gallery-frame img {
+  opacity: 0.82;
+}
+
+.gallery-missing {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  color: var(--accent);
+  opacity: 0.25;
+}
+
+.gallery-caption {
+  display: grid;
+  gap: 0.1rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.gallery-kind {
+  color: var(--dim);
+  font-size: 0.72rem;
+}
+
+/* A frame from a video we do not host, with its duration. */
+.item-poster {
+  position: relative;
+  margin-top: 0.7rem;
+  border-radius: 2px;
+  overflow: hidden;
+  max-width: 22rem;
+}
+
+.item-poster img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.item-duration {
+  position: absolute;
+  inset-block-end: 0.4rem;
+  inset-inline-end: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px;
+  background: rgb(7 9 7 / 82%);
+  color: var(--mat-text);
+  font-size: 0.7rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-frame img {
+    transition: none;
+  }
+}

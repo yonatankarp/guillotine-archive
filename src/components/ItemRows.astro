@@ -1,6 +1,7 @@
 ---
 import type { CatalogItem } from '../catalog/types';
 import { driveActions, formatFileSize, officialCollectionLinks } from '../lib/archive';
+import { formatDuration, posterUrl } from './derivative';
 import { creditedAuthor, itemKindLabel, neverPlayable, textExcerpt } from './release-view';
 
 interface Props {
@@ -32,6 +33,8 @@ const {
       const actions = driveActions(item);
       const author = creditedAuthor(item);
       const source = mediaSrc(item);
+      const poster = posterUrl(item);
+      const duration = formatDuration(item.derivatives?.durationMillis);
       const isMedia = item.kind === 'track' || item.kind === 'sound' || item.kind === 'video';
       const rawText = showText ? item.extractedTextHe?.trim() : undefined;
       const text = rawText ? textExcerpt(rawText) : undefined;
@@ -47,6 +50,7 @@ const {
               <p class="item-meta">
                 <span>{itemKindLabel(item.kind)}</span>
                 <span class="mono">{formatFileSize(item.size)}</span>
+                {duration && <span class="mono">{duration}</span>}
                 {group && <span class="item-group">{group}</span>}
                 {author && (
                   <span>
@@ -71,6 +75,13 @@ const {
               </div>
             )}
           </div>
+
+          {poster !== null && source === null && (
+            <div class="item-poster mat">
+              <img src={poster} alt={`תמונה מתוך ${item.name}`} loading="lazy" decoding="async" />
+              {duration && <span class="item-duration mono">{duration}</span>}
+            </div>
+          )}
 
           {isMedia && source !== null && (
             item.kind === 'video' ? (

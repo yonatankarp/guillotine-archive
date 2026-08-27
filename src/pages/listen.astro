@@ -1,5 +1,6 @@
 ---
 import ItemRows from '../components/ItemRows.astro';
+import { audioUrl } from '../components/derivative';
 import { releaseAccent } from '../components/release-view';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { catalog } from '../lib/catalog';
@@ -50,7 +51,7 @@ const musicMirror = sitePath(`archive/${categorySlug('שירים')}/`);
         <h2 id={`listen-${slug}`}>
           <a href={sitePath(`release/${slug}/`)}>{release!.titleHe}</a>
         </h2>
-        <ItemRows items={items} labelHe={`רצועות — ${release!.titleHe}`} showMediaNote={false} />
+        <ItemRows mediaSrc={audioUrl} items={items} labelHe={`רצועות — ${release!.titleHe}`} showMediaNote={false} />
       </section>
     ))
   }

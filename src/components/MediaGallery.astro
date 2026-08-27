@@ -1,0 +1,51 @@
+---
+import type { CatalogItem } from '../catalog/types';
+import { driveActions } from '../lib/archive';
+import { thumbUrl, viewUrl } from './derivative';
+import { itemKindLabel } from './release-view';
+
+/**
+ * Scans shown as artwork rather than as filenames. A tile links to the largest
+ * rendition that exists, and falls back to the original on Drive for an item the
+ * pipeline could not decode, which is mostly PCX and BMP.
+ *
+ * Tiles keep their natural aspect: these are box wraps, booklet spreads and
+ * magazine pages running from 0.58 to 1.50, and forcing one ratio is what made
+ * the old covers look broken.
+ */
+interface Props {
+  items: CatalogItem[];
+  labelHe: string;
+}
+
+const { items, labelHe } = Astro.props;
+---
+
+<ul class="media-gallery" aria-label={labelHe}>
+  {
+    items.map((item) => {
+      const thumb = thumbUrl(item);
+      const full = viewUrl(item);
+      const fallback = driveActions(item).find((action) => action.kind === 'view')?.href;
+      const href = full ?? fallback;
+
+      return (
+        <li>
+          <a href={href} target={full === null ? '_blank' : undefined} rel={full === null ? 'noopener noreferrer' : undefined}>
+            <span class="gallery-frame mat">
+              {thumb === null ? (
+                <span class="gallery-missing dither" aria-hidden="true"></span>
+              ) : (
+                <img src={thumb} alt={item.name} loading="lazy" decoding="async" />
+              )}
+            </span>
+            <span class="gallery-caption">
+              <bdi dir="auto">{item.name}</bdi>
+              <span class="gallery-kind">{itemKindLabel(item.kind)}</span>
+            </span>
+          </a>
+        </li>
+      );
+    })
+  }
+</ul>

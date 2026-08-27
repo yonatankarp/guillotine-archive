@@ -5,6 +5,8 @@ import { formatFileCount, formatFileSize } from '../lib/archive';
 import { itemById } from '../lib/catalog';
 import { categorySlug, sitePath } from '../lib/url';
 import ItemRows from './ItemRows.astro';
+import MediaGallery from './MediaGallery.astro';
+import { audioUrl, hasThumbs } from './derivative';
 import {
   creditedWorks,
   itemCountsByKind,
@@ -28,6 +30,10 @@ const cover = releaseCoverPath(release);
 const items = releaseItems(release, itemById);
 const sections = releaseSections(items);
 const bundle = releaseBundle(items);
+
+/* One note per section, and only while nothing in it can actually play. */
+const hasAudioHere = (of: readonly CatalogItem[]) =>
+  of.some((item) => item.derivatives?.audio !== undefined);
 const credits = creditedWorks(items);
 const kindCounts = itemCountsByKind(items);
 const subjectSlug = release.subjectSlug;
@@ -80,17 +86,25 @@ const facts = [
       sections.map((section) => (
         <section class="room-section" aria-labelledby={`section-${section.id}`}>
           <h2 id={`section-${section.id}`}>{section.headingHe}</h2>
-          {section.id === 'music' && (
+          {section.id === 'music' && !hasAudioHere(section.items) && (
             <p class="room-note">
               עוד אין באתר גרסה שמתנגנת. בינתיים כל רצועה נפתחת ב־Drive.
             </p>
           )}
-          <ItemRows
-            items={section.items}
-            labelHe={`${section.headingHe} — ${release.titleHe}`}
-            showText={section.id === 'documents'}
-            showMediaNote={section.id !== 'music'}
-          />
+          {section.id === 'gallery' && hasThumbs(section.items) ? (
+            <MediaGallery
+              items={section.items}
+              labelHe={`${section.headingHe} — ${release.titleHe}`}
+            />
+          ) : (
+            <ItemRows
+              items={section.items}
+              labelHe={`${section.headingHe} — ${release.titleHe}`}
+              showText={section.id === 'documents'}
+              showMediaNote={section.id !== 'music'}
+              mediaSrc={section.id === 'music' ? audioUrl : undefined}
+            />
+          )}
           {section.hiddenCount > 0 && (
             <p class="room-more">
               עוד {section.hiddenCount} קבצים במדור הזה.

@@ -1,7 +1,7 @@
 ---
 import type { CatalogItem, Release } from '../catalog/types';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { formatFileCount } from '../lib/archive';
+import { formatFileCount, formatFileSize } from '../lib/archive';
 import { itemById } from '../lib/catalog';
 import { categorySlug, sitePath } from '../lib/url';
 import ItemRows from './ItemRows.astro';
@@ -11,6 +11,7 @@ import {
   itemKindLabel,
   releaseAccent,
   releaseCoverPath,
+  releaseBundle,
   releaseItems,
   releaseSections,
   releaseTypeLabel,
@@ -26,6 +27,7 @@ const accent = releaseAccent(release);
 const cover = releaseCoverPath(release);
 const items = releaseItems(release, itemById);
 const sections = releaseSections(items);
+const bundle = releaseBundle(items);
 const credits = creditedWorks(items);
 const kindCounts = itemCountsByKind(items);
 const subjectSlug = release.subjectSlug;
@@ -91,6 +93,30 @@ const facts = [
           )}
         </section>
       ))
+    }
+
+    {
+      bundle.length > 0 && (
+        <section class="room-section" aria-labelledby="section-bundle">
+          <h2 id="section-bundle">תכולת ההתקנה</h2>
+          <p class="room-note">
+            הקבצים שנוצרו כשהמשחק הותקן, ולא חומר שתויק בנפרד: ספריית הצלילים של המנוע,
+            תמונות הדמויות, קבצי נתונים. הם נמנים כאן ולא מוצגים אחד־אחד.
+          </p>
+          <ul class="bundle-list">
+            {bundle.map(({ kind, count, bytes }) => (
+              <li>
+                <strong>{itemKindLabel(kind)}</strong>
+                <span class="mono">{count}</span>
+                <span class="mono">{formatFileSize(bytes)}</span>
+              </li>
+            ))}
+          </ul>
+          <p class="room-more">
+            <a href={mirrorHref(items)}>לרשימה המלאה במדף הארכיון</a>
+          </p>
+        </section>
+      )
     }
 
     {

@@ -63,11 +63,45 @@ const SECTIONS: Array<{ id: string; headingHe: string; kinds: readonly ItemKind[
   {
     id: 'see',
     headingHe: 'לראות',
-    kinds: ['cover', 'scan', 'booklet-page', 'comic-page', 'press-page', 'sprite', 'video'],
+    kinds: ['cover', 'scan', 'booklet-page', 'comic-page', 'press-page', 'video'],
   },
-  { id: 'hear', headingHe: 'להאזין', kinds: ['track', 'sound'] },
+  { id: 'hear', headingHe: 'להאזין', kinds: ['track'] },
   { id: 'read', headingHe: 'לקרוא', kinds: ['document'] },
 ];
+
+/**
+ * Files that exist because a game was installed, not because anyone catalogued
+ * them: sprite sheets, the engine's sound bank, save data, AUTORUN.INF. They are
+ * 1,862 of the archive's 2,816 items, and two of the demo releases are 399
+ * engine files to a single exhibit, because a demo IS an installed directory.
+ *
+ * Listing them individually presents an unpacked install as though it were an
+ * exhibition. They are summarised as a bundle instead, and the Drive mirror under
+ * /archive still lists every one for anyone who wants the filenames.
+ */
+const BUNDLED_KINDS: readonly ItemKind[] = ['sprite', 'sound', 'game-data', 'noise'];
+
+export interface BundledGroup {
+  kind: ItemKind;
+  count: number;
+  bytes: number;
+}
+
+/** Engine contents of a release, counted by kind rather than listed. */
+export function releaseBundle(items: readonly CatalogItem[]): BundledGroup[] {
+  return BUNDLED_KINDS.flatMap((kind) => {
+    const matching = items.filter((item) => item.kind === kind);
+    if (matching.length === 0) return [];
+
+    return [
+      {
+        kind,
+        count: matching.length,
+        bytes: matching.reduce((sum, item) => sum + (item.size ?? 0), 0),
+      },
+    ];
+  });
+}
 
 /**
  * The largest release holds 754 items. Rendering every row would put a 754-row DOM behind one

@@ -1307,3 +1307,27 @@ main {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Engine contents of a release, counted rather than listed. */
+.bundle-list {
+  display: grid;
+  gap: 1px;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--line-soft);
+}
+
+.bundle-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.5rem 0.2rem;
+  background: var(--ground);
+}
+
+.bundle-list .mono {
+  color: var(--dim);
+  font-size: 0.78rem;
+}

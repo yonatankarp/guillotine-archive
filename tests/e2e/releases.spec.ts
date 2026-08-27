@@ -265,3 +265,52 @@ test('the browser derives the same item kind the catalog stored', async () => {
     ).toBe(item.kind);
   }
 });
+
+test('one track plays at a time and an album plays through', async ({ page }) => {
+  await page.goto(site.route('listen/'));
+
+  const albums = page.locator('.item-rows');
+  expect(await albums.count()).toBeGreaterThan(1);
+
+  /* Two players in the same album, started one after the other. The second must
+     silence the first: nothing on the site should ever overlap audio. */
+  const playing = await page.evaluate(async () => {
+    const album = document.querySelector('.item-rows')!;
+    const [first, second] = [...album.querySelectorAll('audio')].slice(0, 2);
+    await first!.play().catch(() => undefined);
+    await second!.play().catch(() => undefined);
+
+    return {
+      firstPaused: first!.paused,
+      secondPaused: second!.paused,
+      totalPlaying: [...document.querySelectorAll('audio')].filter((a) => !a.paused).length,
+    };
+  });
+
+  expect(playing.firstPaused, 'the earlier track stopped').toBe(true);
+  expect(playing.secondPaused, 'the later track kept playing').toBe(false);
+  expect(playing.totalPlaying, 'exactly one player is active').toBe(1);
+
+  /* When a track ends, the next in the SAME album takes over, and nothing in a
+     different album is touched. */
+  const advanced = await page.evaluate(async () => {
+    const albums = [...document.querySelectorAll('.item-rows')];
+    const own = [...albums[0]!.querySelectorAll('audio')];
+    const other = [...albums[1]!.querySelectorAll('audio')];
+    for (const player of [...own, ...other]) player.pause();
+
+    await own[0]!.play().catch(() => undefined);
+    own[0]!.dispatchEvent(new Event('ended'));
+    await new Promise((resolve) => setTimeout(resolve, 250));
+
+    return {
+      finishedPaused: own[0]!.paused,
+      nextPlaying: !own[1]!.paused,
+      otherAlbumUntouched: other.every((player) => player.paused),
+    };
+  });
+
+  expect(advanced.finishedPaused, 'the finished track is not replayed').toBe(true);
+  expect(advanced.nextPlaying, 'the next track in the album started').toBe(true);
+  expect(advanced.otherAlbumUntouched, 'a different album stayed silent').toBe(true);
+});

@@ -15,9 +15,7 @@ import {
 const actionByStepName: ReadonlyMap<string, string> = new Map([
   ['Check out repository', pinnedAction('actions/checkout')],
   ['Set up Node', pinnedAction('actions/setup-node')],
-  ['Restore archive baseline', pinnedAction('actions/cache/restore')],
   ['Upload curator report', pinnedAction('actions/upload-artifact')],
-  ['Save archive baseline', pinnedAction('actions/cache/save')],
   ['Configure GitHub Pages', pinnedAction('actions/configure-pages')],
   ['Upload Pages artifact', pinnedAction('actions/upload-pages-artifact')],
   ['Deploy GitHub Pages', pinnedAction('actions/deploy-pages')],
@@ -28,15 +26,12 @@ async function loadWorkflow(): Promise<{ source: string; workflow: UnknownRecord
 }
 
 describe('GitHub Pages deployment workflow', () => {
-  test('uses the exact daily, manual, and main-branch triggers with safe concurrency', async () => {
+  test('deploys on demand and on main, never on a schedule', async () => {
     const { workflow } = await loadWorkflow();
     const triggers = record(workflow.on, 'on');
 
-    expect(new Set(Object.keys(triggers))).toEqual(
-      new Set(['workflow_dispatch', 'schedule', 'push']),
-    );
+    expect(new Set(Object.keys(triggers))).toEqual(new Set(['workflow_dispatch', 'push']));
     expect(triggers.workflow_dispatch).toEqual({});
-    expect(triggers.schedule).toEqual([{ cron: '17 3 * * *' }]);
     expect(triggers.push).toEqual({ branches: ['main'] });
     expect(workflow.concurrency).toEqual({ group: 'pages', 'cancel-in-progress': false });
   });
@@ -65,7 +60,14 @@ describe('GitHub Pages deployment workflow', () => {
     }
 
     expect(new Set(usedActions.map(({ uses }) => uses?.split('@')[0]))).toEqual(
-      new Set(actionPins.keys()),
+      new Set([
+        'actions/checkout',
+        'actions/setup-node',
+        'actions/upload-artifact',
+        'actions/configure-pages',
+        'actions/upload-pages-artifact',
+        'actions/deploy-pages',
+      ]),
     );
   });
 
@@ -112,7 +114,7 @@ describe('GitHub Pages deployment workflow', () => {
     ]);
   });
 
-  test('orders sync, validation, report, baseline persistence, and Pages upload fail-safely', async () => {
+  test('orders the archive guard, validation, report, and Pages upload fail-safely', async () => {
     const { workflow } = await loadWorkflow();
     const build = record(record(workflow.jobs, 'jobs').build, 'jobs.build');
     const buildSteps = steps(build, 'jobs.build');
@@ -122,13 +124,11 @@ describe('GitHub Pages deployment workflow', () => {
       'Set up Node',
       'Install dependencies',
       'Install Chromium',
-      'Restore archive baseline',
-      'Sync Google Drive',
+      'Verify the committed archive is present',
       'Run unit tests',
       'Build production site',
       'Run browser tests',
       'Upload curator report',
-      'Save archive baseline',
       'Configure GitHub Pages',
       'Upload Pages artifact',
     ]);
@@ -142,11 +142,7 @@ describe('GitHub Pages deployment workflow', () => {
       'if-no-files-found': 'ignore',
       'retention-days': 7,
     });
-    for (const stepName of [
-      'Save archive baseline',
-      'Configure GitHub Pages',
-      'Upload Pages artifact',
-    ]) {
+    for (const stepName of ['Configure GitHub Pages', 'Upload Pages artifact']) {
       expect(namedStep(buildSteps, stepName).if, `${stepName} remains blocked after failures`).toBe(
         'success()',
       );
@@ -154,65 +150,50 @@ describe('GitHub Pages deployment workflow', () => {
     expect(namedStep(buildSteps, 'Upload Pages artifact').with).toEqual({ path: 'dist' });
   });
 
-  test('restores only the versioned main baseline and saves a unique validated successor', async () => {
+  test('refuses to build when the committed archive is missing, instead of syncing', async () => {
     const { workflow } = await loadWorkflow();
     const buildSteps = steps(
       record(record(workflow.jobs, 'jobs').build, 'jobs.build'),
       'jobs.build',
     );
 
-    const restore = namedStep(buildSteps, 'Restore archive baseline');
-    expect(restore.with).toEqual({
-      path: '.astro/archive-baseline.json',
-      key: 'archive-baseline-v1-main-${{ github.run_id }}-${{ github.run_attempt }}',
-      'restore-keys': 'archive-baseline-v1-main-',
-    });
-    const save = namedStep(buildSteps, 'Save archive baseline');
-    expect(save.with).toEqual({
-      path: '.astro/archive-baseline.json',
-      key: 'archive-baseline-v1-main-${{ github.run_id }}-${{ github.run_attempt }}',
-    });
-    expect(stepNames(buildSteps).indexOf('Restore archive baseline')).toBeLessThan(
-      stepNames(buildSteps).indexOf('Sync Google Drive'),
+    const guard = requiredString(
+      namedStep(buildSteps, 'Verify the committed archive is present').run,
+      'guard.run',
     );
-    expect(stepNames(buildSteps).indexOf('Run browser tests')).toBeLessThan(
-      stepNames(buildSteps).indexOf('Save archive baseline'),
+    expect(guard).toContain('set -euo pipefail');
+    expect(guard).toContain('src/generated/catalog.json');
+    expect(guard).toContain('public/data/search-index.json');
+    expect(guard).toContain('exit 1');
+    expect(guard, 'names the workflow that fixes it').toContain('Sync archive from Drive');
+
+    // The guard has to precede anything that reads the catalog.
+    const names = stepNames(buildSteps);
+    expect(names.indexOf('Verify the committed archive is present')).toBeLessThan(
+      names.indexOf('Run unit tests'),
     );
   });
 
-  test('scopes Drive secrets to the sync step and builds the project Pages base path', async () => {
+  test('holds no Drive credentials anywhere and builds the project Pages base path', async () => {
     const { source, workflow } = await loadWorkflow();
     expect(workflow.env).toBeUndefined();
     const build = record(record(workflow.jobs, 'jobs').build, 'jobs.build');
     expect(build.env).toBeUndefined();
     const buildSteps = steps(build, 'jobs.build');
 
-    const sync = namedStep(buildSteps, 'Sync Google Drive');
-    expect(sync.run).toBe('npm run sync:drive');
-    expect(sync.env).toEqual({
-      GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}',
-      GOOGLE_DRIVE_FOLDER_ID: '${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}',
-    });
-    for (const step of buildSteps.filter(({ name }) => name !== 'Sync Google Drive')) {
-      const environment = JSON.stringify(step.env ?? {});
-      expect(environment, `${step.name} service-account secret-free`).not.toContain(
-        'GOOGLE_SERVICE_ACCOUNT_JSON',
-      );
-      expect(environment, `${step.name} folder-ID secret-free`).not.toContain(
-        'GOOGLE_DRIVE_FOLDER_ID',
-      );
-    }
-    for (const command of buildSteps.flatMap(({ run }) => (run === undefined ? [] : [run]))) {
-      expect(command).not.toMatch(/secrets\.|GOOGLE_(?:SERVICE_ACCOUNT_JSON|DRIVE_FOLDER_ID)/u);
-    }
-    expect(source.match(/\$\{\{\s*secrets\./gu)).toHaveLength(2);
+    // Syncing moved to its own workflow, so a Drive secret appearing here is a
+    // regression: this one only ever builds what is committed.
+    expect(source).not.toContain('GOOGLE_SERVICE_ACCOUNT_JSON');
+    expect(source).not.toContain('GOOGLE_DRIVE_FOLDER_ID');
+    expect(source).not.toContain('sync:drive');
+    expect(stepNames(buildSteps)).not.toContain('Sync Google Drive');
 
-    const buildSite = namedStep(buildSteps, 'Build production site');
-    expect(buildSite.run).toBe('npm run build');
-    expect(buildSite.env).toEqual({
-      SITE_URL: 'https://${{ github.repository_owner }}.github.io',
-      BASE_PATH: '/${{ github.event.repository.name }}',
-    });
+    for (const stepName of ['Build production site', 'Run browser tests']) {
+      expect(namedStep(buildSteps, stepName).env).toMatchObject({
+        SITE_URL: 'https://${{ github.repository_owner }}.github.io',
+        BASE_PATH: '/${{ github.event.repository.name }}',
+      });
+    }
   });
 
   test('uses reproducible installs, every configured Playwright project, and no credential persistence', async () => {

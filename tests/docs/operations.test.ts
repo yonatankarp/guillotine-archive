@@ -8,15 +8,13 @@ describe('owner operations guidance', () => {
       readFile('docs/setup-google-drive.md', 'utf8'),
     ]);
 
-    expect(setup).toContain('60 days');
-    expect(setup).toContain('Enable workflow');
     expect(setup).toContain('minimumFileCount: 1000');
-    expect(setup).toContain(
-      'https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows',
-    );
-    expect(setup).toMatch(/cache may have expired/iu);
-    expect(readme).toMatch(/scheduled.+03:17 UTC/isu);
+    // Nothing runs on a schedule any more, so the inactivity runbook is retired
+    // rather than reworded. Syncing is manual and deployment is push-driven.
+    expect(readme).toMatch(/Nothing is on a schedule/iu);
+    expect(readme).not.toMatch(/03:17/u);
     expect(readme).not.toContain('synchronizes Google Drive once per day');
+    expect(readme).toMatch(/holds no Drive credentials and never syncs/iu);
   });
 
   test('describes folder IDs in generated data without weakening credential hygiene', async () => {

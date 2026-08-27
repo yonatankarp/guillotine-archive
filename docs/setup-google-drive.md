@@ -57,24 +57,25 @@ operational configuration and keep it out of commits, workflow files and generat
 1. Open **Settings → Pages** in the GitHub repository.
 2. Under **Build and deployment**, choose **GitHub Actions** as the source.
 3. Merge the workflow and curator configuration to `main`.
-4. Open **Actions → Sync archive and deploy Pages → Run workflow** and select `main`.
-5. Review the build and deployment jobs and open the URL reported by the deployment environment.
+4. Open **Actions → Sync archive from Drive → Run workflow** and select `main`. This is the only
+   workflow that reads Drive.
+5. When it finishes, review the census in its run summary and in the pull request it opens, then
+   merge that pull request. Merging is what deploys.
+6. Open the URL reported by the deployment environment.
 
-The workflow is intentionally limited to `main`, including manual runs. It also runs on pushes to
-`main` and is scheduled once per day at `17 3 * * *`, which is 03:17 UTC. GitHub may start a
-scheduled workflow later than the nominal minute during periods of high load, so the cron entry is
-not a guarantee of uninterrupted daily execution.
+Both workflows are intentionally limited to `main`, including manual runs. **Sync archive from
+Drive** runs only on manual dispatch: the archive has not changed in years, so an unattended daily
+sync was removed. **Deploy Pages** runs on pushes to `main` and on manual dispatch, holds no Drive
+credentials, and refuses to build when the committed archive is missing rather than syncing it
+itself.
 
-GitHub automatically disables scheduled workflows in a public repository after 60 days without
-repository activity. This matters for a largely complete archive that may go months without a
-commit. Check **Actions → Sync archive and deploy Pages** if daily runs disappear. A disabled
-workflow shows an **Enable workflow** control; enable it, then use **Run workflow** on `main` to
-perform an immediate sync. See GitHub's official guide to
-[disabling and enabling workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows).
-After a long inactive period, the baseline cache may have expired. The first restored run may
-therefore have no historical shrink comparison; `minimumFileCount: 1000` remains the absolute
-first protection. If uninterrupted synchronization is operationally important, an external monitor
-may alert when the expected workflow run is missing, but it is not required to operate the site.
+Because nothing is scheduled, GitHub's rule about disabling scheduled workflows in a public
+repository after 60 days of inactivity no longer applies, and there is no cron to re-enable.
+
+The archive catalog and its derivatives are committed, so `git` is the shrink baseline: a sync that
+loses files shows up as deletions in the pull-request diff, and `minimumFileCount: 1000` remains the
+absolute first protection. Validation runs before any artifact is written and artifacts are promoted
+atomically, so a failed sync leaves the committed archive untouched and opens no pull request.
 
 The default workflow builds a project Pages URL:
 `https://OWNER.github.io/REPOSITORY/`. For a custom domain or an account Pages repository, adjust

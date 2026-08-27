@@ -70,10 +70,10 @@ merging is what deploys.
 Validation runs before any artifact is written and artifacts are promoted atomically, so a failed
 sync leaves the committed archive untouched and never opens a pull request.
 
-The deployment workflow is still scheduled daily at 03:17 UTC and after a push to `main`. GitHub can
-automatically disable the schedule after 60 days without repository activity in a public repository;
-the owner guide explains how to detect and re-enable it. A failed build does not replace the previous
-successful Pages deployment.
+The deployment workflow runs on a push to `main` and on manual dispatch. Nothing is on a schedule
+any more, so GitHub's rule about disabling scheduled workflows after 60 days of inactivity no longer
+applies. Deployment holds no Drive credentials and never syncs: it refuses to build if the committed
+archive is missing. A failed build does not replace the previous successful Pages deployment.
 
 See [Google Drive setup](docs/setup-google-drive.md) for the one-time owner configuration, the
 first real import, daily operation, and troubleshooting.

@@ -1,9 +1,11 @@
-name: Sync archive and deploy Pages
+name: Deploy Pages
+
+# This workflow no longer syncs and holds no Drive credentials. It builds and
+# deploys whatever archive data is committed. Refreshing that data is the
+# 'Sync archive from Drive' workflow, and merging its pull request lands here.
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: '17 3 * * *'
   push:
     branches: [main]
 
@@ -34,17 +36,16 @@ jobs:
         run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Restore archive baseline
-        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: .astro/archive-baseline.json
-          key: archive-baseline-v1-main-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: archive-baseline-v1-main-
-      - name: Sync Google Drive
-        run: npm run sync:drive
-        env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+      - name: Verify the committed archive is present
+        run: |
+          set -euo pipefail
+          for path in src/generated/catalog.json public/data/search-index.json; do
+            if [ ! -s "$path" ]; then
+              echo "Missing $path. Run the 'Sync archive from Drive' workflow and merge its" >&2
+              echo "pull request; this workflow builds from committed data and never syncs." >&2
+              exit 1
+            fi
+          done
       - name: Run unit tests
         run: npm test
       - name: Build production site
@@ -66,12 +67,6 @@ jobs:
           path: reports/curator-report.json
           if-no-files-found: ignore
           retention-days: 7
-      - name: Save archive baseline
-        if: success()
-        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
-        with:
-          path: .astro/archive-baseline.json
-          key: archive-baseline-v1-main-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Configure GitHub Pages
         if: success()
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

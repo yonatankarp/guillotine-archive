@@ -322,7 +322,7 @@ test('Hebrew search ranks the collection before English-named files', async ({ p
 
 test('Latin-only search is unsupported while mixed queries use their Hebrew words', async ({ page }) => {
   await page.goto(site.route('search/?q=piposh'));
-  await expect(page.locator('[data-search-status]')).toHaveText('החיפוש כאן עובד בעברית בלבד. סליחה.');
+  await expect(page.locator('[data-search-status]')).toHaveText('החיפוש פה עובד בעברית בלבד. סליחה, ככה בנינו אותו.');
   await expect(page.locator('[data-search-results] > li')).toHaveCount(0);
 
   await page.goto(site.route('search/?q=piposh%20%D7%A4%D7%99%D7%A4%D7%95%D7%A9%201'));
@@ -523,7 +523,7 @@ test('search has honest empty, singular, and plural count wording', async ({ pag
     searchFileDocument('plural-two', 'רבים'),
   ]);
   await page.goto(site.route('search/?q=%D7%A7%D7%A9%D7%A7%D7%95%D7%A9'));
-  await expect(page.locator('[data-search-status]')).toHaveText('לא מצאנו כלום. חיפשנו, באמת.');
+  await expect(page.locator('[data-search-status]')).toHaveText('לא מצאנו כלום. חיפשנו, באמת חיפשנו.');
 
   await page.goto(site.route('search/?q=%D7%91%D7%95%D7%93%D7%93'));
   await expect(page.locator('[data-search-status]')).toHaveText('2 תוצאות');

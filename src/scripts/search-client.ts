@@ -9,8 +9,8 @@ import {
 import { deriveKind } from '../catalog/kind';
 import { externalHttpUrl, sitePathForBrowserBase } from '../lib/browser-url';
 
-const EMPTY_STATUS = 'כתבו משהו בעברית. אנחנו לא מתכוונים לנחש לבד.';
-const FAILURE_STATUS = 'לא הצלחנו לטעון את החיפוש. משהו נפל, ואנחנו לא בטוחים מה.';
+const EMPTY_STATUS = 'כתבו משהו בעברית. אנחנו לא הולכים לנחש.';
+const FAILURE_STATUS = 'לא הצלחנו לטעון את החיפוש. משהו נפל, ואנחנו עוד לא בטוחים מה.';
 const RESULT_LIMIT = 100;
 
 interface SearchElements {
@@ -262,7 +262,7 @@ function renderResult(result: ArchiveSearchResult, baseUrl: string): HTMLLIEleme
 }
 
 function resultStatus(total: number): string {
-  if (total === 0) return 'לא מצאנו כלום. חיפשנו, באמת.';
+  if (total === 0) return 'לא מצאנו כלום. חיפשנו, באמת חיפשנו.';
   if (total === 1) return 'תוצאה אחת';
   if (total > RESULT_LIMIT) {
     return `${total} תוצאות. מוצגות רק ${RESULT_LIMIT} התוצאות הראשונות.`;
@@ -374,7 +374,7 @@ function setLoading(elements: SearchElements, loading: boolean): void {
   elements.category.disabled = loading;
   elements.kind.disabled = loading;
   elements.submit.disabled = loading;
-  if (loading) elements.status.textContent = 'טוענים את המפתח של הארכיון… רגע…';
+  if (loading) elements.status.textContent = 'רגע, טוענים את המפתח של הארכיון…';
 }
 
 async function start(root: HTMLElement): Promise<void> {
@@ -404,7 +404,7 @@ async function start(root: HTMLElement): Promise<void> {
           return;
         }
         if (extractHebrewTokens(query).length === 0) {
-          elements.status.textContent = 'החיפוש כאן עובד בעברית בלבד. סליחה.';
+          elements.status.textContent = 'החיפוש פה עובד בעברית בלבד. סליחה, ככה בנינו אותו.';
           return;
         }
 

@@ -94,8 +94,8 @@ const {
           {isMedia && source === null && showMediaNote && (
             <p class:list={['item-player-note', { unplayable: neverPlayable(item) }]}>
               {neverPlayable(item)
-                ? `${item.mimeType} לא מתנגן בדפדפן, וגם המרה לא תעזור. כי ככה. הקובץ המקורי נפתח בלשונית חדשה.`
-                : 'עוד אין כאן גרסה שמתנגנת. בינתיים הקובץ המקורי מחכה בלשונית חדשה.'}
+                ? `${item.mimeType} לא מתנגן בדפדפן, וגם המרה לא תעזור. כי ככה. הקובץ עצמו נפתח בלשונית חדשה.`
+                : 'עוד אין פה גרסה שמתנגנת. בינתיים הקובץ עצמו מחכה בלשונית חדשה.'}
             </p>
           )}
 
@@ -103,7 +103,7 @@ const {
             <div class="item-text">
               <p>{text.textHe}</p>
               {text.truncated && (
-                <p class="item-excerpt-note">זו רק ההתחלה של המסמך. השאר בקובץ המקורי — לא הצלחנו לדחוס אותו לעמוד הזה.</p>
+                <p class="item-excerpt-note">זו רק ההתחלה של המסמך. השאר בקובץ עצמו — לא הצלחנו לדחוס עשרים אלף תווים לעמוד אחד.</p>
               )}
               <p class="item-source mono"><bdi dir="auto">{item.path}</bdi></p>
             </div>

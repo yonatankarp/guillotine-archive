@@ -14,12 +14,12 @@ const quote = ARCHIVE_QUOTES[0]!;
 
   <header class="page-intro home-intro">
     <div class="home-copy">
-      <p class="eyebrow">ארכיון ציבורי, בהתנדבות מלאה</p>
+      <p class="eyebrow">תיק ציבורי. תיכנסו, פתוח</p>
       <h1>ארכיון גיליוטין</h1>
       <p class="lead">
-        {releases.length} מהדורות: המשחקים, הדמואים, דיסקי המעריצים והעיתונות. הכול נשמר מן
-        האולפן, ולא בגלל שתכננו את זה מראש — פשוט לא זרקנו כלום, וזה התברר בדיעבד כשיטת ארכוב
-        מצוינת.
+        אז ככה. יש פה {releases.length} מהדורות: משחקים, דמואים, דיסקים של מעריצים, וגם מה
+        שכתבו עלינו בעיתון. איך כל זה נשמר? אל תשאלו... פשוט לא זרקנו כלום, ואחרי עשרים שנה
+        קוראים לזה ארכיון.
       </p>
       <figure class="found-string">
         <blockquote class="voice"><p>{quote.textHe}</p></blockquote>
@@ -40,12 +40,12 @@ const quote = ARCHIVE_QUOTES[0]!;
 
   <section aria-labelledby="games-heading">
     <div class="section-heading">
-      <h2 id="games-heading">המשחקים</h2>
+      <h2 id="games-heading">טוב, המשחקים</h2>
       <p>
-        שישה משחקים יצאו מן האולפן, וכולם כאן, מן המוקדם למאוחר. שאר הארכיון —
-        {supportingReleases.length} מהדורות של מוזיקה, סרטונים, עיתונות וחומרי מעריצים — מחכה
-        במדורים שלמעלה. מי שיודע בדיוק מה הוא רוצה מוזמן פשוט
-        <a href={sitePath('search/')}>לחפש בכל הקבצים</a>.
+        שישה משחקים יצאו מהאולפן, וכולם פה, לפי הסדר, כמו אנשים. כל השאר — עוד {supportingReleases.length} מהדורות
+        של מוזיקה, סרטונים, עיתונים וחומרים של מעריצים — מחכה למעלה במדורים. ומי שיודע מה הוא
+        מחפש, שלא יתאמץ לגלול:
+        <a href={sitePath('search/')}>יש חיפוש</a>.
       </p>
     </div>
     <ReleaseGrid releases={featuredReleases} showSummary showFacets={false} />

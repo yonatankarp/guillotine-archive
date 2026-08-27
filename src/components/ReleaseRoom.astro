@@ -88,7 +88,7 @@ const facts = [
           <h2 id={`section-${section.id}`}>{section.headingHe}</h2>
           {section.id === 'music' && !hasAudioHere(section.items) && (
             <p class="room-note">
-              עוד אין כאן גרסה שמתנגנת. בינתיים כל רצועה נפתחת בלשונית חדשה.
+              עוד אין פה גרסה שמתנגנת. בינתיים כל רצועה נפתחת בלשונית חדשה.
             </p>
           )}
           {section.id === 'gallery' && hasThumbs(section.items) ? (
@@ -107,7 +107,7 @@ const facts = [
           )}
           {section.hiddenCount > 0 && (
             <p class="room-more">
-              יש עוד {section.hiddenCount} קבצים במדור הזה, ולא הצגנו אותם כאן כדי לא להאריך.
+              יש פה עוד {section.hiddenCount} קבצים, ולא הצגנו אותם כדי לא למשוך את העמוד עד מחר.
               <a href={mirrorHref(section.items)}>לרשימה המלאה במדף</a>
             </p>
           )}
@@ -120,9 +120,9 @@ const facts = [
         <section class="room-section" aria-labelledby="section-bundle">
           <h2 id="section-bundle">מה שהמשחק פיזר על הדיסק</h2>
           <p class="room-note">
-            אלה הקבצים שנוצרו כשהמשחק הותקן, ולא חומר שמישהו תייק בכוונה: ספריית הצלילים של
-            המנוע, תמונות הדמויות, קבצי נתונים. הם נספרים כאן ולא מוצגים אחד־אחד, כי רשימה של
-            ארבע מאות קבצי עזר היא לא תערוכה.
+            אלה הקבצים שנוצרו כשהמשחק הותקן, לא משהו שמישהו תייק בכוונה: ספריית הצלילים של
+            המנוע, תמונות של דמויות, קבצי נתונים. אנחנו סופרים אותם ולא מציגים אחד־אחד, כי
+            רשימה של ארבע מאות קבצי עזר זו לא תערוכה, זו עבודה.
           </p>
           <ul class="bundle-list">
             {bundle.map(({ kind, count, bytes }) => (
@@ -145,8 +145,8 @@ const facts = [
         <section class="room-section" aria-labelledby="section-credits">
           <h2 id="section-credits">מי בכלל עשה את זה</h2>
           <p class="room-note">
-            המשחקים האלה מתויקים לפי היוצר, ולכן זה המקום היחיד בכל הארכיון שבו נשמר קרדיט.
-            בכל השאר הוא הלך לאיבוד, ואנחנו לא גאים בזה.
+            את המשחקים האלה תייקו לפי היוצר, ולכן זה המקום היחיד בכל הארכיון שבו הקרדיט שרד.
+            בכל השאר הוא הלך לאיבוד. לא נעים, אבל זו האמת.
           </p>
           <ul class="credit-list">
             {credits.map(({ author, items: works }) => (

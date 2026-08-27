@@ -584,3 +584,27 @@ test('search page is accessible and stays within a 320px viewport', async ({ pag
     }
   }
 });
+
+test('pages carry their stylesheet inline so a stale page can never lose its styling', async ({
+  page,
+}) => {
+  /* GitHub Pages serves HTML with max-age=600 and cannot be configured. A hashed
+     stylesheet is renamed and deleted by any deploy that touches CSS, so cached
+     HTML asked for a file that was gone, got a 404, and rendered the site
+     completely unstyled until a manual refresh. Reported in the wild.
+     Inlined, stale HTML carries stale CSS instead of none. */
+  for (const route of ['', 'listen/', 'watch/', 'browse/type/audio-cd/', 'release/piposh-1/']) {
+    await page.goto(site.route(route));
+
+    const localSheets = page.locator('link[rel="stylesheet"][href^="/guillotine-archive"]');
+    await expect(localSheets, `${route || 'home'} links no hashed stylesheet`).toHaveCount(0);
+
+    const inlined = await page
+      .locator('style')
+      .evaluateAll((nodes) => nodes.reduce((total, node) => total + (node.textContent ?? '').length, 0));
+    expect(inlined, `${route || 'home'} carries inline CSS`).toBeGreaterThan(5000);
+
+    /* Proof it is actually applied, not merely present. */
+    await expect(page.locator('body')).toHaveCSS('margin', '0px');
+  }
+});

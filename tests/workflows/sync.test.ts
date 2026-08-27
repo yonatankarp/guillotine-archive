@@ -110,6 +110,7 @@ describe('archive sync workflow', () => {
       'Check out repository',
       'Set up Node',
       'Install dependencies',
+      'Install media tools',
       'Sync Google Drive',
       'Build production site',
       'Upload curator report',
@@ -121,6 +122,20 @@ describe('archive sync workflow', () => {
       GOOGLE_DRIVE_FOLDER_ID: '${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}',
     });
     expect(namedStep(jobSteps, 'Upload curator report')).toMatchObject({ if: 'always()' });
+  });
+
+  test('installs the media tools the runner image does not ship', async () => {
+    const { jobSteps } = await syncJob();
+    const install = requiredString(namedStep(jobSteps, 'Install media tools').run, 'run');
+
+    // sharp cannot decode PCX and does no audio; without these two the sync
+    // silently produces no derivatives for 426 images and 1,213 audio files.
+    expect(install).toContain('ffmpeg');
+    expect(install).toContain('imagemagick');
+    expect(install).toContain('set -euo pipefail');
+
+    const names = stepNames(jobSteps);
+    expect(names.indexOf('Install media tools')).toBeLessThan(names.indexOf('Sync Google Drive'));
   });
 
   test('keeps the checkout credentials the push needs, and nothing more', async () => {

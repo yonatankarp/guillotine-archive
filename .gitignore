@@ -10,6 +10,12 @@ test-results/
 .DS_Store
 reports/*.json
 
+# Atomic-promote scratch files. They are meant to be removed once a transaction
+# succeeds, but a leaked one must never reach a commit: the first derivative
+# sync shipped seven of them.
+.catalog-transaction-*
+**/.catalog-transaction-*
+
 # The archive catalog and its derivatives are committed, because sync is a manual
 # job and the deploy workflow builds from what is in the repository. Running
 # `npm run sync:fixture` overwrites them with fixture data locally: restore with

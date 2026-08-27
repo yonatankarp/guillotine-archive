@@ -37,6 +37,17 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      # sharp cannot decode PCX and handles BMP poorly, and it does no audio at
+      # all. Neither ImageMagick nor ffmpeg ships in the ubuntu-24.04 runner
+      # image: the first derivative run skipped 426 images and all 1,213 audio
+      # files for exactly that reason, and said so in the curator report.
+      - name: Install media tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg imagemagick
+          ffmpeg -version | head -1
+          convert -version | head -1
       # Validation runs before any artifact is written and the promote step is
       # atomic, so a failure here leaves the committed artifacts untouched and
       # fails the job before the pull-request step can run.

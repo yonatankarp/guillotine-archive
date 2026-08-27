@@ -8,6 +8,7 @@ import {
   SECTION_ITEM_CAP,
   sharedMirrorCategory,
 } from '../../src/components/release-view';
+import { hasThumbs } from '../../src/components/derivative';
 import { itemById, loadCatalog } from '../../src/lib/catalog';
 import { categorySlug } from '../../src/lib/url';
 import { playwrightRuntime } from '../support/playwright-runtime';
@@ -70,8 +71,16 @@ test('a room caps each section and sends the rest to the paginated Drive mirror'
   await page.goto(site.route(`release/${congress.slug}/`));
 
   for (const section of sections) {
-    const rows = page.locator(`section:has(h2:text-is("${section.headingHe}")) .item-rows > li`);
-    await expect(rows, `${section.headingHe} rows`).toHaveCount(section.items.length);
+    /* A section shows artwork tiles once its items have thumbnails and plain rows
+       before that, so the selector follows the derivatives rather than assuming
+       either state. Both render one element per item. */
+    const container = hasThumbs(section.items) && section.id === 'gallery'
+      ? '.media-gallery > li'
+      : '.item-rows > li';
+    const entries = page.locator(
+      `section:has(h2:text-is("${section.headingHe}")) ${container}`,
+    );
+    await expect(entries, `${section.headingHe} entries`).toHaveCount(section.items.length);
     expect(section.items.length).toBeLessThanOrEqual(SECTION_ITEM_CAP);
   }
   for (const section of capped) {
@@ -183,17 +192,31 @@ test('listen and watch list the real material and say what cannot play', async (
   expect(tracks).toHaveLength(169);
   expect(videos).toHaveLength(31);
 
+  /* A player appears exactly where a hosted rendition exists, and never
+     otherwise: no element may claim to play a file the site cannot serve. */
+  const playableTracks = tracks.filter(({ derivatives }) => derivatives?.audio !== undefined);
+
   await page.goto(site.route('listen/'));
   await expect(page.getByRole('heading', { level: 1, name: 'מוזיקה' })).toBeVisible();
   await expect(page.locator('.item-rows > li')).toHaveCount(tracks.length);
-  // No fake player: nothing claims to play while the derivatives do not exist.
-  await expect(page.locator('audio, video')).toHaveCount(0);
+  await expect(page.locator('audio')).toHaveCount(playableTracks.length);
+  for (const source of await page.locator('audio').evaluateAll((nodes) =>
+    nodes.map((node) => (node as HTMLAudioElement).getAttribute('src') ?? ''),
+  )) {
+    expect(source, 'every player points at a hosted rendition').toContain(
+      'generated/derivatives/',
+    );
+  }
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
   await page.goto(site.route('watch/'));
   await expect(page.getByRole('heading', { level: 1, name: 'סרטונים' })).toBeVisible();
   await expect(page.locator('.item-rows > li')).toHaveCount(videos.length);
-  await expect(page.locator('audio, video')).toHaveCount(0);
+  /* We host a poster and a duration, never the video: 6.4 GB, and 27 of 31 are
+     formats no browser decodes whatever we convert to. */
+  await expect(page.locator('video')).toHaveCount(0);
+  const posters = videos.filter(({ derivatives }) => derivatives?.poster !== undefined);
+  await expect(page.locator('.item-poster img')).toHaveCount(posters.length);
   // The one warning on the site: formats no browser will ever play.
   const warning = page.locator('.warn-note');
   await expect(warning).toHaveCount(1);

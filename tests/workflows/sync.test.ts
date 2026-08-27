@@ -123,6 +123,20 @@ describe('archive sync workflow', () => {
     expect(open).toMatch(/items\.length/u);
     expect(open).toMatch(/collections\.length/u);
     expect(open).toContain('generatedAt');
+    // Also to the run summary, so a refused pull request never loses the census.
+    expect(open).toContain('GITHUB_STEP_SUMMARY');
+  });
+
+  test('does not lose the sync when the repository forbids Actions opening pull requests', async () => {
+    const { jobSteps } = await syncJob();
+    const open = requiredString(namedStep(jobSteps, 'Open sync pull request').run, 'run');
+
+    // The push happens before the pull request is attempted, and a refusal is
+    // handled rather than left to `set -e`.
+    expect(open.indexOf('git push')).toBeLessThan(open.indexOf('gh pr create'));
+    expect(open).toMatch(/if\s+printf[^\n]*\|\s*gh pr create/u);
+    expect(open).toContain('compare/main...');
+    expect(open).toContain('GITHUB_SERVER_URL');
   });
 
   test('authenticates the pull request with the job token only', async () => {

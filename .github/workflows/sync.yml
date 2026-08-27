@@ -91,6 +91,12 @@ jobs:
             console.log(lines.join("\n"));
           ')"
 
+          # The census goes to the run summary unconditionally, so it survives even
+          # if opening the pull request is refused.
+          {
+            printf '## Archive census\n\n%s\n' "$census"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
@@ -100,12 +106,28 @@ jobs:
           git commit -m 'chore(archive): sync catalog and derivatives from Drive'
           git push --set-upstream origin "$branch"
 
-          {
+          body="$(
             printf '%s\n\n' 'Regenerated from Google Drive by the manual sync workflow.'
             printf '%s\n\n' "$census"
             printf '%s\n' 'Review the catalog diff rather than the derivative binaries, then merge to deploy.'
-          } | gh pr create \
+          )"
+
+          # Creating a pull request needs the repository-level "Allow GitHub Actions
+          # to create and approve pull requests" setting. The branch is already
+          # pushed, so if that is off the work is not lost: point at the compare
+          # view and let a person open it.
+          if printf '%s' "$body" | gh pr create \
             --base main \
             --head "$branch" \
             --title 'chore(archive): sync catalog and derivatives from Drive' \
             --body-file -
+          then
+            echo 'Opened the sync pull request.'
+          else
+            compare="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"
+            {
+              printf '\n> Could not open the pull request automatically.\n'
+              printf '> Branch `%s` is pushed. Open it here: %s\n' "$branch" "$compare"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Branch pushed but the pull request was refused. Open: ${compare}"
+          fi

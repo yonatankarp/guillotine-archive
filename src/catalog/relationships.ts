@@ -1,3 +1,5 @@
+import { deriveKind } from './kind';
+import { resolveReleases } from './releases';
 import type {
   Catalog,
   CatalogCollection,
@@ -49,6 +51,8 @@ function copyFile(file: DriveFile, metadata?: CuratedFileMetadata): CatalogItem 
   return {
     ...file,
     category: categoryFromPath(file.path),
+    kind: deriveKind(file),
+    releaseSlug: '',
     ...(metadata?.titleHe === undefined ? {} : { titleHe: metadata.titleHe }),
     ...(metadata?.descriptionHe === undefined
       ? {}
@@ -177,11 +181,16 @@ export function resolveRelationships(
     };
   });
   const categories = [...new Set(items.map((item) => item.category))].sort(compareHebrew);
-
-  return {
+  const catalog: Catalog = {
     generatedAt,
     collections,
     items,
     categories,
+    releases: [],
+    releaseFacets: { types: [], subjectSlugs: [], years: [] },
   };
+
+  resolveReleases(catalog, curatorConfig);
+
+  return catalog;
 }

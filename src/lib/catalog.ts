@@ -59,6 +59,54 @@ const collectionLink = z
     groupHe: nonblankString.optional(),
   })
   .strict();
+const itemKind = z.enum([
+  'video',
+  'track',
+  'sound',
+  'booklet-page',
+  'press-page',
+  'comic-page',
+  'cover',
+  'sprite',
+  'scan',
+  'build',
+  'document',
+  'game-data',
+  'noise',
+  'other',
+]);
+const releaseType = z.enum([
+  'game',
+  'demo',
+  'fan-disc',
+  'audio-cd',
+  'video',
+  'press',
+  'fan-game',
+  'other',
+]);
+const release = z
+  .object({
+    slug,
+    titleHe: nonblankString,
+    type: releaseType,
+    subjectSlug: slug.nullable(),
+    year: z.number().int().optional(),
+    formatHe: nonblankString.optional(),
+    itemIds: z.array(nonblankString),
+    coverFileId: nonblankString.optional(),
+    logoFileId: nonblankString.optional(),
+    accent: z.string().regex(/^#[0-9a-fA-F]{6}$/u).optional(),
+    sourcePaths: z.array(nonblankString),
+  })
+  .strict();
+const releaseFacets = z
+  .object({
+    types: z.array(releaseType),
+    subjectSlugs: z.array(slug),
+    years: z.array(z.number().int()),
+  })
+  .strict();
 const catalogItem = z
   .object({
     id: nonblankString,
@@ -70,6 +118,8 @@ const catalogItem = z
     viewUrl: driveUrl,
     downloadUrl: driveUrl.nullable(),
     category: nonblankString,
+    kind: itemKind,
+    releaseSlug: slug,
     titleHe: nonblankString.optional(),
     descriptionHe: nonblankString.optional(),
     aliasesHe: z.array(nonblankString),
@@ -89,6 +139,8 @@ const catalogSchema = z
     collections: z.array(curatedCollection),
     items: z.array(catalogItem),
     categories: z.array(nonblankString),
+    releases: z.array(release),
+    releaseFacets: releaseFacets,
   })
   .strict();
 
@@ -97,6 +149,8 @@ export const emptyDevelopmentCatalog: Catalog = {
   collections: [],
   items: [],
   categories: [],
+  releases: [],
+  releaseFacets: { types: [], subjectSlugs: [], years: [] },
 };
 
 export function parseCatalog(source: string): Catalog {

@@ -2,6 +2,71 @@ export type RelationshipKind = 'part-of-release' | 'about' | 'inspired-by';
 
 export type RuleMatch = 'path-prefix' | 'exact-path' | 'file-id';
 
+/** What a file *is*, derived from its bytes and its shelf. Machine enum, never displayed raw. */
+export type ItemKind =
+  | 'video'
+  | 'track'
+  | 'sound'
+  | 'booklet-page'
+  | 'press-page'
+  | 'comic-page'
+  | 'cover'
+  | 'sprite'
+  | 'scan'
+  | 'build'
+  | 'document'
+  | 'game-data'
+  | 'noise'
+  | 'other';
+
+export type ReleaseType =
+  | 'game'
+  | 'demo'
+  | 'fan-disc'
+  | 'audio-cd'
+  | 'video'
+  | 'press'
+  | 'fan-game'
+  | 'other';
+
+/** Per-container curator override. Always wins over inference. */
+export interface ReleaseOverride {
+  paths: string[];
+  slug?: string;
+  titleHe?: string;
+  type?: ReleaseType;
+  subjectSlug?: string | null;
+  year?: number;
+  formatHe?: string;
+  coverFileId?: string;
+  logoFileId?: string;
+  accent?: string;
+}
+
+/**
+ * The real unit of the archive: one CD-ROM, installed game, tape or press run.
+ * A release may span several source containers when it shipped on several discs.
+ */
+export interface Release {
+  slug: string;
+  titleHe: string;
+  type: ReleaseType;
+  subjectSlug: string | null;
+  year?: number;
+  formatHe?: string;
+  itemIds: string[];
+  coverFileId?: string;
+  logoFileId?: string;
+  accent?: string;
+  sourcePaths: string[];
+}
+
+export interface ReleaseFacets {
+  types: ReleaseType[];
+  subjectSlugs: string[];
+  years: number[];
+}
+
 export interface CuratorRule {
   match: RuleMatch;
   value: string;
@@ -34,6 +99,7 @@ export interface CuratorConfig {
   minimumFileCount?: number;
   files?: Record<string, CuratedFileMetadata>;
   collections: CuratedCollection[];
+  releases?: ReleaseOverride[];
 }
 
 export interface DriveFile {
@@ -56,6 +122,8 @@ export interface CollectionLink {
 
 export interface CatalogItem extends DriveFile {
   category: string;
+  kind: ItemKind;
+  releaseSlug: string;
   titleHe?: string;
   descriptionHe?: string;
   aliasesHe: string[];
@@ -74,4 +142,6 @@ export interface Catalog {
   collections: CatalogCollection[];
   items: CatalogItem[];
   categories: string[];
+  releases: Release[];
+  releaseFacets: ReleaseFacets;
 }

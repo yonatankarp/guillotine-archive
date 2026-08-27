@@ -118,6 +118,62 @@ export function validateCatalog(
     }
   }
 
+  for (const slug of duplicateValues(catalog.releases.map(({ slug }) => slug))) {
+    errors.push(`duplicate release slug: ${slug}`);
+  }
+
+  const releaseSlugs = new Set(catalog.releases.map(({ slug }) => slug));
+  const owners = new Map<string, string>();
+
+  for (const release of catalog.releases) {
+    if (release.subjectSlug !== null && !collectionSlugs.has(release.subjectSlug)) {
+      errors.push(`release ${release.slug} names an unknown subject: ${release.subjectSlug}`);
+    }
+
+    for (const itemId of release.itemIds) {
+      if (!itemIds.has(itemId)) {
+        errors.push(`release ${release.slug} references unknown item ID: ${itemId}`);
+        continue;
+      }
+
+      const owner = owners.get(itemId);
+
+      if (owner !== undefined) {
+        errors.push(
+          `item ${itemId} must belong to exactly one release, but belongs to ${owner} and ${release.slug}`,
+        );
+        continue;
+      }
+      owners.set(itemId, release.slug);
+    }
+  }
+
+  for (const item of catalog.items) {
+    if (!releaseSlugs.has(item.releaseSlug)) {
+      errors.push(`item ${item.id} names an unknown release: ${item.releaseSlug}`);
+      continue;
+    }
+
+    const owner = owners.get(item.id);
+
+    if (owner === undefined) {
+      errors.push(`item ${item.id} belongs to no release: ${item.path}`);
+    } else if (owner !== item.releaseSlug) {
+      errors.push(
+        `item ${item.id} names release ${item.releaseSlug} but is listed under ${owner}`,
+      );
+    }
+  }
+
+  for (const release of catalog.releases) {
+    if (release.coverFileId !== undefined && !itemIds.has(release.coverFileId)) {
+      errors.push(`release ${release.slug} cover file is missing: ${release.coverFileId}`);
+    }
+    if (release.logoFileId !== undefined && !itemIds.has(release.logoFileId)) {
+      errors.push(`release ${release.slug} logo file is missing: ${release.logoFileId}`);
+    }
+  }
+
   for (const collection of curator.collections) {
     const excludedSelectors = new Set(
       collection.exclude.map(({ match, value }) => selectorKey(match, value)),

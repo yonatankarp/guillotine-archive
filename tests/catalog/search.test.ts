@@ -43,6 +43,8 @@ function item(overrides: Partial<CatalogItem> = {}): CatalogItem {
     viewUrl: 'https://drive.google.com/file/d/english/view',
     downloadUrl: 'https://drive.google.com/uc?export=download&id=english',
     category: 'משחקים מלאים',
+    kind: 'build',
+    releaseSlug: 'piposh-1',
     aliasesHe: [],
     tagsHe: [],
     collectionLinks: [
@@ -63,6 +65,8 @@ function catalog(overrides: Partial<Catalog> = {}): Catalog {
     categories: ['משחקים מלאים'],
     collections: [collection()],
     items: [item()],
+    releases: [],
+    releaseFacets: { types: [], subjectSlugs: [], years: [] },
     ...overrides,
   };
 }

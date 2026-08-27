@@ -314,6 +314,8 @@ describe('resolveRelationships', () => {
     expect(catalog.items[0]).toEqual({
       ...files[0],
       category: 'עיתונות',
+      kind: 'other',
+      releaseSlug: 'press-843242d4',
       aliasesHe: [],
       tagsHe: [],
       collectionLinks: [],
@@ -397,6 +399,8 @@ describe('resolveRelationships', () => {
       collections: [],
       items: [],
       categories: [],
+      releases: [],
+      releaseFacets: { types: [], subjectSlugs: [], years: [] },
     });
   });
 });

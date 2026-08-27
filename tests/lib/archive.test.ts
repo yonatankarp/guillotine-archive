@@ -19,6 +19,8 @@ const item = (overrides: Partial<CatalogItem> = {}): CatalogItem => ({
   viewUrl: 'https://drive.google.com/file/d/item-one/view',
   downloadUrl: 'https://drive.google.com/uc?export=download&id=item-one',
   category: 'משחקים מלאים',
+  kind: 'build',
+  releaseSlug: 'piposh-1',
   aliasesHe: [],
   tagsHe: [],
   collectionLinks: [

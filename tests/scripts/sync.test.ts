@@ -63,11 +63,31 @@ function emptyCatalog(items: DriveFile[] = []): Catalog {
     items: items.map((file) => ({
       ...file,
       category: 'משחקים מלאים',
+      kind: 'game-data' as const,
+      releaseSlug: 'full-games',
       aliasesHe: [],
       tagsHe: [],
       collectionLinks: [],
     })),
     categories: items.length > 0 ? ['משחקים מלאים'] : [],
+    releases:
+      items.length > 0
+        ? [
+            {
+              slug: 'full-games',
+              titleHe: 'משחקים מלאים',
+              type: 'other' as const,
+              subjectSlug: null,
+              itemIds: items.map(({ id }) => id),
+              sourcePaths: ['משחקים מלאים'],
+            },
+          ]
+        : [],
+    releaseFacets: {
+      types: items.length > 0 ? ['other' as const] : [],
+      subjectSlugs: [],
+      years: [],
+    },
   };
 }
 

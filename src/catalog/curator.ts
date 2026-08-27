@@ -44,11 +44,31 @@ const curatedCollectionSchema = z
   })
   .strict();
 
+const releaseSlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u);
+
+const releaseOverrideSchema = z
+  .object({
+    paths: z.array(nonblankStringSchema).min(1),
+    slug: releaseSlugSchema.optional(),
+    titleHe: nonblankStringSchema.optional(),
+    type: z
+      .enum(['game', 'demo', 'fan-disc', 'audio-cd', 'video', 'press', 'fan-game', 'other'])
+      .optional(),
+    subjectSlug: releaseSlugSchema.nullable().optional(),
+    year: z.number().int().min(1980).max(2100).optional(),
+    formatHe: nonblankStringSchema.optional(),
+    coverFileId: driveFileIdSchema.optional(),
+    logoFileId: driveFileIdSchema.optional(),
+    accent: z.string().regex(/^#[0-9a-fA-F]{6}$/u).optional(),
+  })
+  .strict();
+
 const curatorConfigSchema = z
   .object({
     minimumFileCount: z.number().int().positive().default(1),
     files: z.record(driveFileIdSchema, curatedFileMetadataSchema).default({}),
     collections: z.array(curatedCollectionSchema),
+    releases: z.array(releaseOverrideSchema).optional(),
   })
   .strict();
 

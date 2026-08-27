@@ -9,6 +9,8 @@ const validCatalog = {
   collections: [],
   items: [],
   categories: [],
+  releases: [],
+  releaseFacets: { types: [], subjectSlugs: [], years: [] },
 };
 
 const validItem = {
@@ -21,6 +23,8 @@ const validItem = {
   viewUrl: 'https://drive.google.com/file/d/one/view',
   downloadUrl: 'https://drive.google.com/uc?id=one',
   category: 'משחקים מלאים',
+  kind: 'build',
+  releaseSlug: 'full-games',
   aliasesHe: [],
   tagsHe: [],
   collectionLinks: [],
@@ -140,6 +144,8 @@ describe('loadCatalog', () => {
       collections: [],
       items: [],
       categories: [],
+      releases: [],
+      releaseFacets: { types: [], subjectSlugs: [], years: [] },
     });
   });
 

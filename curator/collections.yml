@@ -106,3 +106,15 @@ collections:
       - { match: exact-path, value: פתרונות/פיפוש המהפכה - פתרון, relationship: part-of-release, groupHe: פתרונות }
       - { match: exact-path, value: פתרונות/פיפוש המהפכה - פתרון.docx, relationship: part-of-release, groupHe: פתרונות }
     exclude: []
+
+# Optional per-release overrides. `paths` names depth-two containers, or a single
+# curated collection slug. Several containers in one entry merge into one release,
+# which is how a multi-disc set stays one object.
+releases:
+  - paths:
+      - פרטי אספנות/הטברה של פיפוש - דיסק 1
+      - פרטי אספנות/הטברה של פיפוש - דיסק 2
+    slug: hatbara-shel-piposh
+    titleHe: ההטברה של פיפוש
+    type: audio-cd
+    formatHe: שני דיסקים

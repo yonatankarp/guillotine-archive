@@ -22,6 +22,7 @@ import type {
   CuratedCollection,
   CuratorConfig,
   DriveFile,
+  Release,
 } from '../../src/catalog/types';
 import { validateCatalog } from '../../src/catalog/validate';
 
@@ -83,6 +84,8 @@ function catalogItem(id: string, overrides: Partial<CatalogItem> = {}): CatalogI
   return {
     ...driveFile(id),
     category: 'ארכיון',
+    kind: 'game-data',
+    releaseSlug: 'archive-shelf',
     aliasesHe: [],
     tagsHe: [],
     collectionLinks: [],
@@ -101,6 +104,17 @@ function catalogCollection(
   };
 }
 
+function shelfRelease(items: readonly CatalogItem[]): Release {
+  return {
+    slug: 'archive-shelf',
+    titleHe: 'ארכיון',
+    type: 'other',
+    subjectSlug: null,
+    itemIds: [...new Set(items.map(({ id }) => id))],
+    sourcePaths: ['ארכיון'],
+  };
+}
+
 function catalog(
   items: CatalogItem[],
   overrides: Partial<Catalog> = {},
@@ -110,6 +124,8 @@ function catalog(
     collections: [catalogCollection()],
     items,
     categories: ['ארכיון'],
+    releases: [shelfRelease(items)],
+    releaseFacets: { types: ['other'], subjectSlugs: [], years: [] },
     ...overrides,
   };
 }

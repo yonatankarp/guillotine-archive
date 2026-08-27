@@ -1,17 +1,121 @@
+/*
+ * Dark-first. The ground carries a green cast taken from the strongest box art in the
+ * archive, so the chrome sits in the same light as the covers instead of next to them.
+ * Every token is declared here on bare :root; the theme blocks below only re-value them.
+ */
 :root {
-  --ink: #171512;
-  --paper: #f6f0df;
-  --paper-light: #fffdf6;
-  --magenta: #da277a;
-  --cyan: #72d7e6;
-  --lime: #b8db46;
-  --yellow: #f4cd45;
-  --line: 2px;
-  --radius: 1.1rem;
-  color: var(--ink);
-  background: var(--paper);
-  font-family: Arial, "Arial Hebrew", sans-serif;
+  /* Surfaces */
+  --ground: #0f1210;
+  --raise: #171b16;
+  --sunk: #0a0d09;
+
+  /* Hairline colours. --line stays a WIDTH: see the note above the legacy aliases. */
+  --stroke: #272d22;
+  --stroke-soft: #1d2318;
+
+  /* Text. --faint is for rules, disabled states and large type; it is below AA at body
+     size in both themes, so small text uses --dim. */
+  --text: #ede9dd;
+  --dim: #9aa391;
+  --faint: #6c7464;
+
+  /* The artwork mat. Deliberately identical in both themes: letterboxing a 0.58-to-1.50
+     spread of cover aspects only reads as intentional against a constant dark field. */
+  --mat: #070907;
+  --mat-text: #ede9dd;
+  /* Secondary text on the mat. Constant like the mat itself: --dim and --faint flip with
+     the theme and would land light-theme greys on a dark field. */
+  --mat-dim: #8f978a;
+
+  --link: #4fa8c9;
+  /* One message sitewide: this file will not play in a browser. Nothing else may use it. */
+  --warn: #d9822b;
+  /* Per-release override, set inline: style="--accent: #…" */
+  --accent: #4fa8c9;
+
+  /* Hebrew display serif. The container is dignified; the contents are not. */
+  --f-display: "Suez One", "Frank Ruehl CLM", "David Libre", Georgia, serif;
+  --f-text: "Heebo", "Arial Hebrew", Arial, system-ui, sans-serif;
+  /* Only for lines someone actually says. Never a label, never a control. */
+  --f-voice: "Karantina", "Heebo", "Arial Hebrew", sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --t-2xs: 0.75rem;
+  --t-xs: 0.8125rem;
+  --t-s: 0.9375rem;
+  --t-m: 1.0625rem;
+  --t-l: 1.1875rem;
+  --t-xl: clamp(1.35rem, 1.16rem + 0.85vw, 1.65rem);
+  --t-2xl: clamp(1.65rem, 1.26rem + 1.75vw, 2.2rem);
+  --t-3xl: clamp(2rem, 1.36rem + 2.85vw, 2.9rem);
+  --t-4xl: clamp(2.45rem, 1.49rem + 4.3vw, 3.8rem);
+  --t-5xl: clamp(2.9rem, 1.54rem + 6.1vw, 4.8rem);
+
+  --radius: 0.5rem;
+  --radius-s: 0.25rem;
+
+  /*
+   * Legacy aliases. Components outside this file still consume --ink, --paper-light,
+   * --line, --radius and the four accents; re-pointing them here moves those files onto
+   * the new palette without editing them. --line therefore keeps its original meaning as
+   * a border WIDTH — 22 `border: var(--line) solid var(--ink)` declarations would be
+   * dropped as invalid if it became a colour. New code uses --stroke for the colour.
+   */
+  --ink: var(--text);
+  --paper: var(--ground);
+  --paper-light: var(--raise);
+  --line: 1px;
+  --magenta: #2b1a22;
+  --cyan: #16262c;
+  --lime: #1e2617;
+  --yellow: #2a2415;
+
+  color: var(--text);
+  background: var(--ground);
+  font-family: var(--f-text);
+  font-size: var(--t-m);
   font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #edebe1;
+    --raise: #ffffff;
+    --sunk: #e1ded2;
+    --stroke: #d4d1c2;
+    --stroke-soft: #e2dfd1;
+    --text: #141710;
+    --dim: #585f4f;
+    --faint: #818877;
+    /* #1b7794 reached only 4.27:1 on the light ground; darkened to clear AA at body size. */
+    --link: #166478;
+    /* #d9822b reached only 2.45:1 on the light ground. */
+    --warn: #96500b;
+    --accent: #166478;
+    --magenta: #f0dfe4;
+    --cyan: #dde9ec;
+    --lime: #e4e9d6;
+    --yellow: #f1e8ce;
+  }
+}
+
+:root[data-theme="light"] {
+  --ground: #edebe1;
+  --raise: #ffffff;
+  --sunk: #e1ded2;
+  --stroke: #d4d1c2;
+  --stroke-soft: #e2dfd1;
+  --text: #141710;
+  --dim: #585f4f;
+  --faint: #818877;
+  --link: #166478;
+  --warn: #96500b;
+  --accent: #166478;
+  --magenta: #f0dfe4;
+  --cyan: #dde9ec;
+  --lime: #e4e9d6;
+  --yellow: #f1e8ce;
 }
 
 * {
@@ -27,25 +131,102 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at 8% 15%, rgb(218 39 122 / 5%) 0 1px, transparent 2px),
-    radial-gradient(circle at 70% 60%, rgb(23 21 18 / 4%) 0 1px, transparent 2px),
-    var(--paper);
-  background-size: 31px 31px, 43px 43px, auto;
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--f-text);
+  font-size: var(--t-m);
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--f-display);
+  font-weight: 400;
+  /* Hebrew has no caps and no ascender rhythm, so display type gets open tracking and a
+     line-height with room for the descenders of ק, ן and ץ. Never negative tracking. */
+  letter-spacing: 0.005em;
+  line-height: 1.18;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
 }
 
 a {
   color: inherit;
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: from-font;
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
+img,
+svg,
+video {
+  max-width: 100%;
+}
+
 :focus-visible {
-  outline: 4px solid var(--ink);
-  outline-offset: 4px;
+  outline: 4px solid var(--text);
+  outline-offset: 3px;
+}
+
+/* 2px ordered dither. The source art is 256-colour Director output and 161 archive images
+   are PCX, so the texture is the material. Earns its place in exactly two spots: the mat
+   behind a release with no cover, and the base of a video poster. --dither-ink lets a
+   consumer pick the ink without dragging the text colour along. */
+.dither {
+  background-image: repeating-conic-gradient(var(--dither-ink, currentColor) 0 25%, transparent 0 50%);
+  background-size: 4px 4px;
+}
+
+/* A dark artwork field. Letterboxing stays intentional in both themes. */
+.mat {
+  background-color: var(--mat);
+  color: var(--mat-text);
+}
+
+/* Filenames, sizes, durations, IDs. Isolated LTR so Latin text cannot reorder the RTL
+   line around it, tabular so columns of sizes align. */
+.mono {
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-family: var(--f-data);
+  font-size: 0.92em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wrapper for anything wider than the column — a long path, a table. Scrolls itself so the
+   page body never does. */
+.scroll-x {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+/* Small structural label above a heading. No text-transform: Hebrew has no uppercase. */
+.eyebrow {
+  margin: 0 0 0.6rem;
+  color: var(--dim);
+  font-family: var(--f-text);
+  font-size: var(--t-2xs);
+  font-weight: 500;
+  letter-spacing: 0.09em;
+}
+
+/* Lines someone actually says. Not for labels or controls. */
+.voice {
+  font-family: var(--f-voice);
+  font-weight: 700;
+  font-size: var(--t-xl);
+  line-height: 1.3;
 }
 
 .visually-hidden {
@@ -65,11 +246,12 @@ input {
   inset-inline-start: 1rem;
   top: -5rem;
   z-index: 100;
-  padding: 0.75rem 1rem;
-  border: var(--line) solid var(--ink);
-  border-radius: 0.4rem;
-  background: var(--paper-light);
-  font-weight: 800;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  background: var(--raise);
+  font-size: var(--t-s);
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -79,141 +261,106 @@ input {
 
 .site-header {
   width: min(1240px, calc(100% - 2rem));
-  margin: 1rem auto 0;
-  padding: 0.8rem 1rem;
+  margin: 0 auto;
+  padding: 1.1rem 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  border-block: var(--line) solid var(--ink);
+  border-bottom: 1px solid var(--stroke);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.65rem;
   text-decoration: none;
 }
 
 .brand-mark {
-  width: 2.8rem;
-  height: 2.8rem;
+  width: 2.1rem;
+  height: 2.1rem;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  border: var(--line) solid var(--ink);
-  border-radius: 52% 44% 47% 43%;
-  background: var(--yellow);
-  box-shadow: 3px 3px 0 var(--ink);
-  font-size: 1.45rem;
-  font-weight: 900;
-  transform: rotate(2deg);
-}
-
-.brand strong,
-.brand small {
-  display: block;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  background: var(--sunk);
+  font-family: var(--f-display);
+  font-size: 1.05rem;
 }
 
 .brand strong {
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-  font-weight: 900;
-  letter-spacing: -0.035em;
-}
-
-.brand small {
-  margin-top: 0.1rem;
-  color: #514b43;
-  font-size: 0.67rem;
+  display: block;
+  font-family: var(--f-display);
+  font-size: var(--t-l);
+  font-weight: 400;
+  letter-spacing: 0.01em;
 }
 
 .site-header nav {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.35rem 1rem;
+  gap: 0.35rem 1.35rem;
 }
 
 .site-header nav a {
-  padding-block: 0.35rem;
-  font-size: 0.93rem;
-  font-weight: 800;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 0.28rem;
+  padding-block: 0.3rem;
+  color: var(--dim);
+  font-size: var(--t-s);
+  font-weight: 500;
+  text-decoration: none;
 }
 
 .site-header nav a:hover {
-  text-decoration-color: var(--magenta);
+  color: var(--text);
+  text-decoration: underline;
 }
 
 main {
   width: min(1180px, calc(100% - 2rem));
   margin: 0 auto;
-  padding: clamp(1.25rem, 3vw, 2.5rem) 0 clamp(4rem, 8vw, 7rem);
+  padding: clamp(1.75rem, 4vw, 3.25rem) 0 clamp(4rem, 8vw, 7rem);
 }
 
 .site-footer {
-  padding: 1.3rem max(1rem, calc((100% - 1180px) / 2));
-  border-top: var(--line) solid var(--ink);
-  background: var(--paper-light);
-  text-align: center;
-  font-size: 0.88rem;
-  line-height: 1.6;
+  padding: 1.5rem max(1rem, calc((100% - 1180px) / 2));
+  border-top: 1px solid var(--stroke);
+  background: var(--sunk);
+  color: var(--dim);
+  font-size: var(--t-s);
+  line-height: 1.65;
 }
 
 .site-footer p {
   margin: 0;
 }
 
+.site-footer strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
 .hero {
-  position: relative;
-  isolation: isolate;
-  min-height: min(500px, 68vh);
+  min-height: min(440px, 62vh);
   display: grid;
   grid-template-areas: "title character copy";
-  grid-template-columns: minmax(0, 1.15fr) minmax(7.5rem, 0.35fr) minmax(15rem, 0.85fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(7.5rem, 0.35fr) minmax(15rem, 0.9fr);
   align-items: center;
-  gap: clamp(0.75rem, 2.5vw, 2rem);
-  padding: clamp(2rem, 7vw, 5.4rem);
-  overflow: hidden;
-  border: var(--line) solid var(--ink);
+  gap: clamp(0.75rem, 2.5vw, 2.5rem);
+  padding: clamp(1.75rem, 5vw, 3.5rem);
+  border: 1px solid var(--stroke);
   border-radius: var(--radius);
-  background: var(--yellow);
-  box-shadow: 8px 8px 0 var(--ink);
-}
-
-.hero::before,
-.hero::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  border: var(--line) solid var(--ink);
-}
-
-.hero::before {
-  width: 15rem;
-  height: 15rem;
-  inset: -6rem auto auto -5rem;
-  border-radius: 50%;
-  background: var(--magenta);
-}
-
-.hero::after {
-  width: 8rem;
-  height: 18rem;
-  inset: auto 45% -10rem auto;
-  background: var(--cyan);
-  transform: rotate(24deg);
+  background: var(--raise);
 }
 
 .hero-title-block {
-  position: relative;
-  z-index: 1;
   grid-area: title;
 }
 
 .hero-character {
-  width: clamp(7.5rem, 10vw, 8.4rem);
+  width: clamp(7rem, 10vw, 8.4rem);
   height: auto;
   max-width: 100%;
   display: block;
@@ -225,130 +372,114 @@ main {
 
 .issue-label {
   display: inline-flex;
-  gap: 0.45rem;
+  gap: 0.5rem;
   align-items: center;
-  margin: 0 0 1.25rem;
-  padding: 0.35rem 0.6rem;
-  border: var(--line) solid var(--ink);
-  border-radius: 999px;
-  background: var(--paper-light);
-  font-size: 0.73rem;
-  font-weight: 900;
-  letter-spacing: 0.06em;
+  margin: 0 0 1.1rem;
+  color: var(--dim);
+  font-size: var(--t-2xs);
+  font-weight: 500;
+  letter-spacing: 0.09em;
 }
 
 .issue-label::before {
   content: "";
-  width: 0.55rem;
-  height: 0.55rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 auto;
   border-radius: 50%;
-  background: var(--magenta);
+  background: var(--accent);
 }
 
 .hero h1 {
-  max-width: 8ch;
   margin: 0;
-  font-size: clamp(3.2rem, 8vw, 7.5rem);
-  font-weight: 950;
-  letter-spacing: -0.075em;
-  line-height: 0.83;
+  font-size: var(--t-5xl);
 }
 
 .hero-copy {
-  position: relative;
-  z-index: 1;
   grid-area: copy;
   align-self: end;
-  padding: clamp(1rem, 2.5vw, 1.5rem);
-  border: var(--line) solid var(--ink);
-  border-radius: 0.8rem 1.15rem 0.7rem 1rem;
-  background: var(--paper-light);
-  box-shadow: 5px 5px 0 var(--magenta);
-  transform: rotate(-1deg);
 }
 
 .hero-copy > p {
   margin: 0;
-  font-size: clamp(1rem, 2vw, 1.16rem);
-  font-weight: 700;
-  line-height: 1.55;
+  color: var(--dim);
+  font-size: var(--t-s);
+  line-height: 1.7;
 }
 
 .search-form {
-  margin-top: 1.35rem;
+  margin-top: 1.5rem;
 }
 
 .search-controls {
   display: flex;
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 .search-form input {
   width: 100%;
   min-width: 0;
-  padding: 0.82rem 1rem;
-  border: var(--line) solid var(--ink);
-  border-radius: 0.55rem;
-  background: white;
-  color: var(--ink);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  background: var(--ground);
+  color: var(--text);
+  font-size: var(--t-s);
 }
 
 .search-form input::placeholder {
-  color: #655d54;
+  color: var(--dim);
   opacity: 1;
 }
 
 .search-form button {
   flex: 0 0 auto;
-  padding: 0.78rem 1.05rem;
-  border: var(--line) solid var(--ink);
-  border-radius: 0.55rem;
-  background: var(--lime);
-  color: var(--ink);
-  font-weight: 900;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  background: var(--sunk);
+  color: var(--text);
+  font-size: var(--t-s);
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: 3px 3px 0 var(--ink);
 }
 
 .search-form button:hover {
-  background: var(--cyan);
+  border-color: var(--dim);
 }
 
 .search-hint {
   display: block;
-  margin-top: 0.65rem;
-  color: #4d473f;
-  font-size: 0.76rem;
-  line-height: 1.5;
+  margin-top: 0.7rem;
+  color: var(--dim);
+  font-size: var(--t-2xs);
+  line-height: 1.6;
 }
 
 .games-section {
-  margin-top: clamp(4rem, 8vw, 7.5rem);
+  margin-top: clamp(3rem, 7vw, 5.5rem);
 }
 
 .section-heading {
   display: flex;
   align-items: end;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.6rem;
-  padding-bottom: 0.85rem;
-  border-bottom: var(--line) solid var(--ink);
+  gap: 1.5rem;
+  margin-bottom: 1.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--stroke);
 }
 
 .section-heading h2 {
   margin: 0;
-  font-size: clamp(2rem, 5vw, 4rem);
-  letter-spacing: -0.055em;
-  line-height: 1;
+  font-size: var(--t-3xl);
 }
 
 .section-heading p {
-  max-width: 31rem;
+  max-width: 34rem;
   margin: 0;
-  color: #514b43;
-  font-size: 0.88rem;
-  line-height: 1.5;
+  color: var(--dim);
+  font-size: var(--t-s);
 }
 
 .game-grid {
@@ -368,41 +499,29 @@ main {
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 0.72rem;
-  border: var(--line) solid var(--ink);
   border-radius: var(--radius);
-  background: var(--paper-light);
-  box-shadow: 5px 5px 0 var(--tile-accent, var(--magenta));
   text-decoration: none;
-  transition: transform 150ms ease, box-shadow 150ms ease;
+  transition: border-color 150ms ease;
 }
 
-.game-grid li:nth-child(4n + 2) .game-tile {
-  --tile-accent: var(--cyan);
+.game-tile:hover .cover-frame,
+.game-tile:focus-visible .cover-frame {
+  border-color: var(--accent);
 }
 
-.game-grid li:nth-child(4n + 3) .game-tile {
-  --tile-accent: var(--lime);
-}
-
-.game-grid li:nth-child(4n) .game-tile {
-  --tile-accent: var(--yellow);
-}
-
-.game-tile:hover,
-.game-tile:focus-visible {
-  transform: translate(-2px, -2px);
-  box-shadow: 8px 8px 0 var(--ink);
-}
-
+/* A fixed frame over a constant dark mat. Cover scans run from 0.58 to 1.50 in aspect, so
+   something has to give; letterboxing against the mat is the version that reads as a
+   choice rather than as a broken image. */
 .cover-frame {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: var(--line) solid var(--ink);
-  border-radius: 0.7rem;
-  background: #e5ded0;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  background: var(--mat);
+  color: var(--mat-text);
+  transition: border-color 150ms ease;
 }
 
 .cover-frame img {
@@ -410,83 +529,51 @@ main {
   height: 100%;
   display: block;
   object-fit: contain;
-  background: white;
 }
 
 .cover-fallback {
-  position: relative;
-  isolation: isolate;
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: clamp(1rem, 3vw, 1.7rem);
-  overflow: hidden;
-  background:
-    linear-gradient(135deg, transparent 0 68%, var(--tile-accent, var(--magenta)) 68% 76%, transparent 76%),
-    var(--yellow);
-}
-
-.cover-fallback::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  width: 12rem;
-  aspect-ratio: 1;
-  inset: 44% -5rem auto auto;
-  border: var(--line) solid var(--ink);
-  border-radius: 50%;
-  background: var(--tile-accent, var(--magenta));
-}
-
-.cover-fallback::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  width: 4.5rem;
-  height: 120%;
-  inset: -10% auto auto 13%;
-  border-inline: var(--line) solid var(--ink);
-  background: rgb(255 253 246 / 58%);
-  transform: rotate(7deg);
+  gap: 1rem;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  /* Dither spot one of two: a release whose cover has not arrived. */
+  --dither-ink: #1c2419;
+  background-image: repeating-conic-gradient(var(--dither-ink) 0 25%, transparent 0 50%);
+  background-size: 4px 4px;
 }
 
 .cover-series,
 .cover-note {
-  width: fit-content;
-  padding: 0.25rem 0.4rem;
-  border: 1.5px solid var(--ink);
-  background: var(--paper-light);
-  font-size: 0.64rem;
-  font-weight: 900;
+  color: var(--mat-dim);
+  font-size: var(--t-2xs);
+  font-weight: 500;
+  letter-spacing: 0.07em;
 }
 
 .cover-fallback strong {
-  max-width: 9ch;
-  font-size: clamp(2rem, 5vw, 3.5rem);
-  font-weight: 950;
-  letter-spacing: -0.075em;
-  line-height: 0.88;
+  font-family: var(--f-display);
+  font-size: var(--t-2xl);
+  font-weight: 400;
+  line-height: 1.15;
   text-wrap: balance;
 }
 
 .cover-seal {
   align-self: flex-end;
-  padding: 0.45rem;
-  border: var(--line) solid var(--ink);
-  border-radius: 50%;
-  background: var(--paper-light);
-  font-size: 0.72rem;
-  font-weight: 900;
-  transform: rotate(-8deg);
+  color: var(--mat-dim);
+  font-family: var(--f-data);
+  font-size: var(--t-2xs);
+  letter-spacing: 0.12em;
 }
 
 .tile-copy {
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 0.85rem 0.35rem 0.3rem;
+  padding: 0.9rem 0 0;
 }
 
 .tile-heading {
@@ -498,46 +585,53 @@ main {
 
 .tile-heading h2 {
   margin: 0;
-  font-size: clamp(1.25rem, 2.2vw, 1.65rem);
-  letter-spacing: -0.035em;
+  font-size: var(--t-xl);
 }
 
 .game-year {
-  font-size: 0.75rem;
-  font-weight: 800;
+  direction: ltr;
+  unicode-bidi: isolate;
+  flex: 0 0 auto;
+  color: var(--dim);
+  font-family: var(--f-data);
+  font-size: var(--t-2xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .tile-copy p {
-  margin: 0.55rem 0 1rem;
-  color: #454039;
-  font-size: 0.88rem;
-  line-height: 1.55;
+  margin: 0.5rem 0 1rem;
+  color: var(--dim);
+  font-size: var(--t-s);
+  line-height: 1.65;
 }
 
 .fact-badge {
   width: fit-content;
   margin-top: auto;
-  padding: 0.3rem 0.55rem;
-  border: 1.5px solid var(--ink);
-  border-radius: 999px;
-  background: var(--yellow);
-  font-size: 0.72rem;
-  font-weight: 850;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--stroke-soft);
+  color: var(--dim);
+  font-size: var(--t-2xs);
+  font-weight: 500;
 }
 
+/* A release with nothing catalogued yet. Marked by the rule, not by colour, so the signal
+   survives both themes and does not need a second accent. */
 .fact-badge.empty {
-  background: #ece6d8;
+  border-top-style: dashed;
+  border-top-color: var(--stroke);
 }
 
 @media (max-width: 820px) {
   .site-header {
     align-items: flex-start;
     flex-direction: column;
+    gap: 0.9rem;
   }
 
   .site-header nav {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 
   .hero {
@@ -546,17 +640,12 @@ main {
       "title"
       "character"
       "copy";
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-
-  .hero h1 {
-    max-width: 7ch;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.75rem;
   }
 
   .hero-copy {
-    width: min(100%, 32rem);
-    transform: none;
+    width: min(100%, 34rem);
   }
 
   .hero-character {
@@ -571,6 +660,7 @@ main {
   .section-heading {
     align-items: flex-start;
     flex-direction: column;
+    gap: 0.75rem;
   }
 }
 
@@ -578,10 +668,6 @@ main {
   .site-header,
   main {
     width: min(100% - 1.25rem, 1180px);
-  }
-
-  .brand small {
-    display: none;
   }
 
   .site-header nav {
@@ -597,16 +683,7 @@ main {
   }
 
   .hero {
-    padding: 1.5rem;
-    box-shadow: 5px 5px 0 var(--ink);
-  }
-
-  .hero::before {
-    opacity: 0.7;
-  }
-
-  .hero h1 {
-    font-size: clamp(3.15rem, 18vw, 5rem);
+    padding: 1.4rem;
   }
 
   .search-controls {
@@ -619,20 +696,8 @@ main {
   }
 
   .game-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 1.5rem;
-  }
-
-  .game-tile {
-    padding: 0.65rem;
-  }
-
-  .cover-frame {
-    aspect-ratio: 4 / 5;
-  }
-
-  .cover-fallback strong {
-    font-size: clamp(2.7rem, 14vw, 4rem);
   }
 }
 

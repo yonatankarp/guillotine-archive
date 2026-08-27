@@ -271,7 +271,7 @@ test('Drive actions and back links have a high-contrast visible focus indicator'
     const link = page.getByRole('link', { name: accessibleName }).first();
     await link.focus();
     await expect(link).toBeFocused();
-    await expect(link).toHaveCSS('outline-color', 'rgb(23, 21, 18)');
+    await expect(link).toHaveCSS('outline-color', 'rgb(20, 23, 16)');
     await expect(link).toHaveCSS('outline-style', 'solid');
     await expect(link).toHaveCSS('outline-width', '4px');
   }

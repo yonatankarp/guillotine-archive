@@ -571,10 +571,26 @@ async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> 
       { kind: 'write', target: searchPath, data: serializedSearch },
       { kind: 'write', target: reportPath, data: prettyJson(report) },
     ];
+    // Scale is the first thing worth knowing when a promote fails: with audio and
+    // image derivatives every artifact is buffered here before any of it lands.
+    const artifactBytes = artifacts.reduce(
+      (sum, artifact) => sum + (artifact.kind === 'delete' ? 0 : artifact.data.length),
+      0,
+    );
+    console.log(
+      `promoting ${artifacts.length} artifacts, ${(artifactBytes / 1e6).toFixed(1)} MB buffered`,
+    );
     await promoteArtifactTransaction(input.root, artifacts, input.faultInjection);
-  } catch {
+  } catch (error) {
     const message = 'failed to promote archive artifacts';
     report.errors.push(message);
+    // The report stays sanitized on purpose: it is uploaded as a downloadable
+    // artifact. But this catch used to discard the cause entirely, so run
+    // 33060693260 spent 31 minutes to report nothing diagnosable. Send the real
+    // cause to the run log, which only repository collaborators can read.
+    console.error(
+      `promote failure cause: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
+    );
     try {
       await writeDiagnosticReport(input.root, reportPath, report);
     } catch {

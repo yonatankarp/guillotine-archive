@@ -18,7 +18,6 @@ const validItem = {
   size: 12,
   modifiedTime: '2026-08-26T00:00:00.000Z',
   path: 'משחקים מלאים/one.zip',
-  parentIds: ['root'],
   viewUrl: 'https://drive.google.com/file/d/one/view',
   downloadUrl: 'https://drive.google.com/uc?id=one',
   category: 'משחקים מלאים',

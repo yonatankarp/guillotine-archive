@@ -8,7 +8,6 @@ export interface RemoteEntry {
   mimeType: string;
   size?: string | null;
   modifiedTime?: string | null;
-  parents?: string[] | null;
   webViewLink?: string | null;
   webContentLink?: string | null;
 }
@@ -59,7 +58,6 @@ export async function scanDrive(rootId: string, gateway: DriveGateway): Promise<
         size: toSize(entry.size),
         modifiedTime: entry.modifiedTime ?? null,
         path,
-        parentIds: entry.parents ?? [folder.id],
         viewUrl: entry.webViewLink ?? `https://drive.google.com/file/d/${entry.id}/view`,
         downloadUrl: getDownloadUrl(entry),
       });

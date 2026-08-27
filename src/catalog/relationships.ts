@@ -48,7 +48,6 @@ function copyCollection(collection: CuratedCollection): CuratedCollection {
 function copyFile(file: DriveFile, metadata?: CuratedFileMetadata): CatalogItem {
   return {
     ...file,
-    parentIds: [...file.parentIds],
     category: categoryFromPath(file.path),
     ...(metadata?.titleHe === undefined ? {} : { titleHe: metadata.titleHe }),
     ...(metadata?.descriptionHe === undefined

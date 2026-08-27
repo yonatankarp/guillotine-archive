@@ -1,31 +1,16 @@
-import { readFile } from 'node:fs/promises';
 import { describe, expect, test } from 'vitest';
-import { parse } from 'yaml';
-
-type UnknownRecord = Record<string, unknown>;
-
-interface WorkflowStep extends UnknownRecord {
-  name?: string;
-  uses?: string;
-  run?: string;
-}
-
-const actionPins: ReadonlyMap<string, readonly [sha: string, version: string]> = new Map([
-  ['actions/checkout', ['de0fac2e4500dabe0009e67214ff5f5447ce83dd', 'v6.0.2']],
-  ['actions/setup-node', ['820762786026740c76f36085b0efc47a31fe5020', 'v7.0.0']],
-  ['actions/cache/restore', ['cdf6c1fa76f9f475f3d7449005a359c84ca0f306', 'v5.0.3']],
-  ['actions/cache/save', ['cdf6c1fa76f9f475f3d7449005a359c84ca0f306', 'v5.0.3']],
-  ['actions/upload-artifact', ['043fb46d1a93c77aae656e7c1c64a875d1fc6a0a', 'v7.0.1']],
-  ['actions/configure-pages', ['45bfe0192ca1faeb007ade9deae92b16b8254a0d', 'v6.0.0']],
-  ['actions/upload-pages-artifact', ['fc324d3547104276b827a68afc52ff2a11cc49c9', 'v5.0.0']],
-  ['actions/deploy-pages', ['cd2ce8fcbc39b97be8ca5fce6e763baed58fa128', 'v5.0.0']],
-]);
-
-function pinnedAction(action: string): string {
-  const pin = actionPins.get(action);
-  if (pin === undefined) throw new Error(`missing approved pin for ${action}`);
-  return `${action}@${pin[0]}`;
-}
+import {
+  actionPins,
+  loadWorkflow as loadWorkflowAt,
+  namedStep,
+  pinnedAction,
+  record,
+  requiredString,
+  stepNames,
+  steps,
+  type UnknownRecord,
+  type WorkflowStep,
+} from '../support/workflow';
 
 const actionByStepName: ReadonlyMap<string, string> = new Map([
   ['Check out repository', pinnedAction('actions/checkout')],
@@ -38,39 +23,8 @@ const actionByStepName: ReadonlyMap<string, string> = new Map([
   ['Deploy GitHub Pages', pinnedAction('actions/deploy-pages')],
 ]);
 
-function record(value: unknown, label: string): UnknownRecord {
-  expect(value, label).not.toBeNull();
-  expect(Array.isArray(value), label).toBe(false);
-  expect(typeof value, label).toBe('object');
-  return value as UnknownRecord;
-}
-
-function requiredString(value: unknown, label: string): string {
-  expect(typeof value, label).toBe('string');
-  return value as string;
-}
-
-function steps(job: UnknownRecord, label: string): WorkflowStep[] {
-  expect(Array.isArray(job.steps), `${label}.steps`).toBe(true);
-  return (job.steps as unknown[]).map((step, index) =>
-    record(step, `${label}.steps[${index}]`) as WorkflowStep,
-  );
-}
-
-function namedStep(jobSteps: WorkflowStep[], name: string): WorkflowStep {
-  const matches = jobSteps.filter((step) => step.name === name);
-  expect(matches, `step named ${name}`).toHaveLength(1);
-  return matches[0]!;
-}
-
-function stepNames(jobSteps: WorkflowStep[]): string[] {
-  return jobSteps.map((step) => requiredString(step.name, 'every build step has a name'));
-}
-
 async function loadWorkflow(): Promise<{ source: string; workflow: UnknownRecord }> {
-  const source = await readFile('.github/workflows/deploy-pages.yml', 'utf8');
-  const parsed: unknown = parse(source, { version: '1.2' });
-  return { source, workflow: record(parsed, 'workflow') };
+  return loadWorkflowAt('.github/workflows/deploy-pages.yml');
 }
 
 describe('GitHub Pages deployment workflow', () => {

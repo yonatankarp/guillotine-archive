@@ -43,7 +43,6 @@ export interface DriveFile {
   size: number | null;
   modifiedTime: string | null;
   path: string;
-  parentIds: string[];
   viewUrl: string;
   downloadUrl: string | null;
 }

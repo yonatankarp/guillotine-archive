@@ -182,7 +182,7 @@ describe('createDriveGatewayFromFilesClient', () => {
     expect(list).toHaveBeenNthCalledWith(1, {
       q: "'a\\\\b\\'c' in parents and trashed = false",
       fields:
-        'nextPageToken,files(id,name,mimeType,size,modifiedTime,parents,webViewLink,webContentLink)',
+        'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,webContentLink)',
       orderBy: 'folder,name',
       pageSize: 1000,
       pageToken: undefined,

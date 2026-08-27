@@ -4,7 +4,7 @@ import type { DriveGateway, RemoteEntry } from './drive-gateway';
 
 const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
 const FILE_FIELDS =
-  'nextPageToken,files(id,name,mimeType,size,modifiedTime,parents,webViewLink,webContentLink)';
+  'nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,webContentLink)';
 export const MAX_DRIVE_DOWNLOAD_BYTES = 32 * 1024 * 1024;
 
 // googleapis declares files.get with six overloads. Expand them so this adapter's
@@ -133,7 +133,6 @@ function toRemoteEntry(file: unknown): RemoteEntry {
     mimeType,
     size: optionalString(file.size),
     modifiedTime: optionalString(file.modifiedTime),
-    parents: optionalStringArray(file.parents),
     webViewLink: optionalString(file.webViewLink),
     webContentLink: optionalString(file.webContentLink),
   };
@@ -153,13 +152,6 @@ function requiredString(record: Record<string, unknown>, field: string): string 
 
 function optionalString(value: unknown): string | null | undefined {
   return typeof value === 'string' || value === null ? value : undefined;
-}
-
-function optionalStringArray(value: unknown): string[] | null | undefined {
-  if (value === null || value === undefined) return value;
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
-    ? value
-    : undefined;
 }
 
 function escapeDriveQueryValue(value: string): string {

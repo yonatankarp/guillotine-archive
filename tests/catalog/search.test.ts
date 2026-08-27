@@ -40,7 +40,6 @@ function item(overrides: Partial<CatalogItem> = {}): CatalogItem {
     size: 10,
     modifiedTime: null,
     path: 'משחקים מלאים/פיפוש 1 - אנגלית/piposh1-english.exe',
-    parentIds: [],
     viewUrl: 'https://drive.google.com/file/d/english/view',
     downloadUrl: 'https://drive.google.com/uc?export=download&id=english',
     category: 'משחקים מלאים',

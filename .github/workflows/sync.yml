@@ -1,0 +1,111 @@
+name: Sync archive from Drive
+
+# The archive is effectively frozen, so this runs when a person asks for it and
+# never on a schedule. It is the only workflow that holds Drive credentials, and
+# it does not deploy: it opens a pull request carrying the regenerated catalog
+# and derivatives, and merging that is what triggers a deployment.
+#
+# A push made with GITHUB_TOKEN does not start another workflow run, which is a
+# second reason this goes through a pull request rather than committing to main.
+
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: archive-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # The pull-request branch is pushed from this job, so the checkout
+          # credentials have to survive. Nothing else in this workflow uses them.
+          persist-credentials: true
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      # Validation runs before any artifact is written and the promote step is
+      # atomic, so a failure here leaves the committed artifacts untouched and
+      # fails the job before the pull-request step can run.
+      - name: Sync Google Drive
+        run: npm run sync:drive
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+      - name: Build production site
+        run: npm run build
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io
+          BASE_PATH: /${{ github.event.repository.name }}
+      - name: Upload curator report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: curator-report
+          path: reports/curator-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Open sync pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- src/generated public/data public/generated; then
+            echo 'The archive is unchanged. Nothing to open.'
+            exit 0
+          fi
+
+          # The binary half of this diff is not reviewable in the UI, so the
+          # census is the actual review surface.
+          census="$(node -e '
+            const catalog = require("./src/generated/catalog.json");
+            const byKind = new Map();
+            for (const item of catalog.items) {
+              const kind = String(item.mimeType ?? "").split("/")[0] || "other";
+              byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
+            }
+            const bytes = catalog.items.reduce((sum, item) => sum + (item.size ?? 0), 0);
+            const lines = [
+              `- files: ${catalog.items.length}`,
+              `- releases: ${catalog.collections.length}`,
+              `- total size: ${(bytes / 1e9).toFixed(2)} GB`,
+              `- generatedAt: ${catalog.generatedAt}`,
+              "",
+              "By kind:",
+              ...[...byKind].sort((a, b) => b[1] - a[1]).map(([k, n]) => `- ${k}: ${n}`),
+            ];
+            console.log(lines.join("\n"));
+          ')"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          branch="archive-sync/${GITHUB_RUN_ID}"
+          git switch -c "$branch"
+          git add -- src/generated public/data public/generated
+          git commit -m 'chore(archive): sync catalog and derivatives from Drive'
+          git push --set-upstream origin "$branch"
+
+          {
+            printf '%s\n\n' 'Regenerated from Google Drive by the manual sync workflow.'
+            printf '%s\n\n' "$census"
+            printf '%s\n' 'Review the catalog diff rather than the derivative binaries, then merge to deploy.'
+          } | gh pr create \
+            --base main \
+            --head "$branch" \
+            --title 'chore(archive): sync catalog and derivatives from Drive' \
+            --body-file -

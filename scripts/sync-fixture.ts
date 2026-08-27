@@ -64,22 +64,12 @@ function parseRemoteEntry(value: unknown): RemoteEntry {
     }
     throw new Error('fixture tree is invalid');
   };
-  const parents = value.parents;
-  if (
-    parents !== undefined &&
-    parents !== null &&
-    (!Array.isArray(parents) || parents.some((parent) => typeof parent !== 'string'))
-  ) {
-    throw new Error('fixture tree is invalid');
-  }
-
   return {
     id,
     name,
     mimeType,
     size: optionalString('size'),
     modifiedTime: optionalString('modifiedTime'),
-    parents: parents as string[] | null | undefined,
     webViewLink: optionalString('webViewLink'),
     webContentLink: optionalString('webContentLink'),
   };

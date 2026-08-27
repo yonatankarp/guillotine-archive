@@ -48,7 +48,6 @@ function driveFile(id: string, overrides: Partial<DriveFile> = {}): DriveFile {
     size: 10,
     modifiedTime: '2026-08-26T10:00:00.000Z',
     path: `ארכיון/${id}.bin`,
-    parentIds: [`parent-${id}`],
     viewUrl: `https://drive.google.com/file/d/${id}/view`,
     downloadUrl: `https://drive.google.com/uc?export=download&id=${id}`,
     ...overrides,
@@ -1717,7 +1716,6 @@ describe('buildCatalog', () => {
         name: 'פתרון.txt',
         mimeType: 'text/plain',
         path: 'פתרונות/פתרון.txt',
-        parentIds: ['original-parent'],
       }),
     ];
     const config = curator({

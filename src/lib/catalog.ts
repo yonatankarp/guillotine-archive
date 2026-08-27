@@ -67,7 +67,6 @@ const catalogItem = z
     size: z.number().nonnegative().nullable(),
     modifiedTime: nonblankString.nullable(),
     path: nonblankString,
-    parentIds: z.array(nonblankString),
     viewUrl: driveUrl,
     downloadUrl: driveUrl.nullable(),
     category: nonblankString,

@@ -25,8 +25,16 @@ npm run dev
 `npm ci` reproduces the committed lockfile. Use `npm install` only when intentionally changing
 dependencies and commit the resulting `package-lock.json` update.
 
-The sync commands write ignored generated artifacts under `src/generated`, `public/data`,
-`public/generated`, and `reports`. Do not commit those artifacts.
+The sync commands write the archive catalog and its derivatives to `src/generated`, `public/data`
+and `public/generated`. Those are **committed**, because the deployment builds from what is in the
+repository. `reports/` stays ignored.
+
+`npm run sync:fixture` overwrites them with the tiny fixture archive, so restore them before
+committing anything else:
+
+```bash
+git checkout -- src/generated public/data public/generated
+```
 
 ## Quality checks
 
@@ -53,10 +61,19 @@ official-release relationships. Press coverage and fan works should remain separ
 explicit editorial relationship is intended. Validate curator changes locally with fixture data,
 then run the GitHub workflow manually after merging them to `main`.
 
-GitHub Actions is scheduled to synchronize Google Drive once per day at 03:17 UTC, and also runs
-after a push to `main`. GitHub can automatically disable the schedule after 60 days without
-repository activity in a public repository; the owner guide explains how to detect and re-enable
-it. A failed sync or validation does not replace the previous successful Pages deployment.
+Synchronizing Google Drive is a manual job. Run the **Sync archive from Drive** workflow from the
+Actions tab; it is the only workflow holding Drive credentials. It regenerates the catalog and the
+derivatives, proves the site still builds from them, and opens a pull request with a census of what
+changed in the description. Review that census rather than the derivative binaries, then merge, and
+merging is what deploys.
+
+Validation runs before any artifact is written and artifacts are promoted atomically, so a failed
+sync leaves the committed archive untouched and never opens a pull request.
+
+The deployment workflow is still scheduled daily at 03:17 UTC and after a push to `main`. GitHub can
+automatically disable the schedule after 60 days without repository activity in a public repository;
+the owner guide explains how to detect and re-enable it. A failed build does not replace the previous
+successful Pages deployment.
 
 See [Google Drive setup](docs/setup-google-drive.md) for the one-time owner configuration, the
 first real import, daily operation, and troubleshooting.

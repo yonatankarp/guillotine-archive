@@ -9,6 +9,8 @@ test-results/
 !.env.example
 .DS_Store
 reports/*.json
-public/generated/
-public/data/search-index.json
-src/generated/catalog.json
+
+# The archive catalog and its derivatives are committed, because sync is a manual
+# job and the deploy workflow builds from what is in the repository. Running
+# `npm run sync:fixture` overwrites them with fixture data locally: restore with
+# `git checkout -- src/generated public/data public/generated` before committing.

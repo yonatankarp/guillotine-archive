@@ -41,11 +41,16 @@ these repository secrets:
 - `GOOGLE_DRIVE_FOLDER_ID`: the archive root folder ID.
 
 Keep both values in GitHub Secrets so operational configuration is scoped to the `Sync Google
-Drive` step and is not interpolated into shell commands. The JSON credentials are never written to
-generated data or published. The folder ID is not a credential in the same sense: catalog records
-include `parentIds`, so `GOOGLE_DRIVE_FOLDER_ID` and other Drive file or parent IDs may exist in
-ignored generated files locally. Those generated source files are ignored and are not uploaded
-directly as the Pages artifact or curator report, but handle them cautiously and never commit them.
+Drive` step and is not interpolated into shell commands. Only `.github/workflows/sync.yml` reads
+them; the deployment workflow holds no Drive credentials at all. The JSON credentials are never
+written to generated data or published.
+
+The catalog is committed to the repository and served from it, so it must not carry the folder ID.
+Catalog records deliberately omit `parentIds`, and `parents` is not requested from the Drive API,
+because the scanner navigates with an `in parents` query instead. Per-file `viewUrl` and
+`downloadUrl` values do contain Drive file IDs, which is unchanged: those are already public in the
+published search index for files the archive intends to share. Treat `GOOGLE_DRIVE_FOLDER_ID` as
+operational configuration and keep it out of commits, workflow files and generated data.
 
 ## 4. Enable Pages and perform the first import
 

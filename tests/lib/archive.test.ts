@@ -16,7 +16,6 @@ const item = (overrides: Partial<CatalogItem> = {}): CatalogItem => ({
   size: 1_048_576,
   modifiedTime: null,
   path: 'משחקים מלאים/פיפוש 1/גרסה 2/piposh1.exe',
-  parentIds: ['folder'],
   viewUrl: 'https://drive.google.com/file/d/item-one/view',
   downloadUrl: 'https://drive.google.com/uc?export=download&id=item-one',
   category: 'משחקים מלאים',

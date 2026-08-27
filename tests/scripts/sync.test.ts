@@ -51,7 +51,6 @@ function driveFile(id: string): DriveFile {
     size: 10,
     modifiedTime: '2026-08-26T10:00:00.000Z',
     path: `משחקים מלאים/${id}.bin`,
-    parentIds: ['root'],
     viewUrl: `https://drive.google.com/file/d/${id}/view`,
     downloadUrl: `https://drive.google.com/uc?export=download&id=${id}`,
   };

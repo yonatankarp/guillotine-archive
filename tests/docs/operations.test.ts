@@ -23,8 +23,12 @@ describe('owner operations guidance', () => {
     const setup = await readFile('docs/setup-google-drive.md', 'utf8');
 
     expect(setup).toMatch(/parentIds.+GOOGLE_DRIVE_FOLDER_ID/isu);
-    expect(setup).toMatch(/generated.+ignored.+not uploaded/isu);
-    expect(setup).toMatch(/JSON credentials.+never.+generated.+published/isu);
+    // The catalog is committed now, so the reason folder IDs stay private is
+    // that they are no longer in it, not that the file is ignored.
+    expect(setup).toMatch(/catalog is committed.+must not carry the folder ID/isu);
+    expect(setup).toMatch(/omit `parentIds`/iu);
+    expect(setup).toMatch(/deployment workflow holds no Drive credentials/iu);
+    expect(setup).toMatch(/JSON credentials.+never.+written to generated data/isu);
     expect(setup).not.toContain(
       'Do not put either value in repository variables, workflow files, commits, artifacts, or generated catalog data.',
     );

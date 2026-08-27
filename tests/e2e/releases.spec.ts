@@ -25,10 +25,14 @@ test('one room template serves a game, an audio disc and a fan disc', async ({ p
   // The same page shape has to fit releases with completely different contents, which is only
   // true if an empty section is absent rather than rendered empty.
   const expectations = [
-    { slug: 'piposh-1', present: ['לשחק', 'לראות', 'לקרוא'], absent: ['להאזין'] },
-    { slug: 'hatbara-shel-piposh', present: ['להאזין'], absent: ['לשחק', 'לראות', 'לקרוא'] },
-    { slug: 'fan-disc-b038d0c7', present: ['לקרוא'], absent: ['לשחק', 'לראות', 'להאזין'] },
-    { slug: 'fan-disc-69541b3e', present: ['לשחק', 'לראות', 'להאזין', 'לקרוא'], absent: [] },
+    { slug: 'piposh-1', present: ['גרסאות להורדה', 'סריקות ותמונות', 'מסמכים'], absent: ['מוזיקה'] },
+    { slug: 'hatbara-shel-piposh', present: ['מוזיקה'], absent: ['גרסאות להורדה', 'סריקות ותמונות', 'מסמכים'] },
+    { slug: 'fan-disc-b038d0c7', present: ['מסמכים'], absent: ['גרסאות להורדה', 'סריקות ותמונות', 'מוזיקה'] },
+    {
+      slug: 'fan-disc-69541b3e',
+      present: ['גרסאות להורדה', 'סריקות ותמונות', 'סרטונים', 'מוזיקה', 'מסמכים'],
+      absent: [],
+    },
   ] as const;
 
   for (const { slug, present, absent } of expectations) {
@@ -180,14 +184,14 @@ test('listen and watch list the real material and say what cannot play', async (
   expect(videos).toHaveLength(31);
 
   await page.goto(site.route('listen/'));
-  await expect(page.getByRole('heading', { level: 1, name: 'להאזין' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'מוזיקה' })).toBeVisible();
   await expect(page.locator('.item-rows > li')).toHaveCount(tracks.length);
   // No fake player: nothing claims to play while the derivatives do not exist.
   await expect(page.locator('audio, video')).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
   await page.goto(site.route('watch/'));
-  await expect(page.getByRole('heading', { level: 1, name: 'לצפות' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'סרטונים' })).toBeVisible();
   await expect(page.locator('.item-rows > li')).toHaveCount(videos.length);
   await expect(page.locator('audio, video')).toHaveCount(0);
   // The one warning on the site: formats no browser will ever play.

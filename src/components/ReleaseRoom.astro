@@ -80,10 +80,16 @@ const facts = [
       sections.map((section) => (
         <section class="room-section" aria-labelledby={`section-${section.id}`}>
           <h2 id={`section-${section.id}`}>{section.headingHe}</h2>
+          {section.id === 'music' && (
+            <p class="room-note">
+              עוד אין באתר גרסה שמתנגנת. בינתיים כל רצועה נפתחת ב־Drive.
+            </p>
+          )}
           <ItemRows
             items={section.items}
             labelHe={`${section.headingHe} — ${release.titleHe}`}
-            showText={section.id === 'read'}
+            showText={section.id === 'documents'}
+            showMediaNote={section.id !== 'music'}
           />
           {section.hiddenCount > 0 && (
             <p class="room-more">

@@ -199,11 +199,11 @@ test('the Piposh 1 room shows only the sections it has, with direct Drive action
   await page.goto(site.route('release/piposh-1/'));
 
   await expect(page.getByRole('heading', { level: 1, name: 'פיפוש 1' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'לשחק' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'לראות' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'לקרוא' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'גרסאות להורדה' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'סריקות ותמונות' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'מסמכים' })).toBeVisible();
   // Piposh 1 holds no audio, so the section is absent rather than empty.
-  await expect(page.getByRole('heading', { name: 'להאזין' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'מוזיקה' })).toHaveCount(0);
 
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toBeVisible();

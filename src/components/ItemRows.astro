@@ -47,7 +47,6 @@ const {
               <p class="item-meta">
                 <span>{itemKindLabel(item.kind)}</span>
                 <span class="mono">{formatFileSize(item.size)}</span>
-                {isMedia && <span class="mono">{item.mimeType}</span>}
                 {group && <span class="item-group">{group}</span>}
                 {author && (
                   <span>

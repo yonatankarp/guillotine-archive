@@ -58,15 +58,22 @@ const KIND_LABELS: Record<ItemKind, string> = {
   other: 'אחר',
 };
 
+/**
+ * Named for what a section holds. The previous names were infinitives — לשחק,
+ * לראות, להאזין — which promise an experience the page cannot deliver while the
+ * media is a list of Drive links, and read as instructions rather than labels.
+ * Video is its own section: a poster with a duration is not a scan.
+ */
 const SECTIONS: Array<{ id: string; headingHe: string; kinds: readonly ItemKind[] }> = [
-  { id: 'play', headingHe: 'לשחק', kinds: ['build'] },
+  { id: 'downloads', headingHe: 'גרסאות להורדה', kinds: ['build'] },
   {
-    id: 'see',
-    headingHe: 'לראות',
-    kinds: ['cover', 'scan', 'booklet-page', 'comic-page', 'press-page', 'video'],
+    id: 'gallery',
+    headingHe: 'סריקות ותמונות',
+    kinds: ['cover', 'scan', 'booklet-page', 'comic-page', 'press-page'],
   },
-  { id: 'hear', headingHe: 'להאזין', kinds: ['track'] },
-  { id: 'read', headingHe: 'לקרוא', kinds: ['document'] },
+  { id: 'video', headingHe: 'סרטונים', kinds: ['video'] },
+  { id: 'music', headingHe: 'מוזיקה', kinds: ['track'] },
+  { id: 'documents', headingHe: 'מסמכים', kinds: ['document'] },
 ];
 
 /**

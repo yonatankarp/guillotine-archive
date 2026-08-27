@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "sync:fixture": "tsx scripts/sync-fixture.ts",
     "sync:drive": "tsx scripts/sync-drive.ts",
-    "assets:characters": "tsx scripts/process-character-assets.ts"
+    "assets:characters": "tsx scripts/process-character-assets.ts",
+    "catalog:rebuild": "tsx scripts/rebuild-catalog.ts"
   },
   "dependencies": {
     "@astrojs/check": "0.9.10",

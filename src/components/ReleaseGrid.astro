@@ -10,9 +10,13 @@ interface Props {
   releases: readonly Release[];
   /** The facet this grid is already narrowed by, or null on the unfiltered grid. */
   active?: { facet: string; value: string } | null;
+  /** The home page shows two grids, so only one of them carries the filters. */
+  showFacets?: boolean;
+  /** Curated releases have a one-line summary worth showing; auto-releases do not. */
+  showSummary?: boolean;
 }
 
-const { releases, active = null } = Astro.props;
+const { releases, active = null, showFacets = true, showSummary = false } = Astro.props;
 
 const itemCountBySlug = new Map<string, number>();
 for (const item of catalog.items) {
@@ -65,6 +69,7 @@ const chips: Chip[] = [
 ];
 ---
 
+{showFacets && (
 <nav class="facets" aria-label="סינון מהדורות">
   <a
     class="facet-chip"
@@ -85,11 +90,16 @@ const chips: Chip[] = [
     ))
   }
 </nav>
+)}
 
 <ol class="release-grid" data-testid="release-grid">
   {
     releases.map((release) => (
-      <ReleaseTile release={release} itemCount={itemCountBySlug.get(release.slug) ?? 0} />
+      <ReleaseTile
+        release={release}
+        itemCount={itemCountBySlug.get(release.slug) ?? 0}
+        showSummary={showSummary}
+      />
     ))
   }
 </ol>

@@ -118,6 +118,7 @@ const release = z
   .object({
     slug,
     titleHe: nonblankString,
+    summaryHe: nonblankString.optional(),
     type: releaseType,
     subjectSlug: slug.nullable(),
     year: z.number().int().optional(),

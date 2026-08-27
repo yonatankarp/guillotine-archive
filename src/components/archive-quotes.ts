@@ -23,6 +23,10 @@ export const ARCHIVE_QUOTES: readonly ArchiveQuote[] = [
     sourcePath: 'פרטי אספנות/דיסק הקונגרס/Atraktivi/Games/אופיר אלמקיאס/קרבות של חזי נגד כולם כמו בכל בוקר בפיפוש.zip',
   },
   {
+    textHe: 'רדיו קיבינימט אף.אם',
+    sourcePath: 'פרטי אספנות/דיסק הקונגרס/Atraktivi/Stickers/רדיו קיבינימט אף.אם.jpg',
+  },
+  {
     textHe: 'לא בטוח שנעים להכיר פיפוש והחברה',
     sourcePath: 'פרטי אספנות/דיסק הקונגרס/Atraktivi/Comix&Articles/לא בטוח שנעים להכיר פיפוש והחברה.doc',
   },

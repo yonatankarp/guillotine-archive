@@ -7,9 +7,10 @@ import { releaseAccent, releaseCoverPath, releaseTypeLabel } from './release-vie
 interface Props {
   release: Release;
   itemCount: number;
+  showSummary?: boolean;
 }
 
-const { release, itemCount } = Astro.props;
+const { release, itemCount, showSummary = false } = Astro.props;
 const accent = releaseAccent(release);
 const cover = releaseCoverPath(release);
 const facts = [releaseTypeLabel(release.type), release.formatHe, release.year?.toString()].filter(
@@ -47,6 +48,7 @@ const facts = [releaseTypeLabel(release.type), release.formatHe, release.year?.t
         {facts.join(' · ')}
         <span>{formatFileCount(itemCount)}</span>
       </p>
+      {showSummary && release.summaryHe && <p class="release-summary">{release.summaryHe}</p>}
     </div>
   </a>
 </li>

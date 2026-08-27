@@ -116,18 +116,20 @@ describe('production curator configuration', () => {
       vogimon: '0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ',
       'piposh-revolution': undefined,
     });
-    expect(curator.collections.some(({ summaryHe }) => summaryHe.includes('קיבינימאט'))).toBe(true);
+    // Summaries are labels now: they say what is in a release. The voice moved to
+    // ARCHIVE_QUOTES, which carries only strings the archive actually contains,
+    // each with the path it was read from.
+    expect(curator.collections.every(({ summaryHe }) => summaryHe.length <= 90)).toBe(true);
     expect(curator.collections.find(({ slug }) => slug === 'vogimon')).toMatchObject({
       titleHe: 'ווג׳ימון',
-      summaryHe:
-        'המשחק המלא, הבטא, החוברת והעטיפה. כל מה שצריך כדי להיכנס לכדור קטן ולהתחרט מיד.',
+      summaryHe: 'המשחק המלא, גרסת הבטא, החוברת והעטיפה.',
       aliasesHe: expect.arrayContaining(['ווגימון', 'ווג_ימון']),
     });
     expect(curator.collections.find(({ slug }) => slug === 'betochhei-harating')?.summaryHe).toBe(
-      'שלוש גרסאות, תיקונים, הוראות ופתרון. גם מאחורי הקלעים מישהו היה צריך לסדר את הקבצים.',
+      'שלוש גרסאות, תיקונים, הוראות והפתרון.',
     );
     expect(curator.collections.find(({ slug }) => slug === 'piposh-revolution')?.summaryHe).toBe(
-      'שלוש גרסאות, מפה, מוזיקה ופתרון. המהפכה אולי כאוטית; המדפים שלה לא.',
+      'שלוש גרסאות, מפה, מוזיקה והפתרון.',
     );
   });
 

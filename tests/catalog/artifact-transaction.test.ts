@@ -7,8 +7,15 @@ import {
   recoverArtifactTransaction,
 } from '../../src/catalog/artifact-transaction';
 
-const MANIFEST_MAX_BYTES = 1024 * 1024;
-const MANIFEST_MAX_ENTRIES = 2048;
+const MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
+const MANIFEST_MAX_ENTRIES = 8192;
+
+/**
+ * A real sync with image and audio derivatives promoted 2809 entries and was
+ * rejected by a 2048 cap after 31 minutes of work. Keep headroom above the
+ * measured requirement.
+ */
+const MEASURED_FULL_SYNC_ENTRIES = 2809;
 const TRANSACTION_ID = '123e4567-e89b-42d3-a456-426614174000';
 const temporaryDirectories: string[] = [];
 
@@ -593,6 +600,7 @@ describe('artifact transaction recovery', () => {
     const rejectedRoot = await temporaryRoot();
     await writeManifest(acceptedRoot, createEntries(MANIFEST_MAX_ENTRIES));
     await writeManifest(rejectedRoot, createEntries(MANIFEST_MAX_ENTRIES + 1));
+    expect(MANIFEST_MAX_ENTRIES).toBeGreaterThan(MEASURED_FULL_SYNC_ENTRIES);
 
     await expect(recoverArtifactTransaction(acceptedRoot)).resolves.toBeUndefined();
     await expect(recoverArtifactTransaction(rejectedRoot)).rejects.toThrow();

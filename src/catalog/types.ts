@@ -78,6 +78,8 @@ export interface ReleaseOverride {
 export interface Release {
   slug: string;
   titleHe: string;
+  /** Curated one-liner. Only curated releases have one; auto-releases do not. */
+  summaryHe?: string;
   type: ReleaseType;
   subjectSlug: string | null;
   year?: number;

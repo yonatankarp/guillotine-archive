@@ -5,8 +5,21 @@ import { hostname } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 
-const MANIFEST_MAX_BYTES = 1024 * 1024;
-const MANIFEST_MAX_ENTRIES = 2048;
+/**
+ * Scales with MANIFEST_MAX_ENTRIES. Each entry serialises a path, a stage path
+ * and a backup path, and archive paths are Hebrew, so multi-byte UTF-8 pushes a
+ * full manifest well past the original 1 MB.
+ */
+const MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
+/**
+ * A bound against a runaway manifest, not a capacity target. 2048 was set when a
+ * promote carried the catalog, the search index and a handful of covers; adding
+ * image and audio derivatives took a real sync to 2809 entries and it failed
+ * here. Full coverage is roughly 881 images at up to three tiers, 1213 audio
+ * files, 31 posters, covers, logos and the three core artifacts, so about 3300.
+ * 8192 keeps the bound meaningful with room to grow.
+ */
+const MANIFEST_MAX_ENTRIES = 8192;
 const STALE_LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 const LOCK_CLOCK_SKEW_MS = 5 * 60 * 1000;
 const MAX_PID = 2_147_483_647;

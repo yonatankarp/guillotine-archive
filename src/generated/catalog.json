@@ -6,9 +6,21 @@
       "titleHe": "פיפוש 1",
       "type": "game",
       "year": 1999,
-      "summaryHe": "פיפוש עולה למטוס, התעלומה עולה איתו, וקיבינימאט — עכשיו גם הקבצים מצטרפים לחקירה.",
+      "summaryHe": "שלוש גרסאות בעברית, מהדורות רשמיות באנגלית וברוסית, שתי חוברות, דיסק אודיו והפתרון.",
       "descriptionHe": "שלוש גרסאות בעברית, מהדורות רשמיות בשפות זרות, החוברות, דיסק האודיו והפתרון — כולם באותו תיק חקירה.",
       "coverFileId": "1JoYCVI1nah80Px76RYT85YdQr9rIPxNG",
+      "coverCrop": {
+        "left": 15,
+        "top": 0,
+        "width": 689,
+        "height": 919
+      },
+      "logoCrop": {
+        "left": 325,
+        "top": 10,
+        "width": 380,
+        "height": 175
+      },
       "aliasesHe": [
         "פיפוש הראשון",
         "פיפוש אחד"
@@ -130,8 +142,14 @@
       "slug": "piposh-2",
       "titleHe": "פיפוש 2",
       "type": "game",
-      "summaryHe": "שתי גרסאות, עטיפה, חוברת, מוזיקה ופתרון. פיפוש שוב הסתבך; הארכיון דווקא מסודר.",
+      "summaryHe": "שתי גרסאות, עטיפה, חוברת, מוזיקה והפתרון.",
       "coverFileId": "0Bwqx7RiWdM3YcnVNS09PUGR4aFk",
+      "coverCrop": {
+        "left": 85,
+        "top": 0,
+        "width": 533,
+        "height": 711
+      },
       "aliasesHe": [
         "פיפוש שתיים"
       ],
@@ -220,8 +238,20 @@
       "slug": "halom-shehitgashem",
       "titleHe": "חלום שהתגשם",
       "type": "game",
-      "summaryHe": "שתי גרסאות של החלום, וכל מה שהתעורר לידן — חוברת, צ׳יטים ודיסק אודיו.",
+      "summaryHe": "שתי גרסאות, חוברת, צ׳יטים ודיסק אודיו.",
       "coverFileId": "0B2YRfkQTdJ96MnFNUnlRdlhkdjQ",
+      "coverCrop": {
+        "left": 0,
+        "top": 40,
+        "width": 400,
+        "height": 533
+      },
+      "logoCrop": {
+        "left": 22,
+        "top": 92,
+        "width": 255,
+        "height": 125
+      },
       "aliasesHe": [
         "פיפוש חלום שהתגשם"
       ],
@@ -321,8 +351,20 @@
       "slug": "betochhei-harating",
       "titleHe": "בתככי הרייטינג",
       "type": "game",
-      "summaryHe": "שלוש גרסאות, תיקונים, הוראות ופתרון. גם מאחורי הקלעים מישהו היה צריך לסדר את הקבצים.",
+      "summaryHe": "שלוש גרסאות, תיקונים, הוראות והפתרון.",
       "coverFileId": "0Bwqx7RiWdM3YVEVKUEFweVo0ZW8",
+      "coverCrop": {
+        "left": 0,
+        "top": 0,
+        "width": 559,
+        "height": 745
+      },
+      "logoCrop": {
+        "left": 45,
+        "top": 28,
+        "width": 470,
+        "height": 78
+      },
       "aliasesHe": [
         "תככי הרייטינג"
       ],
@@ -421,8 +463,14 @@
       "slug": "vogimon",
       "titleHe": "ווג׳ימון",
       "type": "game",
-      "summaryHe": "המשחק המלא, הבטא, החוברת והעטיפה. כל מה שצריך כדי להיכנס לכדור קטן ולהתחרט מיד.",
+      "summaryHe": "המשחק המלא, גרסת הבטא, החוברת והעטיפה.",
       "coverFileId": "0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ",
+      "coverCrop": {
+        "left": 0,
+        "top": 0,
+        "width": 359,
+        "height": 479
+      },
       "aliasesHe": [
         "ווגימון",
         "ווג_ימון"
@@ -498,7 +546,7 @@
       "slug": "piposh-revolution",
       "titleHe": "פיפוש המהפכה",
       "type": "game",
-      "summaryHe": "שלוש גרסאות, מפה, מוזיקה ופתרון. המהפכה אולי כאוטית; המדפים שלה לא.",
+      "summaryHe": "שלוש גרסאות, מפה, מוזיקה והפתרון.",
       "aliasesHe": [
         "פיפוש שלוש",
         "המהפכה"
@@ -49550,6 +49598,7 @@
     {
       "slug": "halom-shehitgashem",
       "titleHe": "חלום שהתגשם",
+      "summaryHe": "שתי גרסאות, חוברת, צ׳יטים ודיסק אודיו.",
       "type": "game",
       "subjectSlug": "halom-shehitgashem",
       "itemIds": [
@@ -49601,7 +49650,9 @@
       "sourcePaths": [
         "משחקים מלאים/חלום שהתגשם",
         "שירים/דיסקים מלאים"
-      ]
+      ],
+      "logoFileId": "0B2YRfkQTdJ96MnFNUnlRdlhkdjQ",
+      "accent": "#c0553c"
     },
     {
       "slug": "hatbara-shel-piposh",
@@ -49662,6 +49713,7 @@
     {
       "slug": "piposh-revolution",
       "titleHe": "פיפוש המהפכה",
+      "summaryHe": "שלוש גרסאות, מפה, מוזיקה והפתרון.",
       "type": "game",
       "subjectSlug": "piposh-revolution",
       "itemIds": [
@@ -49765,6 +49817,7 @@
     {
       "slug": "piposh-1",
       "titleHe": "פיפוש 1",
+      "summaryHe": "שלוש גרסאות בעברית, מהדורות רשמיות באנגלית וברוסית, שתי חוברות, דיסק אודיו והפתרון.",
       "type": "game",
       "subjectSlug": "piposh-1",
       "year": 1999,
@@ -49809,11 +49862,14 @@
         "משחקים מלאים/פיפוש 1 - רוסית",
         "פתרונות",
         "שירים/דיסקים מלאים"
-      ]
+      ],
+      "logoFileId": "1JoYCVI1nah80Px76RYT85YdQr9rIPxNG",
+      "accent": "#5893ce"
     },
     {
       "slug": "piposh-2",
       "titleHe": "פיפוש 2",
+      "summaryHe": "שתי גרסאות, עטיפה, חוברת, מוזיקה והפתרון.",
       "type": "game",
       "subjectSlug": "piposh-2",
       "itemIds": [
@@ -49849,7 +49905,8 @@
         "משחקים מלאים/פיפוש 2",
         "פתרונות",
         "שירים/פיפוש 2 שירים"
-      ]
+      ],
+      "accent": "#93ce58"
     },
     {
       "slug": "press-ae6374b4",
@@ -49890,6 +49947,7 @@
     {
       "slug": "vogimon",
       "titleHe": "ווג׳ימון",
+      "summaryHe": "המשחק המלא, גרסת הבטא, החוברת והעטיפה.",
       "type": "game",
       "subjectSlug": "vogimon",
       "itemIds": [
@@ -49923,11 +49981,13 @@
       "sourcePaths": [
         "דמואים/Vegimon_Beta1.0",
         "משחקים מלאים/ווג'ימון"
-      ]
+      ],
+      "accent": "#ce9358"
     },
     {
       "slug": "betochhei-harating",
       "titleHe": "בתככי הרייטינג",
+      "summaryHe": "שלוש גרסאות, תיקונים, הוראות והפתרון.",
       "type": "game",
       "subjectSlug": "betochhei-harating",
       "itemIds": [
@@ -49955,7 +50015,9 @@
         "משחקים מלאים/בתככי הרייטינג",
         "משחקים מלאים/בתככי הרייטינג - ראש1",
         "פתרונות"
-      ]
+      ],
+      "logoFileId": "0Bwqx7RiWdM3YVEVKUEFweVo0ZW8",
+      "accent": "#c8e04a"
     },
     {
       "slug": "fan-game-fe3f8c3e",

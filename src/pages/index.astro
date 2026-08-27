@@ -2,7 +2,7 @@
 import ReleaseGrid from '../components/ReleaseGrid.astro';
 import { ARCHIVE_QUOTES } from '../components/archive-quotes';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { releases } from '../lib/releases';
+import { featuredReleases, releases, supportingReleases } from '../lib/releases';
 import { sitePath } from '../lib/url';
 
 const quote = ARCHIVE_QUOTES[0]!;
@@ -34,14 +34,23 @@ const quote = ARCHIVE_QUOTES[0]!;
     />
   </header>
 
+  <section aria-labelledby="games-heading">
+    <div class="section-heading">
+      <h2 id="games-heading">המשחקים</h2>
+      <p>שישה משחקים שיצאו מן האולפן, מן המוקדם למאוחר.</p>
+    </div>
+    <ReleaseGrid releases={featuredReleases} showSummary showFacets={false} />
+  </section>
+
   <section aria-labelledby="releases-heading">
     <div class="section-heading">
-      <h2 id="releases-heading">מהדורות</h2>
+      <h2 id="releases-heading">שאר הארכיון</h2>
       <p>
-        כל מהדורה היא דיסק אחד או תיקייה אחת כפי שהגיעה. לסינון לפי סוג או לפי משחק אפשר להשתמש
-        בקישורים שלמטה, ולחיפוש בכל <a href={sitePath('search/')}>הקבצים</a>.
+        {supportingReleases.length} מהדורות נוספות: דיסקי שמע, סרטונים, עיתונות, דיסקי מעריצים
+        ודמואים. כל אחת היא דיסק אחד או תיקייה אחת כפי שהגיעה. לחיפוש בכל
+        <a href={sitePath('search/')}>הקבצים</a>.
       </p>
     </div>
-    <ReleaseGrid releases={releases} />
+    <ReleaseGrid releases={supportingReleases} />
   </section>
 </BaseLayout>

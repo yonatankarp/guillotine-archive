@@ -64,7 +64,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- src/generated public/data public/generated; then
+          # `git diff` reports tracked changes only, so on the first run, when the
+          # artifacts have never been committed, it sees an untracked catalog as
+          # "no change" and the whole sync is thrown away. `git status --porcelain`
+          # covers untracked and modified alike.
+          if [ -z "$(git status --porcelain -- src/generated public/data public/generated)" ]; then
             echo 'The archive is unchanged. Nothing to open.'
             exit 0
           fi

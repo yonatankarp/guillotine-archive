@@ -127,7 +127,7 @@ export function driveActions(file: FileWithOptionalActions): DriveAction[] {
     actions.push({
       kind: 'view',
       href: file.viewUrl,
-      label: `צפייה ב־Drive — ${file.name}`,
+      label: `צפייה — ${file.name}`,
     });
   }
   if (file.downloadUrl) {

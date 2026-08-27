@@ -9,8 +9,8 @@ import {
 import { deriveKind } from '../catalog/kind';
 import { externalHttpUrl, sitePathForBrowserBase } from '../lib/browser-url';
 
-const EMPTY_STATUS = 'כתבו משהו בעברית. המחשב כבר יילחץ בעצמו.';
-const FAILURE_STATUS = 'לא הצלחנו לטעון את החיפוש. התיק נפל מאחורי הארון.';
+const EMPTY_STATUS = 'כתבו משהו בעברית. אנחנו לא מתכוונים לנחש לבד.';
+const FAILURE_STATUS = 'לא הצלחנו לטעון את החיפוש. משהו נפל, ואנחנו לא בטוחים מה.';
 const RESULT_LIMIT = 100;
 
 interface SearchElements {
@@ -237,8 +237,8 @@ function renderFile(result: ArchiveSearchResult, baseUrl: string): HTMLLIElement
       appendExternalAction(
         actions,
         viewUrl,
-        'צפייה ב־Drive',
-        `צפייה ב־Drive — ${result.filename}`,
+        'צפייה',
+        `צפייה — ${result.filename}`,
         'result-action-view',
       );
     }
@@ -262,7 +262,7 @@ function renderResult(result: ArchiveSearchResult, baseUrl: string): HTMLLIEleme
 }
 
 function resultStatus(total: number): string {
-  if (total === 0) return 'לא מצאנו תוצאות. אפילו לא מתחת לשטיח.';
+  if (total === 0) return 'לא מצאנו כלום. חיפשנו, באמת.';
   if (total === 1) return 'תוצאה אחת';
   if (total > RESULT_LIMIT) {
     return `${total} תוצאות. מוצגות רק ${RESULT_LIMIT} התוצאות הראשונות.`;
@@ -404,7 +404,7 @@ async function start(root: HTMLElement): Promise<void> {
           return;
         }
         if (extractHebrewTokens(query).length === 0) {
-          elements.status.textContent = 'החיפוש באתר הוא בעברית.';
+          elements.status.textContent = 'החיפוש כאן עובד בעברית בלבד. סליחה.';
           return;
         }
 

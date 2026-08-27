@@ -164,9 +164,7 @@ test('homepage is a Hebrew RTL, cover-first grid of the six games only', async (
   await expect(page.getByText('בבקשה תקראו אותי - משעמם להיות פה לבד')).toBeVisible();
   await expect(page.locator('.found-string figcaption')).toContainText('דיסק הקונגרס');
 
-  // Furniture stays literal: the old jokes in headings and taglines are gone.
-  await expect(page.getByText('ששת החשודים הרגילים')).toHaveCount(0);
-  await expect(page.getByText('המחלקה לעניינים שנשמרו במקרה')).toHaveCount(0);
+  // The prose carries the studio's voice, but an invented vulgarity is still not ours to add.
   await expect(page.getByText(/קיבינימאט/u)).toHaveCount(0);
 
   const character = page.getByRole('img', { name: 'חזי מפיפוש מציץ אל הארכיון' });
@@ -190,11 +188,13 @@ test('homepage is a Hebrew RTL, cover-first grid of the six games only', async (
   await expect(skipLink).toBeFocused();
   await expect(skipLink).toHaveAttribute('href', '#main');
   await expect(page.getByRole('navigation', { name: 'ניווט ראשי' })).toBeVisible();
-  // The Drive mirror is demoted rather than deleted.
+  // The archive shelves are demoted rather than deleted.
   await expect(
     page.getByRole('contentinfo').getByRole('link', { name: 'כל הקבצים לפי מדף' }),
   ).toHaveAttribute('href', site.route('archive/'));
-  await expect(page.getByRole('contentinfo')).toContainText('Google Drive');
+  // Storage is an implementation detail, so no page names the service that holds the files.
+  await expect(page.getByRole('contentinfo')).toContainText('נפתחים בלשונית חדשה');
+  await expect(page.getByRole('contentinfo').getByText(/Drive/u)).toHaveCount(0);
 
   const hasHorizontalOverflow = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -219,7 +219,7 @@ test('the Piposh 1 room shows only the sections it has, with direct Drive action
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'צפייה ב־Drive — piposh1.exe' }),
+    page.getByRole('link', { name: 'צפייה — piposh1.exe' }),
   ).toHaveAttribute('href', /^https:\/\/drive\.google\.com\//u);
   await expect(
     page.getByRole('link', { name: 'הורדה — piposh1.exe' }),
@@ -272,7 +272,7 @@ test('the /games/ route the search index points at renders the release room', as
 
 test('Drive actions and back links have a high-contrast visible focus indicator', async ({ page }) => {
   for (const [path, accessibleName] of [
-    ['release/piposh-1/', 'צפייה ב־Drive — piposh1.exe'],
+    ['release/piposh-1/', 'צפייה — piposh1.exe'],
     ['archive/games/', 'חזרה לכל הארכיון'],
   ] as const) {
     await page.goto(site.route(path));
@@ -322,7 +322,7 @@ test('Hebrew search ranks the collection before English-named files', async ({ p
 
 test('Latin-only search is unsupported while mixed queries use their Hebrew words', async ({ page }) => {
   await page.goto(site.route('search/?q=piposh'));
-  await expect(page.locator('[data-search-status]')).toHaveText('החיפוש באתר הוא בעברית.');
+  await expect(page.locator('[data-search-status]')).toHaveText('החיפוש כאן עובד בעברית בלבד. סליחה.');
   await expect(page.locator('[data-search-results] > li')).toHaveCount(0);
 
   await page.goto(site.route('search/?q=piposh%20%D7%A4%D7%99%D7%A4%D7%95%D7%A9%201'));
@@ -345,7 +345,7 @@ test('search submission and category changes rerun the current Hebrew query', as
   await expect(form).toHaveAttribute('action', site.route('search/'));
   await expect(form).toHaveAttribute('method', 'get');
   const input = page.getByRole('searchbox', { name: 'מה מחפשים?' });
-  await expect(input).toHaveAccessibleDescription(/תומך במילות חיפוש בעברית/u);
+  await expect(input).toHaveAccessibleDescription(/החיפוש מבין עברית/u);
   await input.fill('פיפוש');
   await page.getByRole('button', { name: 'חיפוש' }).click();
   await expect(page.getByRole('link', { name: 'פתיחת אוסף — פיפוש 1' })).toBeVisible();
@@ -353,7 +353,7 @@ test('search submission and category changes rerun the current Hebrew query', as
   await page.getByLabel('סוג חומר').selectOption('פתרונות');
   await expect(page.getByText(solution.name, { exact: true })).toBeVisible();
   await expect(
-    page.getByRole('link', { name: `צפייה ב־Drive — ${solution.name}` }),
+    page.getByRole('link', { name: `צפייה — ${solution.name}` }),
   ).toHaveAttribute('href', solution.viewUrl);
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toHaveCount(0);
   expect(indexRequests).toBe(1);
@@ -502,7 +502,7 @@ test('search result actions expose exact metadata and safe Drive links', async (
   await expect(englishResult).toContainText('application/x-msdownload');
   await expect(englishResult).toContainText('משחקים מלאים/פיפוש 1 - אנגלית/piposh1-english.exe');
   for (const actionName of [
-    'צפייה ב־Drive — piposh1-english.exe',
+    'צפייה — piposh1-english.exe',
     'הורדה — piposh1-english.exe',
   ]) {
     const action = englishResult.getByRole('link', { name: actionName });
@@ -523,9 +523,7 @@ test('search has honest empty, singular, and plural count wording', async ({ pag
     searchFileDocument('plural-two', 'רבים'),
   ]);
   await page.goto(site.route('search/?q=%D7%A7%D7%A9%D7%A7%D7%95%D7%A9'));
-  await expect(page.locator('[data-search-status]')).toHaveText(
-    'לא מצאנו תוצאות. אפילו לא מתחת לשטיח.',
-  );
+  await expect(page.locator('[data-search-status]')).toHaveText('לא מצאנו כלום. חיפשנו, באמת.');
 
   await page.goto(site.route('search/?q=%D7%91%D7%95%D7%93%D7%93'));
   await expect(page.locator('[data-search-status]')).toHaveText('2 תוצאות');

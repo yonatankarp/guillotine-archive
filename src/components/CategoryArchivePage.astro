@@ -29,7 +29,8 @@ const archivePagePath = (pageNumber: number) =>
     <a class="back-link" href={sitePath('archive/')}>חזרה לכל הארכיון</a>
     <h1>{category}</h1>
     <p>
-      {itemCountLabel} בקטגוריה הזאת. השמות והנתיבים מוצגים בדיוק כפי שנשמרו בקטלוג.
+      {itemCountLabel} בקטגוריה הזאת. השמות והנתיבים מוצגים בדיוק כפי שנשמרו, כולל שגיאות
+      הכתיב, שהן חלק מהארכיון בדיוק כמו כל השאר.
       {pageCount > 1 && <> עמוד {page} מתוך {pageCount}.</>}
     </p>
   </header>

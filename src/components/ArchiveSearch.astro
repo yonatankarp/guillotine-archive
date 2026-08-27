@@ -41,7 +41,7 @@ const kindFilters: ItemKind[] = [
   >
     <div class="query-field">
       <label for="archive-search">מה מחפשים?</label>
-      <p id="archive-search-help">תומך במילות חיפוש בעברית. שמות הקבצים מוצגים בדיוק כפי שנשמרו.</p>
+      <p id="archive-search-help">החיפוש מבין עברית. שמות הקבצים מוצגים בדיוק כפי שנשמרו, גם כשזה לא עוזר לאף אחד.</p>
       <div class="query-controls">
         <input
           id="archive-search"
@@ -72,14 +72,14 @@ const kindFilters: ItemKind[] = [
   </form>
 
   <p class="search-status" role="status" aria-live="polite" data-search-status>
-    כתבו משהו בעברית. המחשב כבר יילחץ בעצמו.
+    כתבו משהו בעברית. אנחנו לא מתכוונים לנחש לבד.
   </p>
   <p class="search-fallback" data-search-fallback hidden>
-    אפשר לטעון את הדף מחדש. בינתיים אפשר לעבור אל <a href={sitePath('archive/')}>כל הארכיון</a>.
+    נסו לטעון את הדף מחדש, זה בדרך כלל עוזר. בינתיים <a href={sitePath('archive/')}>כל הארכיון</a> פתוח.
   </p>
   <noscript>
     <p class="search-fallback">
-      החיפוש דורש JavaScript, אבל <a href={sitePath('archive/')}>כל הארכיון</a> פתוח כרגיל.
+      החיפוש דורש JavaScript, ואין לנו הסבר טוב יותר. <a href={sitePath('archive/')}>כל הארכיון</a> פתוח כרגיל.
     </p>
   </noscript>
   <ol class="search-results" data-search-results></ol>

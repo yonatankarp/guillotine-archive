@@ -20,7 +20,7 @@ const { items, heading, showCollectionLinks = false } = Astro.props;
 {heading && <h2>{heading}</h2>}
 {
   items.length === 0 ? (
-    <p class="empty-files">אין כרגע קבצים מקוטלגים במדור הזה.</p>
+    <p class="empty-files">אין כאן שום קובץ מקוטלג. מדור שלם, ריק, ואין לנו הסבר.</p>
   ) : (
     <ul class="file-list" aria-label={heading ?? 'קבצים בארכיון'}>
       {items.map((item) => {
@@ -61,7 +61,7 @@ const { items, heading, showCollectionLinks = false } = Astro.props;
                     rel="noopener noreferrer"
                     aria-label={action.label}
                   >
-                    {action.kind === 'view' ? 'צפייה ב־Drive' : 'הורדה'}
+                    {action.kind === 'view' ? 'צפייה' : 'הורדה'}
                   </a>
                 ))}
               </div>

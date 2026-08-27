@@ -8,9 +8,10 @@ import { releaseBySlug } from '../lib/releases';
 import { categorySlug, sitePath } from '../lib/url';
 
 /**
- * Tracks are the released audio: 169 files. The other 1,044 audio items are the voice and
- * effect clips the engines loaded, which belong to their releases rather than to a listening
- * page, so they stay in the Drive mirror.
+ * Tracks are the released audio: 169 files, and every one of them has an Opus derivative, so
+ * this page plays. The other 1,044 audio items are the voice and effect clips the engines
+ * loaded, which belong to their releases rather than to a listening page, so they stay on the
+ * archive shelves.
  */
 const tracks = catalog.items.filter((item) => item.kind === 'track');
 const clipCount = catalog.items.filter((item) => item.kind === 'sound').length;
@@ -35,13 +36,13 @@ const musicMirror = sitePath(`archive/${categorySlug('שירים')}/`);
     <p class="eyebrow">שמע</p>
     <h1>מוזיקה</h1>
     <p class="lead">
-      {tracks.length} רצועות מן הדיסקים והמהדורות. ההשמעה באתר עוד לא קיימת: הקבצים המקוריים
-      נשמרים ב־Drive, וכל רצועה נפתחת שם.
+      {tracks.length} רצועות מן הדיסקים והמהדורות, וכולן מתנגנות כאן בעמוד. רצועה אחת בכל פעם —
+      ניסינו שתיים במקביל, וזה לא נשמע טוב.
     </p>
     <p class="page-note">
-      מלבד אלה יש בארכיון {clipCount} קטעי קול קצרים מתוך המשחקים עצמם, בעיקר AIFF ו־WAV.
-      הם מתויקים תחת המהדורה שממנה הגיעו, ואפשר לעבור עליהם
-      <a href={musicMirror}>במדף השירים</a> ובדפי המהדורות.
+      מלבד אלה יש בארכיון {clipCount} קטעי קול קצרים מתוך המשחקים עצמם, בעיקר AIFF ו־WAV. אלה
+      לא באמת שירים, אלא מה שהמנוע השמיע בכל פעם שלחצתם על משהו. הם מתויקים תחת המהדורה שממנה
+      הגיעו, ואפשר לעבור עליהם <a href={musicMirror}>במדף השירים</a> ובדפי המהדורות.
     </p>
   </header>
 

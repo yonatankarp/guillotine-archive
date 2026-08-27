@@ -17,8 +17,9 @@ const quote = ARCHIVE_QUOTES[0]!;
       <p class="eyebrow">ארכיון ציבורי</p>
       <h1>ארכיון גיליוטין</h1>
       <p class="lead">
-        {releases.length} מהדורות של המשחקים, הדמואים, דיסקי המעריצים והעיתונות שנשמרו מן האולפן.
-        הקבצים המקוריים נשארים ב־Google Drive.
+        {releases.length} מהדורות: המשחקים, הדמואים, דיסקי המעריצים והעיתונות. הכול נשמר מן
+        האולפן, ולא בגלל שתכננו את זה מראש — פשוט לא זרקנו כלום, וזה התברר בדיעבד כשיטת ארכוב
+        מצוינת.
       </p>
       <figure class="found-string">
         <blockquote class="voice"><p>{quote.textHe}</p></blockquote>
@@ -41,9 +42,10 @@ const quote = ARCHIVE_QUOTES[0]!;
     <div class="section-heading">
       <h2 id="games-heading">המשחקים</h2>
       <p>
-        שישה משחקים שיצאו מן האולפן, מן המוקדם למאוחר. שאר הארכיון —
-        {supportingReleases.length} מהדורות של מוזיקה, סרטונים, עיתונות וחומרי מעריצים —
-        מסודר במדורים שלמעלה, ואפשר גם <a href={sitePath('search/')}>לחפש בכל הקבצים</a>.
+        שישה משחקים יצאו מן האולפן, וכולם כאן, מן המוקדם למאוחר. שאר הארכיון —
+        {supportingReleases.length} מהדורות של מוזיקה, סרטונים, עיתונות וחומרי מעריצים — מחכה
+        במדורים שלמעלה. מי שיודע בדיוק מה הוא רוצה מוזמן פשוט
+        <a href={sitePath('search/')}>לחפש בכל הקבצים</a>.
       </p>
     </div>
     <ReleaseGrid releases={featuredReleases} showSummary showFacets={false} />

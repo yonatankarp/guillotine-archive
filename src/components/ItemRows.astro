@@ -8,9 +8,9 @@ interface Props {
   items: CatalogItem[];
   labelHe: string;
   /**
-   * Resolves a playable derivative for an item. Returns null everywhere today because the
-   * derivative pipeline is still being built; wiring real playback later means returning a URL
-   * from here and nothing else changes.
+   * Resolves a playable derivative for an item, or null where the pipeline has not produced
+   * one. Audio resolves for every track; video never does, so a video row falls back to its
+   * poster and a link to the original.
    */
   mediaSrc?: (item: CatalogItem) => string | null;
   showText?: boolean;
@@ -69,7 +69,7 @@ const {
                     rel="noopener noreferrer"
                     aria-label={action.label}
                   >
-                    {action.kind === 'view' ? 'צפייה ב־Drive' : 'הורדה'}
+                    {action.kind === 'view' ? 'צפייה' : 'הורדה'}
                   </a>
                 ))}
               </div>
@@ -94,8 +94,8 @@ const {
           {isMedia && source === null && showMediaNote && (
             <p class:list={['item-player-note', { unplayable: neverPlayable(item) }]}>
               {neverPlayable(item)
-                ? `${item.mimeType} לא מתנגן בדפדפן, וגם המרה לא תשנה את זה. הקובץ המקורי נשאר ב־Drive.`
-                : 'עוד אין באתר גרסה שמתנגנת. בינתיים הקובץ המקורי ב־Drive.'}
+                ? `${item.mimeType} לא מתנגן בדפדפן, וגם המרה לא תעזור. כי ככה. הקובץ המקורי נפתח בלשונית חדשה.`
+                : 'עוד אין כאן גרסה שמתנגנת. בינתיים הקובץ המקורי מחכה בלשונית חדשה.'}
             </p>
           )}
 
@@ -103,7 +103,7 @@ const {
             <div class="item-text">
               <p>{text.textHe}</p>
               {text.truncated && (
-                <p class="item-excerpt-note">זהו קטע מתחילת המסמך. הטקסט המלא בקובץ ב־Drive.</p>
+                <p class="item-excerpt-note">זו רק ההתחלה של המסמך. השאר בקובץ המקורי — לא הצלחנו לדחוס אותו לעמוד הזה.</p>
               )}
               <p class="item-source mono"><bdi dir="auto">{item.path}</bdi></p>
             </div>

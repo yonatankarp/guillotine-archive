@@ -147,7 +147,7 @@ describe('file metadata helpers', () => {
       {
         kind: 'view',
         href: item().viewUrl,
-        label: 'צפייה ב־Drive — piposh1.exe',
+        label: 'צפייה — piposh1.exe',
       },
     ]);
     expect(driveActions(item()).map((action) => action.kind)).toEqual(['view', 'download']);

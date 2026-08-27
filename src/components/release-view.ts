@@ -33,47 +33,47 @@ const ACCENTS = [
 const RELEASE_TYPE_LABELS: Record<ReleaseType, string> = {
   game: 'משחק',
   demo: 'דמו',
-  'fan-disc': 'דיסק מעריצים',
-  'audio-cd': 'דיסק שמע',
+  'fan-disc': 'דיסק של מעריצים',
+  'audio-cd': 'דיסק מוזיקה',
   video: 'וידאו',
-  press: 'עיתונות',
-  'fan-game': 'משחק מעריצים',
-  other: 'אחר',
+  press: 'מה שכתבו עלינו',
+  'fan-game': 'משחק של מעריצים',
+  other: 'לא ברור מה זה',
 };
 
 const KIND_LABELS: Record<ItemKind, string> = {
   video: 'סרטון',
-  track: 'רצועה',
-  sound: 'קטע קול',
-  'booklet-page': 'עמוד חוברת',
-  'press-page': 'עמוד עיתונות',
+  track: 'שיר',
+  sound: 'רעש מתוך המשחק',
+  'booklet-page': 'עמוד מהחוברת',
+  'press-page': 'עמוד מהעיתון',
   'comic-page': 'עמוד קומיקס',
   cover: 'עטיפה',
-  sprite: 'ספרייט',
+  sprite: 'תמונה של דמות',
   scan: 'סריקה',
-  build: 'קובץ הפעלה',
+  build: 'המשחק עצמו',
   document: 'מסמך',
-  'game-data': 'נתוני משחק',
-  noise: 'קובץ עזר',
-  other: 'אחר',
+  'game-data': 'הקרביים של המשחק',
+  noise: 'קובץ שאף אחד לא ביקש',
+  other: 'לא ברור מה זה',
 };
 
 /**
- * Named for what a section holds. The previous names were infinitives — לשחק,
- * לראות, להאזין — which promise an experience the page cannot deliver while the
- * media is a list of Drive links, and read as instructions rather than labels.
+ * Named for what a section holds, in the studio's own register rather than a
+ * cataloguer's. They stay noun phrases, not instructions: an infinitive promises
+ * an experience a section of links cannot deliver.
  * Video is its own section: a poster with a duration is not a scan.
  */
 const SECTIONS: Array<{ id: string; headingHe: string; kinds: readonly ItemKind[] }> = [
-  { id: 'downloads', headingHe: 'גרסאות להורדה', kinds: ['build'] },
+  { id: 'downloads', headingHe: 'מה שאפשר להוריד ולשחק', kinds: ['build'] },
   {
     id: 'gallery',
-    headingHe: 'סריקות ותמונות',
+    headingHe: 'תמונות שסרקנו',
     kinds: ['cover', 'scan', 'booklet-page', 'comic-page', 'press-page'],
   },
   { id: 'video', headingHe: 'סרטונים', kinds: ['video'] },
   { id: 'music', headingHe: 'מוזיקה', kinds: ['track'] },
-  { id: 'documents', headingHe: 'מסמכים', kinds: ['document'] },
+  { id: 'documents', headingHe: 'מסמכים ושאר נייר', kinds: ['document'] },
 ];
 
 /**

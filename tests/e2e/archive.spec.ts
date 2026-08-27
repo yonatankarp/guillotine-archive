@@ -210,9 +210,9 @@ test('the Piposh 1 room shows only the sections it has, with direct Drive action
   await page.goto(site.route('release/piposh-1/'));
 
   await expect(page.getByRole('heading', { level: 1, name: 'פיפוש 1' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'גרסאות להורדה' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'סריקות ותמונות' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'מסמכים' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'מה שאפשר להוריד ולשחק' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'תמונות שסרקנו' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'מסמכים ושאר נייר' })).toBeVisible();
   // Piposh 1 holds no audio, so the section is absent rather than empty.
   await expect(page.getByRole('heading', { name: 'מוזיקה' })).toHaveCount(0);
 
@@ -240,7 +240,7 @@ test('complete archive browsing remains available without search', async ({ page
   const solutionCountLabel = formatFileCount(solutionItems.length);
   await page.goto(site.route('archive/'));
 
-  await expect(page.getByRole('heading', { level: 1, name: 'כל הקבצים לפי מדף' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'כל הקבצים, מדף אחרי מדף' })).toBeVisible();
   await expect(
     page.getByRole('link', { name: `פתרונות, ${solutionCountLabel}` }),
   ).toBeVisible();
@@ -249,7 +249,7 @@ test('complete archive browsing remains available without search', async ({ page
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toBeVisible();
   await expect(
-    page.getByRole('link', { name: 'חלק מהמהדורה הרשמית: פיפוש 1' }).first(),
+    page.getByRole('link', { name: 'שייך למהדורה הרשמית: פיפוש 1' }).first(),
   ).toHaveAttribute('href', site.route('games/piposh-1/'));
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
@@ -266,14 +266,14 @@ test('the /games/ route the search index points at renders the release room', as
 
   await expect(page.getByRole('heading', { level: 1, name: release.titleHe })).toBeVisible();
   await expect(page.locator('.release-room')).toHaveCount(1);
-  await expect(page.getByRole('heading', { name: 'כל הקבצים' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'הכול, בלי סינון' })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
 test('Drive actions and back links have a high-contrast visible focus indicator', async ({ page }) => {
   for (const [path, accessibleName] of [
     ['release/piposh-1/', 'צפייה — piposh1.exe'],
-    ['archive/games/', 'חזרה לכל הארכיון'],
+    ['archive/games/', 'חזרה לכל המדפים'],
   ] as const) {
     await page.goto(site.route(path));
     const link = page.getByRole('link', { name: accessibleName }).first();
@@ -312,7 +312,7 @@ test('new archive pages remain within a 320px viewport', async ({ page }, testIn
 test('Hebrew search ranks the collection before English-named files', async ({ page }) => {
   await page.goto(site.route('search/?q=%D7%A4%D7%99%D7%A4%D7%95%D7%A9%201'));
 
-  await expect(page.getByRole('searchbox', { name: 'מה מחפשים?' })).toHaveValue('פיפוש 1');
+  await expect(page.getByRole('searchbox', { name: 'נו, מה מחפשים?' })).toHaveValue('פיפוש 1');
   await expect(page.locator('[data-search-status]')).toContainText('תוצאות');
   const results = page.locator('[data-search-results] > li');
   await expect(results.first()).toContainText('פיפוש 1');
@@ -344,13 +344,13 @@ test('search submission and category changes rerun the current Hebrew query', as
   const form = page.getByRole('search', { name: 'חיפוש בארכיון' });
   await expect(form).toHaveAttribute('action', site.route('search/'));
   await expect(form).toHaveAttribute('method', 'get');
-  const input = page.getByRole('searchbox', { name: 'מה מחפשים?' });
+  const input = page.getByRole('searchbox', { name: 'נו, מה מחפשים?' });
   await expect(input).toHaveAccessibleDescription(/החיפוש מבין עברית/u);
   await input.fill('פיפוש');
   await page.getByRole('button', { name: 'חיפוש' }).click();
   await expect(page.getByRole('link', { name: 'פתיחת אוסף — פיפוש 1' })).toBeVisible();
 
-  await page.getByLabel('סוג חומר').selectOption('פתרונות');
+  await page.getByLabel('איזה מדף').selectOption('פתרונות');
   await expect(page.getByText(solution.name, { exact: true })).toBeVisible();
   await expect(
     page.getByRole('link', { name: `צפייה — ${solution.name}` }),
@@ -376,8 +376,8 @@ test('search controls cannot drift while a delayed index is loading', async ({ p
 
   await page.goto(site.route('search/?q=%D7%A4%D7%99%D7%A4%D7%95%D7%A9%201'));
   await requestStarted;
-  const input = page.getByRole('searchbox', { name: 'מה מחפשים?' });
-  const category = page.getByLabel('סוג חומר');
+  const input = page.getByRole('searchbox', { name: 'נו, מה מחפשים?' });
+  const category = page.getByLabel('איזה מדף');
   const submit = page.getByRole('button', { name: 'חיפוש' });
   try {
     await expect(page.locator('[data-search-root]')).toHaveAttribute('aria-busy', 'true');
@@ -406,7 +406,7 @@ test('static search form remains useful and non-busy without JavaScript', async 
     await expect(root).toHaveAttribute('aria-busy', 'false');
     await expect(root.locator('[data-search-status]')).toContainText('כתבו משהו בעברית');
     await expect(root.locator('[data-search-status]')).not.toContainText('טוענים');
-    await expect(page.getByRole('searchbox', { name: 'מה מחפשים?' })).toBeEnabled();
+    await expect(page.getByRole('searchbox', { name: 'נו, מה מחפשים?' })).toBeEnabled();
     await expect(page.getByRole('button', { name: 'חיפוש' })).toBeEnabled();
     await expect(root.getByRole('link', { name: 'כל הארכיון' })).toBeVisible();
     await expect(page.getByRole('search', { name: 'חיפוש בארכיון' })).toHaveAttribute(
@@ -440,8 +440,8 @@ for (const failure of ['aborted', 'non-OK', 'corrupt'] as const) {
     ).toHaveAttribute('href', site.route('archive/'));
     await expect(page.locator('[data-search-results] > li')).toHaveCount(0);
     await expect(page.locator('[data-search-root]')).toHaveAttribute('aria-busy', 'false');
-    await expect(page.getByRole('searchbox', { name: 'מה מחפשים?' })).toBeEnabled();
-    await expect(page.getByLabel('סוג חומר')).toBeEnabled();
+    await expect(page.getByRole('searchbox', { name: 'נו, מה מחפשים?' })).toBeEnabled();
+    await expect(page.getByLabel('איזה מדף')).toBeEnabled();
     await expect(page.getByRole('button', { name: 'חיפוש' })).toBeEnabled();
   });
 }
@@ -527,7 +527,7 @@ test('search has honest empty, singular, and plural count wording', async ({ pag
 
   await page.goto(site.route('search/?q=%D7%91%D7%95%D7%93%D7%93'));
   await expect(page.locator('[data-search-status]')).toHaveText('2 תוצאות');
-  await page.getByLabel('סוג חומר').selectOption('פתרונות');
+  await page.getByLabel('איזה מדף').selectOption('פתרונות');
   await expect(page.locator('[data-search-status]')).toHaveText('תוצאה אחת');
 
   await page.goto(site.route('search/?q=%D7%A8%D7%91%D7%99%D7%9D'));

@@ -4,7 +4,7 @@ collections:
     titleHe: פיפוש 1
     type: game
     year: 1999
-    summaryHe: שלוש גרסאות בעברית, מהדורות רשמיות באנגלית וברוסית, שתי חוברות, דיסק אודיו והפתרון.
+    summaryHe: שלוש גרסאות בעברית, מהדורות רשמיות באנגלית וברוסית, שתי חוברות ודיסק אודיו. ומי שנתקע — יש גם פתרון, בלי בושה.
     descriptionHe: שלוש גרסאות בעברית, מהדורות רשמיות בשפות זרות, החוברות, דיסק האודיו והפתרון — כולם באותו תיק חקירה.
     coverFileId: 1JoYCVI1nah80Px76RYT85YdQr9rIPxNG
     coverCrop: { left: 15, top: 0, width: 689, height: 919 }
@@ -28,7 +28,7 @@ collections:
   - slug: piposh-2
     titleHe: פיפוש 2
     type: game
-    summaryHe: שתי גרסאות, עטיפה, חוברת, מוזיקה והפתרון.
+    summaryHe: שתי גרסאות, עטיפה, חוברת ומוזיקה. גם פתרון, למי שנגמרה לו הסבלנות באמצע.
     coverFileId: 0Bwqx7RiWdM3YcnVNS09PUGR4aFk
     coverCrop: { left: 85, top: 0, width: 533, height: 711 }
     aliasesHe: [פיפוש שתיים]
@@ -46,7 +46,7 @@ collections:
   - slug: halom-shehitgashem
     titleHe: חלום שהתגשם
     type: game
-    summaryHe: שתי גרסאות, חוברת, צ׳יטים ודיסק אודיו.
+    summaryHe: שתי גרסאות, חוברת ודיסק אודיו. וגם צ׳יטים, כי לא כולם באים לכאן לשחק בהוגנות.
     coverFileId: 0B2YRfkQTdJ96MnFNUnlRdlhkdjQ
     coverCrop: { left: 0, top: 40, width: 400, height: 533 }
     logoCrop: { left: 22, top: 92, width: 255, height: 125 }
@@ -64,7 +64,7 @@ collections:
   - slug: betochhei-harating
     titleHe: בתככי הרייטינג
     type: game
-    summaryHe: שלוש גרסאות, תיקונים, הוראות והפתרון.
+    summaryHe: שלוש גרסאות, הוראות, פתרון — וגם תיקונים. התיקונים הם לא טעות בקטלוג.
     coverFileId: 0Bwqx7RiWdM3YVEVKUEFweVo0ZW8
     coverCrop: { left: 0, top: 0, width: 559, height: 745 }
     logoCrop: { left: 45, top: 28, width: 470, height: 78 }
@@ -86,7 +86,7 @@ collections:
   - slug: vogimon
     titleHe: ווג׳ימון
     type: game
-    summaryHe: המשחק המלא, גרסת הבטא, החוברת והעטיפה.
+    summaryHe: המשחק המלא, גרסת הבטא, החוברת והעטיפה. כן, זה השם. לא, לא נתנצל עליו.
     coverFileId: 0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ
     coverCrop: { left: 0, top: 0, width: 359, height: 479 }
     aliasesHe: [ווגימון, ווג_ימון]
@@ -102,7 +102,7 @@ collections:
   - slug: piposh-revolution
     titleHe: פיפוש המהפכה
     type: game
-    summaryHe: שלוש גרסאות, מפה, מוזיקה והפתרון.
+    summaryHe: שלוש גרסאות, מפה, מוזיקה ופתרון. מהפכה קטנה, אבל מתויקת לפי הספר.
     aliasesHe: [פיפוש שלוש, המהפכה]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
     rules:

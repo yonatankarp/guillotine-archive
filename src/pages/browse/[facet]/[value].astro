@@ -45,7 +45,7 @@ export const getStaticPaths = (() => {
 const { facet, value } = Astro.params;
 const { headingHe, matching } = Astro.props;
 const facetLabel =
-  facet === 'type' ? 'סוג מהדורה' : facet === 'subject' ? 'משחק' : 'שנה';
+  facet === 'type' ? 'סוג של דבר' : facet === 'subject' ? 'סביב המשחק' : 'שנה';
 ---
 
 <BaseLayout title={`${headingHe} — ארכיון גיליוטין`}>

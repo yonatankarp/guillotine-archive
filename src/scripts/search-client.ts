@@ -171,7 +171,7 @@ function renderCollection(result: ArchiveSearchResult, baseUrl: string): HTMLLIE
   if (!href || !result.titleHe.trim()) throw new Error('invalid collection result');
 
   const item = document.createElement('li');
-  appendText(item, 'span', 'משחק או אוסף', 'result-kind');
+  appendText(item, 'span', 'משחק שלם', 'result-kind');
   const heading = appendText(item, 'p', '', 'result-heading');
   const link = document.createElement('a');
   link.className = 'collection-result-link';
@@ -197,7 +197,7 @@ function renderFile(result: ArchiveSearchResult, baseUrl: string): HTMLLIElement
   }
 
   const item = document.createElement('li');
-  appendText(item, 'span', 'קובץ בארכיון', 'result-kind');
+  appendText(item, 'span', 'קובץ בודד', 'result-kind');
   const heading = appendText(item, 'p', '', 'result-heading');
   const filename = document.createElement('bdi');
   filename.dir = 'auto';
@@ -226,7 +226,7 @@ function renderFile(result: ArchiveSearchResult, baseUrl: string): HTMLLIElement
     const relationshipLine = appendText(item, 'p', '', 'result-meta');
     const relationshipLink = document.createElement('a');
     relationshipLink.href = relationshipHref;
-    relationshipLink.textContent = `חלק מהמהדורה הרשמית: ${relationship.titleHe}`;
+    relationshipLink.textContent = `שייך למהדורה הרשמית: ${relationship.titleHe}`;
     relationshipLine.append(relationshipLink);
   }
 
@@ -374,7 +374,7 @@ function setLoading(elements: SearchElements, loading: boolean): void {
   elements.category.disabled = loading;
   elements.kind.disabled = loading;
   elements.submit.disabled = loading;
-  if (loading) elements.status.textContent = 'טוענים את מפתח הארכיון…';
+  if (loading) elements.status.textContent = 'טוענים את המפתח של הארכיון… רגע…';
 }
 
 async function start(root: HTMLElement): Promise<void> {

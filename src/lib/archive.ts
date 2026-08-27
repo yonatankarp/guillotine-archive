@@ -15,7 +15,7 @@ type FileWithOptionalActions = Pick<CatalogItem, 'name' | 'downloadUrl'> & {
   viewUrl: string | null;
 };
 
-const FALLBACK_OFFICIAL_GROUP = 'חומרים רשמיים';
+const FALLBACK_OFFICIAL_GROUP = 'חומר רשמי';
 
 export const ARCHIVE_PAGE_SIZE = 100;
 

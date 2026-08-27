@@ -116,21 +116,22 @@ describe('production curator configuration', () => {
       vogimon: '0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ',
       'piposh-revolution': undefined,
     });
-    // Summaries are labels now: they say what is in a release. The voice moved to
-    // ARCHIVE_QUOTES, which carries only strings the archive actually contains,
-    // each with the path it was read from.
-    expect(curator.collections.every(({ summaryHe }) => summaryHe.length <= 90)).toBe(true);
+    /*
+     * A summary says what is in a release AND says it in the studio's voice, so the
+     * prose is not pinned here — it will keep being edited. What is pinned is the cap
+     * that protects the tile: these render in .release-summary on the home grid, and the
+     * 320px viewport test is what catches a summary that outgrows its cell.
+     *
+     * An invented line still may not be attributed to a character: ARCHIVE_QUOTES stays
+     * the only quoted voice, and it carries only strings the archive contains, each with
+     * the path it was read from.
+     */
+    expect(curator.collections.every(({ summaryHe }) => summaryHe.trim().length > 0)).toBe(true);
+    expect(curator.collections.every(({ summaryHe }) => summaryHe.length <= 120)).toBe(true);
     expect(curator.collections.find(({ slug }) => slug === 'vogimon')).toMatchObject({
       titleHe: 'ווג׳ימון',
-      summaryHe: 'המשחק המלא, גרסת הבטא, החוברת והעטיפה.',
       aliasesHe: expect.arrayContaining(['ווגימון', 'ווג_ימון']),
     });
-    expect(curator.collections.find(({ slug }) => slug === 'betochhei-harating')?.summaryHe).toBe(
-      'שלוש גרסאות, תיקונים, הוראות והפתרון.',
-    );
-    expect(curator.collections.find(({ slug }) => slug === 'piposh-revolution')?.summaryHe).toBe(
-      'שלוש גרסאות, מפה, מוזיקה והפתרון.',
-    );
   });
 
   test.skipIf(realCatalogForCoverAudit === null)(

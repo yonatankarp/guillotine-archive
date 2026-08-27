@@ -6,7 +6,7 @@
       "titleHe": "פיפוש 1",
       "type": "game",
       "year": 1999,
-      "summaryHe": "שלוש גרסאות בעברית, מהדורות רשמיות באנגלית וברוסית, שתי חוברות, דיסק אודיו והפתרון.",
+      "summaryHe": "שלוש גרסאות בעברית, מהדורות רשמיות באנגלית וברוסית, שתי חוברות ודיסק אודיו. ומי שנתקע — יש גם פתרון, בלי בושה.",
       "descriptionHe": "שלוש גרסאות בעברית, מהדורות רשמיות בשפות זרות, החוברות, דיסק האודיו והפתרון — כולם באותו תיק חקירה.",
       "coverFileId": "1JoYCVI1nah80Px76RYT85YdQr9rIPxNG",
       "coverCrop": {
@@ -143,7 +143,7 @@
       "slug": "piposh-2",
       "titleHe": "פיפוש 2",
       "type": "game",
-      "summaryHe": "שתי גרסאות, עטיפה, חוברת, מוזיקה והפתרון.",
+      "summaryHe": "שתי גרסאות, עטיפה, חוברת ומוזיקה. גם פתרון, למי שנגמרה לו הסבלנות באמצע.",
       "coverFileId": "0Bwqx7RiWdM3YcnVNS09PUGR4aFk",
       "coverCrop": {
         "left": 85,
@@ -239,7 +239,7 @@
       "slug": "halom-shehitgashem",
       "titleHe": "חלום שהתגשם",
       "type": "game",
-      "summaryHe": "שתי גרסאות, חוברת, צ׳יטים ודיסק אודיו.",
+      "summaryHe": "שתי גרסאות, חוברת ודיסק אודיו. וגם צ׳יטים, כי לא כולם באים לכאן לשחק בהוגנות.",
       "coverFileId": "0B2YRfkQTdJ96MnFNUnlRdlhkdjQ",
       "coverCrop": {
         "left": 0,
@@ -353,7 +353,7 @@
       "slug": "betochhei-harating",
       "titleHe": "בתככי הרייטינג",
       "type": "game",
-      "summaryHe": "שלוש גרסאות, תיקונים, הוראות והפתרון.",
+      "summaryHe": "שלוש גרסאות, הוראות, פתרון — וגם תיקונים. התיקונים הם לא טעות בקטלוג.",
       "coverFileId": "0Bwqx7RiWdM3YVEVKUEFweVo0ZW8",
       "coverCrop": {
         "left": 0,
@@ -466,7 +466,7 @@
       "slug": "vogimon",
       "titleHe": "ווג׳ימון",
       "type": "game",
-      "summaryHe": "המשחק המלא, גרסת הבטא, החוברת והעטיפה.",
+      "summaryHe": "המשחק המלא, גרסת הבטא, החוברת והעטיפה. כן, זה השם. לא, לא נתנצל עליו.",
       "coverFileId": "0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ",
       "coverCrop": {
         "left": 0,
@@ -549,7 +549,7 @@
       "slug": "piposh-revolution",
       "titleHe": "פיפוש המהפכה",
       "type": "game",
-      "summaryHe": "שלוש גרסאות, מפה, מוזיקה והפתרון.",
+      "summaryHe": "שלוש גרסאות, מפה, מוזיקה ופתרון. מהפכה קטנה, אבל מתויקת לפי הספר.",
       "aliasesHe": [
         "פיפוש שלוש",
         "המהפכה"
@@ -68811,7 +68811,7 @@
     {
       "slug": "halom-shehitgashem",
       "titleHe": "חלום שהתגשם",
-      "summaryHe": "שתי גרסאות, חוברת, צ׳יטים ודיסק אודיו.",
+      "summaryHe": "שתי גרסאות, חוברת ודיסק אודיו. וגם צ׳יטים, כי לא כולם באים לכאן לשחק בהוגנות.",
       "type": "game",
       "subjectSlug": "halom-shehitgashem",
       "itemIds": [
@@ -68926,7 +68926,7 @@
     {
       "slug": "piposh-revolution",
       "titleHe": "פיפוש המהפכה",
-      "summaryHe": "שלוש גרסאות, מפה, מוזיקה והפתרון.",
+      "summaryHe": "שלוש גרסאות, מפה, מוזיקה ופתרון. מהפכה קטנה, אבל מתויקת לפי הספר.",
       "type": "game",
       "subjectSlug": "piposh-revolution",
       "itemIds": [
@@ -69030,7 +69030,7 @@
     {
       "slug": "piposh-1",
       "titleHe": "פיפוש 1",
-      "summaryHe": "שלוש גרסאות בעברית, מהדורות רשמיות באנגלית וברוסית, שתי חוברות, דיסק אודיו והפתרון.",
+      "summaryHe": "שלוש גרסאות בעברית, מהדורות רשמיות באנגלית וברוסית, שתי חוברות ודיסק אודיו. ומי שנתקע — יש גם פתרון, בלי בושה.",
       "type": "game",
       "subjectSlug": "piposh-1",
       "year": 1999,
@@ -69082,7 +69082,7 @@
     {
       "slug": "piposh-2",
       "titleHe": "פיפוש 2",
-      "summaryHe": "שתי גרסאות, עטיפה, חוברת, מוזיקה והפתרון.",
+      "summaryHe": "שתי גרסאות, עטיפה, חוברת ומוזיקה. גם פתרון, למי שנגמרה לו הסבלנות באמצע.",
       "type": "game",
       "subjectSlug": "piposh-2",
       "itemIds": [
@@ -69160,7 +69160,7 @@
     {
       "slug": "vogimon",
       "titleHe": "ווג׳ימון",
-      "summaryHe": "המשחק המלא, גרסת הבטא, החוברת והעטיפה.",
+      "summaryHe": "המשחק המלא, גרסת הבטא, החוברת והעטיפה. כן, זה השם. לא, לא נתנצל עליו.",
       "type": "game",
       "subjectSlug": "vogimon",
       "itemIds": [
@@ -69200,7 +69200,7 @@
     {
       "slug": "betochhei-harating",
       "titleHe": "בתככי הרייטינג",
-      "summaryHe": "שלוש גרסאות, תיקונים, הוראות והפתרון.",
+      "summaryHe": "שלוש גרסאות, הוראות, פתרון — וגם תיקונים. התיקונים הם לא טעות בקטלוג.",
       "type": "game",
       "subjectSlug": "betochhei-harating",
       "itemIds": [

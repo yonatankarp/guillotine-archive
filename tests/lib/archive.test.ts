@@ -115,7 +115,7 @@ describe('groupOfficialItems', () => {
         { ...collection, itemIds: [ungrouped.id] },
         new Map([[ungrouped.id, ungrouped]]),
       ),
-    ).toEqual([{ heading: 'חומרים רשמיים', items: [ungrouped] }]);
+    ).toEqual([{ heading: 'חומר רשמי', items: [ungrouped] }]);
   });
 });
 

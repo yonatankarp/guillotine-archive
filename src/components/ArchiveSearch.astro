@@ -40,7 +40,7 @@ const kindFilters: ItemKind[] = [
     data-search-form
   >
     <div class="query-field">
-      <label for="archive-search">מה מחפשים?</label>
+      <label for="archive-search">נו, מה מחפשים?</label>
       <p id="archive-search-help">החיפוש מבין עברית. שמות הקבצים מוצגים בדיוק כפי שנשמרו, גם כשזה לא עוזר לאף אחד.</p>
       <div class="query-controls">
         <input
@@ -56,14 +56,14 @@ const kindFilters: ItemKind[] = [
       </div>
     </div>
     <div class="filter-field">
-      <label for="category-filter">סוג חומר</label>
+      <label for="category-filter">איזה מדף</label>
       <select id="category-filter" name="category" data-search-category>
         <option value="">הכול</option>
         {filterValues.map((value) => <option value={value}>{value}</option>)}
       </select>
     </div>
     <div class="filter-field">
-      <label for="kind-filter">סוג קובץ</label>
+      <label for="kind-filter">איזה סוג קובץ</label>
       <select id="kind-filter" name="kind" data-search-kind>
         <option value="">הכול</option>
         {kindFilters.map((kind) => <option value={kind}>{itemKindLabel(kind)}</option>)}

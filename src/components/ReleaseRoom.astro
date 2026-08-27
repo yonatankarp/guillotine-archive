@@ -58,13 +58,13 @@ const facts = [
   <article class="release-room" style={`--accent: ${accent};`}>
     <header class="room-hero">
       <div class="room-hero-copy">
-        <p class="eyebrow">מהדורה בארכיון</p>
+        <p class="eyebrow">משהו שנשמר</p>
         <h1>{release.titleHe}</h1>
         <p class="room-facts">{facts.join(' · ')}</p>
         {
           subjectSlug && (
             <p class="room-subject">
-              <a href={sitePath(`browse/subject/${subjectSlug}/`)}>כל המהדורות סביב המשחק הזה</a>
+              <a href={sitePath(`browse/subject/${subjectSlug}/`)}>כל מה שיצא סביב המשחק הזה</a>
             </p>
           )
         }
@@ -108,7 +108,7 @@ const facts = [
           {section.hiddenCount > 0 && (
             <p class="room-more">
               יש עוד {section.hiddenCount} קבצים במדור הזה, ולא הצגנו אותם כאן כדי לא להאריך.
-              <a href={mirrorHref(section.items)}>לרשימה המלאה במדף הארכיון</a>
+              <a href={mirrorHref(section.items)}>לרשימה המלאה במדף</a>
             </p>
           )}
         </section>
@@ -118,7 +118,7 @@ const facts = [
     {
       bundle.length > 0 && (
         <section class="room-section" aria-labelledby="section-bundle">
-          <h2 id="section-bundle">תכולת ההתקנה</h2>
+          <h2 id="section-bundle">מה שהמשחק פיזר על הדיסק</h2>
           <p class="room-note">
             אלה הקבצים שנוצרו כשהמשחק הותקן, ולא חומר שמישהו תייק בכוונה: ספריית הצלילים של
             המנוע, תמונות הדמויות, קבצי נתונים. הם נספרים כאן ולא מוצגים אחד־אחד, כי רשימה של
@@ -143,7 +143,7 @@ const facts = [
     {
       credits.length > 0 && (
         <section class="room-section" aria-labelledby="section-credits">
-          <h2 id="section-credits">מי עשה את זה</h2>
+          <h2 id="section-credits">מי בכלל עשה את זה</h2>
           <p class="room-note">
             המשחקים האלה מתויקים לפי היוצר, ולכן זה המקום היחיד בכל הארכיון שבו נשמר קרדיט.
             בכל השאר הוא הלך לאיבוד, ואנחנו לא גאים בזה.
@@ -161,9 +161,9 @@ const facts = [
     }
 
     <section class="room-section" aria-labelledby="section-all">
-      <h2 id="section-all">כל הקבצים</h2>
+      <h2 id="section-all">הכול, בלי סינון</h2>
       <details class="all-files">
-        <summary>פירוט לפי סוג קובץ</summary>
+        <summary>מה יש כאן, לפי סוג</summary>
         <ul class="kind-counts">
           {
             kindCounts.map(([kind, count]) => (
@@ -175,7 +175,7 @@ const facts = [
           }
         </ul>
         <p class="room-more">
-          <a href={mirrorHref(items)}>לפתיחת המדפים בארכיון</a>
+          <a href={mirrorHref(items)}>לפתיחת המדפים עצמם</a>
         </p>
       </details>
     </section>

@@ -26,12 +26,12 @@ test('one room template serves a game, an audio disc and a fan disc', async ({ p
   // The same page shape has to fit releases with completely different contents, which is only
   // true if an empty section is absent rather than rendered empty.
   const expectations = [
-    { slug: 'piposh-1', present: ['גרסאות להורדה', 'סריקות ותמונות', 'מסמכים'], absent: ['מוזיקה'] },
-    { slug: 'hatbara-shel-piposh', present: ['מוזיקה'], absent: ['גרסאות להורדה', 'סריקות ותמונות', 'מסמכים'] },
-    { slug: 'fan-disc-b038d0c7', present: ['מסמכים'], absent: ['גרסאות להורדה', 'סריקות ותמונות', 'מוזיקה'] },
+    { slug: 'piposh-1', present: ['מה שאפשר להוריד ולשחק', 'תמונות שסרקנו', 'מסמכים ושאר נייר'], absent: ['מוזיקה'] },
+    { slug: 'hatbara-shel-piposh', present: ['מוזיקה'], absent: ['מה שאפשר להוריד ולשחק', 'תמונות שסרקנו', 'מסמכים ושאר נייר'] },
+    { slug: 'fan-disc-b038d0c7', present: ['מסמכים ושאר נייר'], absent: ['מה שאפשר להוריד ולשחק', 'תמונות שסרקנו', 'מוזיקה'] },
     {
       slug: 'fan-disc-69541b3e',
-      present: ['גרסאות להורדה', 'סריקות ותמונות', 'סרטונים', 'מוזיקה', 'מסמכים'],
+      present: ['מה שאפשר להוריד ולשחק', 'תמונות שסרקנו', 'סרטונים', 'מוזיקה', 'מסמכים ושאר נייר'],
       absent: [],
     },
   ] as const;
@@ -55,7 +55,7 @@ test('one room template serves a game, an audio disc and a fan disc', async ({ p
         `${slug} omits the empty ${heading}`,
       ).toHaveCount(0);
     }
-    // כל הקבצים is always last and always collapsed.
+    // The full-file-list section is always last and always collapsed.
     const allFiles = page.locator('details.all-files');
     await expect(allFiles).toHaveCount(1);
     expect(await allFiles.evaluate((element: HTMLDetailsElement) => element.open)).toBe(false);
@@ -107,7 +107,7 @@ test('the congress disc credits the people who made its fan games', async ({ pag
 
   await page.goto(site.route(`release/${congress.slug}/`));
 
-  await expect(page.getByRole('heading', { name: 'מי עשה את זה' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'מי בכלל עשה את זה' })).toBeVisible();
   await expect(page.locator('.credit-list > li')).toHaveCount(credits.length);
   await expect(page.locator('.credit-list')).toContainText('אופיר אלמקיאס');
   await expect(page.getByText('קרבות של חזי נגד כולם כמו בכל בוקר בפיפוש.zip')).toBeVisible();
@@ -238,7 +238,7 @@ test('search narrows by file kind without a stored kind field', async ({ page })
   const unfilteredCount = await unfiltered.count();
   expect(unfilteredCount).toBeGreaterThan(0);
 
-  await page.getByLabel('סוג קובץ').selectOption('build');
+  await page.getByLabel('איזה סוג קובץ').selectOption('build');
   await expect(page.locator('[data-search-results] > li')).not.toHaveCount(unfilteredCount);
   const kinds = await page
     .locator('[data-search-results] > li')

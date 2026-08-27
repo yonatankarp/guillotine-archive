@@ -1424,8 +1424,16 @@ main {
 
 /* Archive sections. Real links to pre-rendered pages, not client-side tabs, so
    each one is shareable and works with JavaScript off. */
+/* Each tab is a separate document, so switching reloads the page and the browser
+   lands at the top. Putting the strip first means the top IS the tabs, and sticky
+   means you never scroll back to them. */
 .media-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   margin: 0 0 clamp(1.4rem, 3vw, 2.2rem);
+  padding-block-start: 0.35rem;
+  background: var(--ground);
   border-block-end: 1px solid var(--stroke);
   overflow-x: auto;
 }
@@ -1464,4 +1472,14 @@ main {
 .media-tabs .mono {
   color: var(--dim);
   font-size: 0.74rem;
+}
+
+/* A browse page's heading no longer repeats the section name its active tab
+   already carries, so it stays out of the way. */
+.compact-intro {
+  margin-block-end: clamp(1.2rem, 2.5vw, 1.8rem);
+}
+
+.compact-intro h1 {
+  font-size: var(--t-2xl);
 }

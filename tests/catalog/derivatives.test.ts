@@ -38,7 +38,7 @@ async function quadrantImage(width: number, height: number): Promise<Buffer> {
 }
 
 async function centrePixel(data: Buffer): Promise<[number, number, number]> {
-  const { data: raw, info } = await sharp(data)
+  const { data: raw } = await sharp(data)
     .extract({
       left: Math.floor((await sharp(data).metadata()).width! / 2) - 1,
       top: Math.floor((await sharp(data).metadata()).height! / 2) - 1,

@@ -7,7 +7,6 @@ import { releaseTypeLabel } from '../../../components/release-view';
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { catalog } from '../../../lib/catalog';
 import { releaseFacets, releases } from '../../../lib/releases';
-import { sitePath } from '../../../lib/url';
 
 /**
  * The facets are pre-rendered rather than filtered in the browser: 42 releases across 15 facet
@@ -50,15 +49,13 @@ const facetLabel =
 ---
 
 <BaseLayout title={`${headingHe} — ארכיון גיליוטין`}>
-  <header class="page-intro">
-    <p class="eyebrow">{facetLabel}</p>
-    <h1>{headingHe}</h1>
-    <p class="lead">
-      {matching.length} מהדורות. <a href={sitePath()}>חזרה לכל המהדורות</a>
-    </p>
-  </header>
-
   <MediaTabs active={facet === 'type' ? (value as ReleaseType) : 'other'} />
+
+  <header class="page-intro compact-intro">
+    {facet !== 'type' && <p class="eyebrow">{facetLabel}</p>}
+    <h1>{headingHe}</h1>
+    <p class="lead">{matching.length} מהדורות</p>
+  </header>
 
   <section aria-labelledby="releases-heading">
     <h2 class="visually-hidden" id="releases-heading">מהדורות מסוננות</h2>

@@ -9,7 +9,6 @@ import {
   stepNames,
   steps,
   type UnknownRecord,
-  type WorkflowStep,
 } from '../support/workflow';
 
 const actionByStepName: ReadonlyMap<string, string> = new Map([

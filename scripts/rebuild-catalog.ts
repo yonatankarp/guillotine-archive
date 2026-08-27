@@ -21,7 +21,14 @@ import type { Catalog, CatalogItem, DriveFile } from '../src/catalog/types';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 
-/** Only the fields `scanDrive` produces. Everything else is derived. */
+/**
+ * Only the fields `scanDrive` produces. Everything else is derived.
+ *
+ * `thumbnailUrl` and `durationMillis` are optional on `DriveFile` and come from Drive
+ * metadata, so they cannot be recomputed offline and must be forwarded here. Omitting
+ * them silently stripped the thumbnail from 854 items on a rebuild, which a curator edit
+ * would then have committed.
+ */
 function rawDriveFields(item: CatalogItem): DriveFile {
   return {
     id: item.id,
@@ -32,6 +39,8 @@ function rawDriveFields(item: CatalogItem): DriveFile {
     path: item.path,
     viewUrl: item.viewUrl,
     downloadUrl: item.downloadUrl,
+    ...(item.thumbnailUrl === undefined ? {} : { thumbnailUrl: item.thumbnailUrl }),
+    ...(item.durationMillis === undefined ? {} : { durationMillis: item.durationMillis }),
   };
 }
 

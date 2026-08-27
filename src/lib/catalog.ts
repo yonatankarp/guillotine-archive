@@ -34,6 +34,32 @@ const curatorRule = z
     groupHe: nonblankString.optional(),
   })
   .strict();
+const cropRegion = z
+  .object({
+    left: z.number().int().nonnegative(),
+    top: z.number().int().nonnegative(),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+  })
+  .strict();
+const derivative = z
+  .object({
+    path: nonblankString,
+    bytes: z.number().int().nonnegative(),
+    width: z.number().int().positive().optional(),
+    height: z.number().int().positive().optional(),
+  })
+  .strict();
+const itemDerivatives = z
+  .object({
+    thumb: derivative.optional(),
+    view: derivative.optional(),
+    reader: derivative.optional(),
+    audio: derivative.optional(),
+    poster: derivative.optional(),
+    durationMillis: z.number().int().nonnegative().optional(),
+  })
+  .strict();
 const curatedCollection = z
   .object({
     slug,
@@ -43,11 +69,14 @@ const curatedCollection = z
     summaryHe: nonblankString,
     descriptionHe: nonblankString.optional(),
     coverFileId: nonblankString.optional(),
+    coverCrop: cropRegion.optional(),
+    logoCrop: cropRegion.optional(),
     aliasesHe: z.array(nonblankString),
     tagsHe: z.array(nonblankString),
     rules: z.array(curatorRule),
     exclude: z.array(curatorRule),
     coverUrl: exactTrimmedNonblankString.nullable(),
+    logoUrl: exactTrimmedNonblankString.nullable().optional(),
     itemIds: z.array(nonblankString),
   })
   .strict();
@@ -117,6 +146,8 @@ const catalogItem = z
     path: nonblankString,
     viewUrl: driveUrl,
     downloadUrl: driveUrl.nullable(),
+    thumbnailUrl: absoluteUrl.nullable().optional(),
+    durationMillis: z.number().int().nonnegative().nullable().optional(),
     category: nonblankString,
     kind: itemKind,
     releaseSlug: slug,
@@ -125,6 +156,7 @@ const catalogItem = z
     aliasesHe: z.array(nonblankString),
     tagsHe: z.array(nonblankString),
     extractedTextHe: z.string().optional(),
+    derivatives: itemDerivatives.optional(),
     collectionLinks: z.array(collectionLink),
   })
   .strict()

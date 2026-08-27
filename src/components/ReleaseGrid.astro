@@ -1,0 +1,95 @@
+---
+import type { Release } from '../catalog/types';
+import { catalog } from '../lib/catalog';
+import { releaseFacets, releases as allReleases } from '../lib/releases';
+import { sitePath } from '../lib/url';
+import ReleaseTile from './ReleaseTile.astro';
+import { releaseTypeLabel } from './release-view';
+
+interface Props {
+  releases: readonly Release[];
+  /** The facet this grid is already narrowed by, or null on the unfiltered grid. */
+  active?: { facet: string; value: string } | null;
+}
+
+const { releases, active = null } = Astro.props;
+
+const itemCountBySlug = new Map<string, number>();
+for (const item of catalog.items) {
+  itemCountBySlug.set(item.releaseSlug, (itemCountBySlug.get(item.releaseSlug) ?? 0) + 1);
+}
+
+const subjectTitleBySlug = new Map(
+  catalog.collections.map((collection) => [collection.slug, collection.titleHe]),
+);
+
+interface Chip {
+  facet: string;
+  value: string;
+  labelHe: string;
+  count: number;
+}
+
+function chipsFor(facet: string, values: readonly string[], label: (value: string) => string, matches: (release: Release, value: string) => boolean): Chip[] {
+  return values
+    .map((value) => ({
+      facet,
+      value,
+      labelHe: label(value),
+      count: allReleases.filter((release) => matches(release, value)).length,
+    }))
+    .filter((chip) => chip.count > 0);
+}
+
+const chips: Chip[] = [
+  ...chipsFor(
+    'type',
+    releaseFacets.types,
+    (value) => releaseTypeLabel(value as Release['type']),
+    (release, value) => release.type === value,
+  ),
+  ...chipsFor(
+    'subject',
+    releaseFacets.subjectSlugs,
+    (value) => subjectTitleBySlug.get(value) ?? value,
+    (release, value) => release.subjectSlug === value,
+  ),
+  /* One year is recorded across all 42 releases, so this group is a single chip until the
+     catalog carries more. */
+  ...chipsFor(
+    'year',
+    releaseFacets.years.map(String),
+    (value) => value,
+    (release, value) => release.year?.toString() === value,
+  ),
+];
+---
+
+<nav class="facets" aria-label="סינון מהדורות">
+  <a
+    class="facet-chip"
+    href={sitePath()}
+    aria-current={active === null ? 'page' : undefined}
+  >
+    הכול <span class="mono">{allReleases.length}</span>
+  </a>
+  {
+    chips.map((chip) => (
+      <a
+        class="facet-chip"
+        href={sitePath(`browse/${chip.facet}/${chip.value}/`)}
+        aria-current={active?.facet === chip.facet && active.value === chip.value ? 'page' : undefined}
+      >
+        {chip.labelHe} <span class="mono">{chip.count}</span>
+      </a>
+    ))
+  }
+</nav>
+
+<ol class="release-grid" data-testid="release-grid">
+  {
+    releases.map((release) => (
+      <ReleaseTile release={release} itemCount={itemCountBySlug.get(release.slug) ?? 0} />
+    ))
+  }
+</ol>

@@ -2,8 +2,26 @@
 import { catalog } from '../lib/catalog';
 import { searchFilterValues } from '../catalog/search';
 import { sitePath } from '../lib/url';
+import { itemKindLabel } from './release-view';
+import type { ItemKind } from '../catalog/types';
 
 const filterValues = searchFilterValues(catalog);
+
+/* The kinds worth filtering by. game-data and noise are engine droppings: real, catalogued,
+   and not something anyone browses for. */
+const kindFilters: ItemKind[] = [
+  'build',
+  'track',
+  'sound',
+  'video',
+  'scan',
+  'booklet-page',
+  'comic-page',
+  'press-page',
+  'sprite',
+  'cover',
+  'document',
+];
 ---
 
 <section
@@ -44,6 +62,13 @@ const filterValues = searchFilterValues(catalog);
         {filterValues.map((value) => <option value={value}>{value}</option>)}
       </select>
     </div>
+    <div class="filter-field">
+      <label for="kind-filter">סוג קובץ</label>
+      <select id="kind-filter" name="kind" data-search-kind>
+        <option value="">הכול</option>
+        {kindFilters.map((kind) => <option value={kind}>{itemKindLabel(kind)}</option>)}
+      </select>
+    </div>
   </form>
 
   <p class="search-status" role="status" aria-live="polite" data-search-status>
@@ -63,228 +88,3 @@ const filterValues = searchFilterValues(catalog);
 <script>
   import '../scripts/search-client';
 </script>
-
-<style>
-  .archive-search {
-    position: relative;
-    padding: clamp(1rem, 4vw, 2rem);
-    overflow: hidden;
-    border: var(--line) solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--yellow);
-    box-shadow: 7px 7px 0 var(--ink);
-  }
-
-  .archive-search::before {
-    content: "";
-    position: absolute;
-    width: 9rem;
-    height: 9rem;
-    inset: -5.5rem auto auto -4rem;
-    border: var(--line) solid var(--ink);
-    border-radius: 50%;
-    background: var(--magenta);
-    pointer-events: none;
-  }
-
-  .search-form {
-    position: relative;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(11rem, 0.3fr);
-    align-items: end;
-    gap: 1rem;
-    margin: 0;
-  }
-
-  label {
-    display: block;
-    margin-bottom: 0.42rem;
-    font-size: 0.9rem;
-    font-weight: 900;
-  }
-
-  .query-field > p {
-    margin: 0 0 0.65rem;
-    color: #3d382f;
-    font-size: 0.78rem;
-    line-height: 1.5;
-  }
-
-  .query-controls {
-    display: flex;
-    gap: 0.55rem;
-  }
-
-  input,
-  select,
-  button {
-    min-height: 3rem;
-    border: var(--line) solid var(--ink);
-    border-radius: 0.55rem;
-    color: var(--ink);
-    font: inherit;
-  }
-
-  input,
-  select {
-    background: white;
-  }
-
-  input {
-    width: 100%;
-    min-width: 0;
-    padding: 0.72rem 0.9rem;
-  }
-
-  select {
-    width: 100%;
-    padding: 0.72rem 0.8rem;
-  }
-
-  button {
-    flex: 0 0 auto;
-    padding: 0.72rem 1.15rem;
-    background: var(--lime);
-    box-shadow: 3px 3px 0 var(--ink);
-    font-weight: 900;
-    cursor: pointer;
-  }
-
-  button:hover {
-    background: var(--cyan);
-  }
-
-  input:disabled,
-  select:disabled,
-  button:disabled {
-    cursor: wait;
-    opacity: 0.72;
-  }
-
-  .search-status,
-  .search-fallback {
-    position: relative;
-    margin: 1.4rem 0 0;
-    line-height: 1.55;
-  }
-
-  .search-status {
-    font-weight: 900;
-  }
-
-  .search-fallback a {
-    font-weight: 900;
-    text-underline-offset: 0.2rem;
-  }
-
-  .search-results {
-    position: relative;
-    display: grid;
-    gap: 0.8rem;
-    margin: 1rem 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .search-results:empty {
-    margin: 0;
-  }
-
-  .search-results :global(li) {
-    min-width: 0;
-    padding: 1rem;
-    overflow: hidden;
-    border: var(--line) solid var(--ink);
-    border-radius: 0.8rem;
-    background: var(--paper-light);
-  }
-
-  .search-results :global(.result-heading) {
-    margin: 0;
-    font-size: clamp(1rem, 2vw, 1.18rem);
-    line-height: 1.35;
-    overflow-wrap: anywhere;
-  }
-
-  .search-results :global(.collection-result-link) {
-    font-weight: 900;
-    text-underline-offset: 0.25rem;
-  }
-
-  .search-results :global(.result-kind) {
-    width: fit-content;
-    display: block;
-    margin-bottom: 0.55rem;
-    padding: 0.2rem 0.42rem;
-    border: 1.5px solid var(--ink);
-    border-radius: 999px;
-    background: var(--cyan);
-    font-size: 0.68rem;
-    font-weight: 900;
-  }
-
-  .search-results :global(.result-meta),
-  .search-results :global(.result-path) {
-    margin: 0.5rem 0 0;
-    color: #514b43;
-    font-size: 0.78rem;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
-  }
-
-  .search-results :global(.result-meta) {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 0.8rem;
-  }
-
-  .search-results :global(.result-actions) {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.85rem;
-  }
-
-  .search-results :global(.result-action) {
-    min-height: 2.55rem;
-    display: inline-flex;
-    align-items: center;
-    padding: 0.48rem 0.72rem;
-    border: var(--line) solid var(--ink);
-    border-radius: 999px;
-    background: white;
-    font-size: 0.78rem;
-    font-weight: 850;
-    text-decoration: none;
-  }
-
-  .search-results :global(.result-action-download) {
-    background: var(--lime);
-  }
-
-  @media (max-width: 680px) {
-    .search-form {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 390px) {
-    .query-controls,
-    .search-results :global(.result-actions) {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-    }
-
-    button,
-    .search-results :global(.result-action) {
-      justify-content: center;
-      width: 100%;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    button {
-      transition: none;
-    }
-  }
-</style>

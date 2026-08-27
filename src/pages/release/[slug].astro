@@ -1,0 +1,15 @@
+---
+import type { GetStaticPaths } from 'astro';
+import ReleaseRoom from '../../components/ReleaseRoom.astro';
+import { releases } from '../../lib/releases';
+
+export const getStaticPaths = (() =>
+  releases.map((release) => ({
+    params: { slug: release.slug },
+    props: { release },
+  }))) satisfies GetStaticPaths;
+
+const { release } = Astro.props;
+---
+
+<ReleaseRoom release={release} />

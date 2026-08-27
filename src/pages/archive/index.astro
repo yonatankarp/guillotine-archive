@@ -13,9 +13,9 @@ for (const item of catalog.items) {
 
 <BaseLayout title="כל הארכיון — ארכיון גיליוטין">
   <header class="page-intro">
-    <p class="page-kicker">כל המדפים, בלי מנוע חיפוש</p>
-    <h1>כל הארכיון</h1>
-    <p>הקטגוריות המלאות כפי שהן מופיעות בקטלוג. למי שיודע מה הוא רוצה, ולמי שמוכן לגלות במקרה.</p>
+    <p class="eyebrow">מדפי הארכיון</p>
+    <h1>כל הקבצים לפי מדף</h1>
+    <p>המדפים המלאים כפי שהם מופיעים בקטלוג, כולל הקבצים שאף מהדורה לא מציגה בעצמה.</p>
   </header>
 
   {
@@ -43,95 +43,3 @@ for (const item of catalog.items) {
   }
 </BaseLayout>
 
-<style>
-  .page-intro {
-    max-width: 55rem;
-    margin-bottom: clamp(2rem, 5vw, 3.5rem);
-  }
-
-  .page-kicker {
-    width: fit-content;
-    margin: 0 0 0.75rem;
-    padding: 0.3rem 0.55rem;
-    border: var(--line) solid var(--ink);
-    border-radius: 999px;
-    background: var(--lime);
-    font-size: 0.72rem;
-    font-weight: 900;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: clamp(3rem, 9vw, 6.5rem);
-    letter-spacing: -0.07em;
-    line-height: 0.9;
-  }
-
-  .page-intro > p:last-child {
-    max-width: 45rem;
-    margin: 1.2rem 0 0;
-    font-size: clamp(1rem, 2vw, 1.16rem);
-    font-weight: 700;
-    line-height: 1.65;
-  }
-
-  .category-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-    gap: 1rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .category-grid li {
-    min-width: 0;
-  }
-
-  .category-grid a {
-    min-height: 9rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1.3rem;
-    border: var(--line) solid var(--ink);
-    border-radius: var(--radius);
-    background: var(--category-color, var(--cyan));
-    box-shadow: 5px 5px 0 var(--ink);
-    text-decoration: none;
-    transition: transform 150ms ease, box-shadow 150ms ease;
-  }
-
-  .category-grid li:nth-child(3n + 2) a {
-    --category-color: var(--yellow);
-  }
-
-  .category-grid li:nth-child(3n) a {
-    --category-color: var(--lime);
-  }
-
-  .category-grid a:hover,
-  .category-grid a:focus-visible {
-    transform: translate(-2px, -2px);
-    box-shadow: 8px 8px 0 var(--magenta);
-  }
-
-  .category-grid strong {
-    font-size: clamp(1.3rem, 3vw, 2rem);
-    letter-spacing: -0.04em;
-    overflow-wrap: anywhere;
-  }
-
-  .category-grid span {
-    font-size: 0.78rem;
-    font-weight: 850;
-  }
-
-  .empty-archive {
-    padding: 1.25rem;
-    border: var(--line) dashed var(--ink);
-    border-radius: var(--radius);
-    background: var(--paper-light);
-  }
-</style>

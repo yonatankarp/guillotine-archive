@@ -7,6 +7,8 @@ collections:
     summaryHe: פיפוש עולה למטוס, התעלומה עולה איתו, וקיבינימאט — עכשיו גם הקבצים מצטרפים לחקירה.
     descriptionHe: שלוש גרסאות בעברית, מהדורות רשמיות בשפות זרות, החוברות, דיסק האודיו והפתרון — כולם באותו תיק חקירה.
     coverFileId: 1JoYCVI1nah80Px76RYT85YdQr9rIPxNG
+    coverCrop: { left: 15, top: 0, width: 689, height: 919 }
+    logoCrop: { left: 325, top: 10, width: 380, height: 175 }
     aliasesHe: [פיפוש הראשון, פיפוש אחד]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין, אנגלית, רוסית]
     rules:
@@ -28,6 +30,7 @@ collections:
     type: game
     summaryHe: שתי גרסאות, עטיפה, חוברת, מוזיקה ופתרון. פיפוש שוב הסתבך; הארכיון דווקא מסודר.
     coverFileId: 0Bwqx7RiWdM3YcnVNS09PUGR4aFk
+    coverCrop: { left: 85, top: 0, width: 533, height: 711 }
     aliasesHe: [פיפוש שתיים]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
     rules:
@@ -45,6 +48,8 @@ collections:
     type: game
     summaryHe: שתי גרסאות של החלום, וכל מה שהתעורר לידן — חוברת, צ׳יטים ודיסק אודיו.
     coverFileId: 0B2YRfkQTdJ96MnFNUnlRdlhkdjQ
+    coverCrop: { left: 0, top: 40, width: 400, height: 533 }
+    logoCrop: { left: 22, top: 92, width: 255, height: 125 }
     aliasesHe: [פיפוש חלום שהתגשם]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
     rules:
@@ -61,6 +66,8 @@ collections:
     type: game
     summaryHe: שלוש גרסאות, תיקונים, הוראות ופתרון. גם מאחורי הקלעים מישהו היה צריך לסדר את הקבצים.
     coverFileId: 0Bwqx7RiWdM3YVEVKUEFweVo0ZW8
+    coverCrop: { left: 0, top: 0, width: 559, height: 745 }
+    logoCrop: { left: 45, top: 28, width: 470, height: 78 }
     aliasesHe: [תככי הרייטינג]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
     rules:
@@ -81,6 +88,7 @@ collections:
     type: game
     summaryHe: המשחק המלא, הבטא, החוברת והעטיפה. כל מה שצריך כדי להיכנס לכדור קטן ולהתחרט מיד.
     coverFileId: 0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ
+    coverCrop: { left: 0, top: 0, width: 359, height: 479 }
     aliasesHe: [ווגימון, ווג_ימון]
     tagsHe: [ווגימון, קומדיה, גיליוטין]
     rules:
@@ -118,3 +126,17 @@ releases:
     titleHe: ההטברה של פיפוש
     type: audio-cd
     formatHe: שני דיסקים
+
+  - paths: [piposh-1]
+    accent: '#5893ce'
+    logoFileId: 1JoYCVI1nah80Px76RYT85YdQr9rIPxNG
+  - paths: [piposh-2]
+    accent: '#93ce58'
+  - paths: [betochhei-harating]
+    accent: '#c8e04a'
+    logoFileId: 0Bwqx7RiWdM3YVEVKUEFweVo0ZW8
+  - paths: [vogimon]
+    accent: '#ce9358'
+  - paths: [halom-shehitgashem]
+    accent: '#c0553c'
+    logoFileId: 0B2YRfkQTdJ96MnFNUnlRdlhkdjQ

@@ -1,0 +1,50 @@
+---
+import ItemRows from '../components/ItemRows.astro';
+import { neverPlayable, releaseAccent } from '../components/release-view';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { catalog } from '../lib/catalog';
+import { releaseBySlug } from '../lib/releases';
+import { sitePath } from '../lib/url';
+
+const videos = catalog.items.filter((item) => item.kind === 'video');
+const unplayable = videos.filter(neverPlayable);
+
+const byRelease = new Map<string, typeof videos>();
+for (const video of videos) {
+  const existing = byRelease.get(video.releaseSlug);
+  if (existing) existing.push(video);
+  else byRelease.set(video.releaseSlug, [video]);
+}
+
+const groups = [...byRelease]
+  .map(([slug, items]) => ({ release: releaseBySlug.get(slug), slug, items }))
+  .filter((group) => group.release !== undefined)
+  .sort((left, right) => right.items.length - left.items.length);
+---
+
+<BaseLayout title="לצפות — ארכיון גיליוטין">
+  <header class="page-intro">
+    <p class="eyebrow">וידאו</p>
+    <h1>לצפות</h1>
+    <p class="lead">
+      {videos.length} סרטונים בארכיון. הצפייה באתר עוד לא קיימת, וכל סרטון נפתח בקובץ המקורי
+      ב־Drive.
+    </p>
+    <p class="warn-note">
+      {unplayable.length} מתוך {videos.length} הסרטונים שמורים ב־WMV, ב־AVI, ב־MPEG או ב־VOB.
+      הפורמטים האלה לא מתנגנים בשום דפדפן, וגם המרה לא תשנה את זה: מי שרוצה לראות אותם צריך
+      להוריד את הקובץ ולפתוח אותו בנגן מקומי.
+    </p>
+  </header>
+
+  {
+    groups.map(({ release, slug, items }) => (
+      <section class="room-section" style={`--accent: ${releaseAccent(release!)};`} aria-labelledby={`watch-${slug}`}>
+        <h2 id={`watch-${slug}`}>
+          <a href={sitePath(`release/${slug}/`)}>{release!.titleHe}</a>
+        </h2>
+        <ItemRows items={items} labelHe={`סרטונים — ${release!.titleHe}`} showMediaNote={false} />
+      </section>
+    ))
+  }
+</BaseLayout>

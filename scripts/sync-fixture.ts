@@ -43,6 +43,17 @@ export function adaptCuratorForFixture(curator: Readonly<CuratorConfig>): Curato
     collections: curator.collections.map(({ coverFileId: _coverFileId, ...collection }) => ({
       ...collection,
     })),
+    // Release overrides carry artwork ids too, and those files are outside the
+    // fixture tree just as the collection covers are.
+    ...(curator.releases === undefined
+      ? {}
+      : {
+          releases: curator.releases.map(
+            ({ coverFileId: _coverFileId, logoFileId: _logoFileId, ...override }) => ({
+              ...override,
+            }),
+          ),
+        }),
   };
 }
 

@@ -1,65 +1,47 @@
 ---
-import GameTile from '../components/GameTile.astro';
+import ReleaseGrid from '../components/ReleaseGrid.astro';
+import { ARCHIVE_QUOTES } from '../components/archive-quotes';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { games } from '../lib/catalog';
-import { homepageGameSummary } from '../lib/homepage';
+import { releases } from '../lib/releases';
 import { sitePath } from '../lib/url';
+
+const quote = ARCHIVE_QUOTES[0]!;
 ---
 
 <BaseLayout title="ארכיון גיליוטין">
-  <section class="hero" aria-labelledby="hero-title">
-    <div class="hero-title-block">
-      <p class="issue-label">תיק ציבורי / לעיון חופשי</p>
-      <h1 id="hero-title">ארכיון גיליוטין</h1>
+  <header class="page-intro home-intro">
+    <div class="home-copy">
+      <p class="eyebrow">ארכיון ציבורי</p>
+      <h1>ארכיון גיליוטין</h1>
+      <p class="lead">
+        {releases.length} מהדורות של המשחקים, הדמואים, דיסקי המעריצים והעיתונות שנשמרו מן האולפן.
+        הקבצים המקוריים נשארים ב־Google Drive.
+      </p>
+      <figure class="found-string">
+        <blockquote class="voice"><p>{quote.textHe}</p></blockquote>
+        <figcaption>
+          <span class="visually-hidden">שם הקובץ שממנו נלקח המשפט: </span>
+          <bdi class="mono" dir="auto">{quote.sourcePath}</bdi>
+        </figcaption>
+      </figure>
     </div>
     <img
-      class="hero-character"
+      class="home-character"
       src={sitePath('assets/characters/hezi.png')}
       alt="חזי מפיפוש מציץ אל הארכיון"
       width="145"
       height="365"
     />
-    <div class="hero-copy">
-      <p>כל המשחקים, החוברות והמוזיקה שההיסטוריה השאירה אצלנו. קיבינימאט, עכשיו גם אפשר למצוא אותם.</p>
-      <form
-        class="search-form"
-        action={sitePath('search/')}
-        method="get"
-        role="search"
-        aria-label="חיפוש בארכיון"
-      >
-        <label class="visually-hidden" for="home-search">חיפוש בארכיון</label>
-        <div class="search-controls">
-          <input
-            id="home-search"
-            name="q"
-            type="search"
-            placeholder="מה מחפשים? בעברית, בבקשה."
-            autocomplete="off"
-            aria-describedby="home-search-hint"
-          />
-          <button type="submit">לחקור</button>
-        </div>
-        <span class="search-hint" id="home-search-hint">החיפוש הרשמי מבין עברית. שמות קבצים בשפות אחרות יופיעו דרך המשחק שאליו הם שייכים.</span>
-      </form>
-    </div>
-  </section>
+  </header>
 
-  <section class="games-section" aria-labelledby="games-heading">
+  <section aria-labelledby="releases-heading">
     <div class="section-heading">
-      <h2 id="games-heading">ששת החשודים הרגילים</h2>
-      <p>כל משחק הוא תיק מסודר של גרסאות, חוברות, מוזיקה וחומרים רשמיים. לפחות מישהו כאן מתנהג במקצועיות.</p>
+      <h2 id="releases-heading">מהדורות</h2>
+      <p>
+        כל מהדורה היא דיסק אחד או תיקייה אחת כפי שהגיעה. לסינון לפי סוג או לפי משחק אפשר להשתמש
+        בקישורים שלמטה, ולחיפוש בכל <a href={sitePath('search/')}>הקבצים</a>.
+      </p>
     </div>
-    <ol class="game-grid">
-      {games.map((game, position) => (
-        <li>
-          <GameTile
-            game={game}
-            position={position}
-            summary={homepageGameSummary(game.slug, game.summaryHe)}
-          />
-        </li>
-      ))}
-    </ol>
+    <ReleaseGrid releases={releases} />
   </section>
 </BaseLayout>

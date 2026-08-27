@@ -28,6 +28,15 @@ const curatorRuleSchema = z
   })
   .strict();
 
+const cropRegionSchema = z
+  .object({
+    left: z.number().int().nonnegative(),
+    top: z.number().int().nonnegative(),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+  })
+  .strict();
+
 const curatedCollectionSchema = z
   .object({
     slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
@@ -37,6 +46,8 @@ const curatedCollectionSchema = z
     summaryHe: nonblankStringSchema,
     descriptionHe: nonblankStringSchema.optional(),
     coverFileId: nonblankStringSchema.optional(),
+    coverCrop: cropRegionSchema.optional(),
+    logoCrop: cropRegionSchema.optional(),
     aliasesHe: z.array(nonblankStringSchema).default([]),
     tagsHe: z.array(nonblankStringSchema).default([]),
     rules: z.array(curatorRuleSchema).default([]),

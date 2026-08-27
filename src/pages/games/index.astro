@@ -1,54 +1,24 @@
 ---
-import GameTile from '../../components/GameTile.astro';
+import ReleaseGrid from '../../components/ReleaseGrid.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { games } from '../../lib/catalog';
+import { releasesOfType } from '../../lib/releases';
+import { sitePath } from '../../lib/url';
+
+const gameReleases = releasesOfType('game');
 ---
 
-<BaseLayout title="משחקי גיליוטין — ארכיון גיליוטין">
+<BaseLayout title="המשחקים — ארכיון גיליוטין">
   <header class="page-intro">
-    <p class="page-kicker">אגף המשחקים</p>
+    <p class="eyebrow">סוג מהדורה</p>
     <h1>המשחקים</h1>
-    <p>כל משחק מקבל תיק משלו: מהדורות, חוברות וחומרים רשמיים בלבד. המדפים יכולים להתווכח אחר כך.</p>
+    <p class="lead">
+      {gameReleases.length} המשחקים שיצאו. שאר המהדורות, כולל הדמואים ודיסקי המעריצים, נמצאות
+      <a href={sitePath()}>ברשימת המהדורות</a>.
+    </p>
   </header>
 
-  <ol class="game-grid">
-    {games.map((game, position) => (
-      <li>
-        <GameTile game={game} position={position} summary={game.summaryHe} />
-      </li>
-    ))}
-  </ol>
+  <section aria-labelledby="games-heading">
+    <h2 class="visually-hidden" id="games-heading">מהדורות המשחקים</h2>
+    <ReleaseGrid releases={gameReleases} />
+  </section>
 </BaseLayout>
-
-<style>
-  .page-intro {
-    max-width: 54rem;
-    margin-bottom: clamp(2rem, 5vw, 3.5rem);
-  }
-
-  .page-kicker {
-    width: fit-content;
-    margin: 0 0 0.75rem;
-    padding: 0.3rem 0.55rem;
-    border: var(--line) solid var(--ink);
-    border-radius: 999px;
-    background: var(--cyan);
-    font-size: 0.72rem;
-    font-weight: 900;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: clamp(3rem, 9vw, 6.5rem);
-    letter-spacing: -0.07em;
-    line-height: 0.9;
-  }
-
-  .page-intro > p:last-child {
-    max-width: 43rem;
-    margin: 1.2rem 0 0;
-    font-size: clamp(1rem, 2vw, 1.16rem);
-    font-weight: 700;
-    line-height: 1.65;
-  }
-</style>

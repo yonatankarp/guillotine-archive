@@ -1,3 +1,6 @@
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { htmlToText } from 'html-to-text';
 import mammoth from 'mammoth';
@@ -233,10 +236,236 @@ export async function extractText(mimeType: string, name: string, data: Buffer):
   return trimExtractedText(text);
 }
 
-export async function optimizeCover(data: Buffer): Promise<Buffer> {
+export interface CropRegion {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export interface ImageDerivativeTier {
+  name: 'thumb' | 'view' | 'reader';
+  edge: number;
+}
+
+const COVER_WIDTH = 720;
+const COVER_HEIGHT = 960;
+const COVER_QUALITY = 82;
+const LOGO_QUALITY = 90;
+
+export const IMAGE_TIERS: readonly ImageDerivativeTier[] = [
+  { name: 'thumb', edge: 400 },
+  { name: 'view', edge: 1600 },
+];
+/** Hebrew magazine body text is illegible below this, so reader pages get a third tier. */
+export const READER_TIER: ImageDerivativeTier = { name: 'reader', edge: 2400 };
+export const READER_KINDS: readonly string[] = ['booklet-page', 'comic-page', 'press-page'];
+
+/** sharp/libvips decodes none of these; ICO is BMP-encoded internally, so it shares the gap. */
+const EXTERNAL_DECODER_MIME_TYPES = new Set([
+  'image/pcx',
+  'image/bmp',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
+  'image/x-raw',
+]);
+
+export function needsExternalDecoder(mimeType: string): boolean {
+  return EXTERNAL_DECODER_MIME_TYPES.has(mimeType.toLowerCase().split(';', 1)[0]?.trim() ?? '');
+}
+
+export function imageTiersFor(kind: string): ImageDerivativeTier[] {
+  return READER_KINDS.includes(kind) ? [...IMAGE_TIERS, READER_TIER] : [...IMAGE_TIERS];
+}
+
+function assertCropWithin(crop: CropRegion, width: number, height: number): void {
+  const { left, top, width: cropWidth, height: cropHeight } = crop;
+  if (
+    !Number.isInteger(left) ||
+    !Number.isInteger(top) ||
+    !Number.isInteger(cropWidth) ||
+    !Number.isInteger(cropHeight) ||
+    left < 0 ||
+    top < 0 ||
+    cropWidth <= 0 ||
+    cropHeight <= 0
+  ) {
+    throw new Error('crop region must be nonnegative integers with a positive size');
+  }
+  if (left + cropWidth > width || top + cropHeight > height) {
+    throw new Error(
+      `crop region ${cropWidth}x${cropHeight}+${left}+${top} falls outside the ${width}x${height} frame`,
+    );
+  }
+}
+
+/**
+ * Crop rectangles are hand-measured against the 720x960-fitted frame, not the
+ * Drive original, which runs to 20 MiB and several thousand pixels. Fitting
+ * first puts those numbers back in the space they were taken in; skipping it
+ * silently crops a corner of the source instead of the front panel.
+ */
+async function fittedCoverFrame(data: Buffer): Promise<Buffer> {
   return sharp(data)
     .rotate()
-    .resize(720, 960, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 82 })
+    .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'inside', withoutEnlargement: true })
+    .png()
     .toBuffer();
+}
+
+export async function optimizeCover(data: Buffer, crop?: CropRegion): Promise<Buffer> {
+  if (!crop) {
+    return sharp(data)
+      .rotate()
+      .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: COVER_QUALITY })
+      .toBuffer();
+  }
+
+  const fitted = await fittedCoverFrame(data);
+  const { width = 0, height = 0 } = await sharp(fitted).metadata();
+  assertCropWithin(crop, width, height);
+
+  return sharp(fitted)
+    .extract(crop)
+    .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'cover' })
+    .webp({ quality: COVER_QUALITY })
+    .toBuffer();
+}
+
+/** Release titles are hand-drawn box lettering, so the logo keeps its native crop size. */
+export async function optimizeLogo(data: Buffer, crop: CropRegion): Promise<Buffer> {
+  const fitted = await fittedCoverFrame(data);
+  const { width = 0, height = 0 } = await sharp(fitted).metadata();
+  assertCropWithin(crop, width, height);
+
+  return sharp(fitted).extract(crop).webp({ quality: LOGO_QUALITY }).toBuffer();
+}
+
+export interface ResizedImage {
+  data: Buffer;
+  width: number;
+  height: number;
+}
+
+export async function resizeImage(data: Buffer, edge: number): Promise<ResizedImage> {
+  const output = await sharp(data)
+    .rotate()
+    .resize(edge, edge, { fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: COVER_QUALITY })
+    .toBuffer({ resolveWithObject: true });
+
+  return { data: output.data, width: output.info.width, height: output.info.height };
+}
+
+/**
+ * External decoders and encoders are resolved to an absolute path once, so a
+ * PATH difference between a developer machine and a CI runner cannot silently
+ * change which binary runs. An explicit env override wins for pinned runners.
+ */
+function resolveBinary(names: readonly string[], override: string | undefined): string | null {
+  if (override) return existsSync(override) ? override : null;
+
+  const directories = ['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin', '/bin', '/snap/bin'];
+  for (const name of names) {
+    for (const directory of directories) {
+      const candidate = join(directory, name);
+      if (existsSync(candidate)) return candidate;
+    }
+  }
+
+  return null;
+}
+
+export function resolveImageMagick(env: NodeJS.ProcessEnv = process.env): string | null {
+  return resolveBinary(['magick', 'convert'], env.GUILLOTINE_IMAGEMAGICK_PATH);
+}
+
+export function resolveFfmpeg(env: NodeJS.ProcessEnv = process.env): string | null {
+  return resolveBinary(['ffmpeg'], env.GUILLOTINE_FFMPEG_PATH);
+}
+
+const EXTERNAL_TOOL_TIMEOUT_MS = 120_000;
+const MAX_EXTERNAL_OUTPUT_BYTES = 256 * 1024 * 1024;
+
+function runExternalTool(binary: string, args: readonly string[], input: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binary, [...args], { stdio: ['pipe', 'pipe', 'pipe'] });
+    const chunks: Buffer[] = [];
+    let outputBytes = 0;
+    let settled = false;
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGKILL');
+      reject(error);
+    };
+    const timer = setTimeout(() => fail(new Error(`${binary} timed out`)), EXTERNAL_TOOL_TIMEOUT_MS);
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      outputBytes += chunk.length;
+      if (outputBytes > MAX_EXTERNAL_OUTPUT_BYTES) {
+        fail(new Error(`${binary} produced more than ${MAX_EXTERNAL_OUTPUT_BYTES} bytes`));
+        return;
+      }
+      chunks.push(chunk);
+    });
+    // Draining stderr prevents a chatty tool from blocking on a full pipe.
+    child.stderr.resume();
+    child.on('error', fail);
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (settled) return;
+      settled = true;
+      if (code !== 0) {
+        reject(new Error(`${binary} exited with code ${String(code)}`));
+        return;
+      }
+      const data = Buffer.concat(chunks);
+      if (data.length === 0) {
+        reject(new Error(`${binary} produced no output`));
+        return;
+      }
+      resolve(data);
+    });
+    child.stdin.on('error', () => {
+      // A tool that rejects input before reading it all reports through its exit code.
+    });
+    child.stdin.end(input);
+  });
+}
+
+/** Converts a format libvips cannot read into PNG, so every later step is sharp. */
+export async function decodeWithImageMagick(data: Buffer, binary: string): Promise<Buffer> {
+  return runExternalTool(binary, ['-', 'png:-'], data);
+}
+
+export const TRACK_OPUS_BITRATE = '96k';
+export const SOUND_OPUS_BITRATE = '64k';
+
+export function opusBitrateFor(kind: string): string {
+  return kind === 'track' ? TRACK_OPUS_BITRATE : SOUND_OPUS_BITRATE;
+}
+
+export async function transcodeToOpus(
+  data: Buffer,
+  binary: string,
+  bitrate: string,
+): Promise<Buffer> {
+  return runExternalTool(
+    binary,
+    [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-i', 'pipe:0',
+      '-map', 'a:0',
+      '-c:a', 'libopus',
+      '-b:a', bitrate,
+      '-vbr', 'on',
+      '-application', 'audio',
+      '-f', 'ogg',
+      'pipe:1',
+    ],
+    data,
+  );
 }

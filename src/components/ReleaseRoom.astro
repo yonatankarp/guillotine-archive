@@ -1,0 +1,135 @@
+---
+import type { CatalogItem, Release } from '../catalog/types';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { formatFileCount } from '../lib/archive';
+import { itemById } from '../lib/catalog';
+import { categorySlug, sitePath } from '../lib/url';
+import ItemRows from './ItemRows.astro';
+import {
+  creditedWorks,
+  itemCountsByKind,
+  itemKindLabel,
+  releaseAccent,
+  releaseCoverPath,
+  releaseItems,
+  releaseSections,
+  releaseTypeLabel,
+  sharedMirrorCategory,
+} from './release-view';
+
+interface Props {
+  release: Release;
+}
+
+const { release } = Astro.props;
+const accent = releaseAccent(release);
+const cover = releaseCoverPath(release);
+const items = releaseItems(release, itemById);
+const sections = releaseSections(items);
+const credits = creditedWorks(items);
+const kindCounts = itemCountsByKind(items);
+const subjectSlug = release.subjectSlug;
+
+/* The Drive mirror is the only paginated view of a release this large, so a capped section
+   points there rather than growing without limit. Each link is derived from the items it
+   stands for, because a release can be filed across several shelves. */
+const mirrorHref = (of: readonly CatalogItem[]) => {
+  const category = sharedMirrorCategory(of);
+  return category ? sitePath(`archive/${categorySlug(category)}/`) : sitePath('archive/');
+};
+
+const facts = [
+  releaseTypeLabel(release.type),
+  release.formatHe,
+  release.year?.toString(),
+  formatFileCount(items.length),
+].filter((fact): fact is string => fact !== undefined);
+---
+
+<BaseLayout title={`${release.titleHe} — ארכיון גיליוטין`}>
+  <article class="release-room" style={`--accent: ${accent};`}>
+    <header class="room-hero">
+      <div class="room-hero-copy">
+        <p class="eyebrow">מהדורה בארכיון</p>
+        <h1>{release.titleHe}</h1>
+        <p class="room-facts">{facts.join(' · ')}</p>
+        {
+          subjectSlug && (
+            <p class="room-subject">
+              <a href={sitePath(`browse/subject/${subjectSlug}/`)}>כל המהדורות סביב המשחק הזה</a>
+            </p>
+          )
+        }
+      </div>
+      <div class="room-cover mat">
+        {
+          cover ? (
+            <img src={sitePath(cover)} alt={`עטיפת ${release.titleHe}`} width="720" height="960" />
+          ) : (
+            <div class="release-placeholder dither" aria-hidden="true">
+              <strong>{release.titleHe}</strong>
+            </div>
+          )
+        }
+      </div>
+    </header>
+
+    {
+      sections.map((section) => (
+        <section class="room-section" aria-labelledby={`section-${section.id}`}>
+          <h2 id={`section-${section.id}`}>{section.headingHe}</h2>
+          <ItemRows
+            items={section.items}
+            labelHe={`${section.headingHe} — ${release.titleHe}`}
+            showText={section.id === 'read'}
+          />
+          {section.hiddenCount > 0 && (
+            <p class="room-more">
+              עוד {section.hiddenCount} קבצים במדור הזה.
+              <a href={mirrorHref(section.items)}>לרשימה המלאה במדף הארכיון</a>
+            </p>
+          )}
+        </section>
+      ))
+    }
+
+    {
+      credits.length > 0 && (
+        <section class="room-section" aria-labelledby="section-credits">
+          <h2 id="section-credits">מי עשה את זה</h2>
+          <p class="room-note">
+            המשחקים האלה מתויקים לפי היוצר, ולכן זה המקום היחיד בארכיון ששומר קרדיט.
+          </p>
+          <ul class="credit-list">
+            {credits.map(({ author, items: works }) => (
+              <li>
+                <strong>{author}</strong>
+                <span class="mono">{works.length}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )
+    }
+
+    <section class="room-section" aria-labelledby="section-all">
+      <h2 id="section-all">כל הקבצים</h2>
+      <details class="all-files">
+        <summary>פירוט לפי סוג קובץ</summary>
+        <ul class="kind-counts">
+          {
+            kindCounts.map(([kind, count]) => (
+              <li>
+                <span>{itemKindLabel(kind)}</span>
+                <span class="mono">{count}</span>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="room-more">
+          <a href={mirrorHref(items)}>לפתיחת המדפים בארכיון</a>
+        </p>
+      </details>
+    </section>
+  </article>
+</BaseLayout>

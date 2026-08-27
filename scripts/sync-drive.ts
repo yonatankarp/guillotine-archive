@@ -214,6 +214,8 @@ export async function syncDrive(
     root,
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     previousFileCount,
+    // A real Drive sync is the only place worth pulling derivative sources.
+    buildDerivatives: true,
     download: gateway.download,
   });
   await writeBaseline(root, catalog.items.length);

@@ -29,6 +29,34 @@ export type ReleaseType =
   | 'fan-game'
   | 'other';
 
+/** Rectangle measured against the 720x960-fitted cover frame. */
+export interface CropRegion {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export interface Derivative {
+  path: string;
+  bytes: number;
+  width?: number;
+  height?: number;
+}
+
+/**
+ * Generated renditions. Every field is optional because the committed catalog
+ * predates the derivative pipeline and the site must render without any of them.
+ */
+export interface ItemDerivatives {
+  thumb?: Derivative;
+  view?: Derivative;
+  reader?: Derivative;
+  audio?: Derivative;
+  poster?: Derivative;
+  durationMillis?: number;
+}
+
 /** Per-container curator override. Always wins over inference. */
 export interface ReleaseOverride {
   paths: string[];
@@ -82,6 +110,8 @@ export interface CuratedCollection {
   summaryHe: string;
   descriptionHe?: string;
   coverFileId?: string;
+  coverCrop?: CropRegion;
+  logoCrop?: CropRegion;
   aliasesHe: string[];
   tagsHe: string[];
   rules: CuratorRule[];
@@ -111,6 +141,9 @@ export interface DriveFile {
   path: string;
   viewUrl: string;
   downloadUrl: string | null;
+  /** Drive-hosted thumbnail, which spares a poster the 6.4 GB of video bytes. */
+  thumbnailUrl?: string | null;
+  durationMillis?: number | null;
 }
 
 export interface CollectionLink {
@@ -129,11 +162,13 @@ export interface CatalogItem extends DriveFile {
   aliasesHe: string[];
   tagsHe: string[];
   extractedTextHe?: string;
+  derivatives?: ItemDerivatives;
   collectionLinks: CollectionLink[];
 }
 
 export interface CatalogCollection extends CuratedCollection {
   coverUrl: string | null;
+  logoUrl?: string | null;
   itemIds: string[];
 }
 

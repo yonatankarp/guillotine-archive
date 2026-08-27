@@ -2,30 +2,32 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, test } from '@playwright/test';
 import MiniSearch from 'minisearch';
 import { getSearchOptions, type SearchDocument } from '../../src/catalog/search';
-import type { CatalogCollection, CatalogItem } from '../../src/catalog/types';
-import { formatFileCount, groupOfficialItems } from '../../src/lib/archive';
+import type { CatalogItem } from '../../src/catalog/types';
+import { formatFileCount } from '../../src/lib/archive';
 import { loadCatalog } from '../../src/lib/catalog';
-import { catalogItemCountLabel } from '../../src/lib/homepage';
 import { playwrightRuntime } from '../support/playwright-runtime';
 
 const expectedCatalog = loadCatalog('src/generated/catalog.json', false);
-const expectedGames = expectedCatalog.collections.filter(({ type }) => type === 'game');
-const expectedItemById = new Map(expectedCatalog.items.map((item) => [item.id, item]));
+const expectedReleases = expectedCatalog.releases;
 const { site } = playwrightRuntime;
 const searchIndexPattern = `**${site.route('data/search-index.json')}`;
 
-function expectedGame(slug: string): CatalogCollection {
-  const game = expectedGames.find((candidate) => candidate.slug === slug);
-  if (!game) throw new Error(`generated catalog is missing game ${slug}`);
-  return game;
+/** Items the curator filed into one named group of a collection. */
+function expectedGroupItems(collectionSlug: string, groupHe: string): CatalogItem[] {
+  return expectedCatalog.items.filter((item) =>
+    item.collectionLinks.some(
+      (link) =>
+        link.slug === collectionSlug &&
+        link.relationship === 'part-of-release' &&
+        link.groupHe === groupHe,
+    ),
+  );
 }
 
-function expectedOfficialGroupItems(slug: string, heading: string): CatalogItem[] {
-  const group = groupOfficialItems(expectedGame(slug), expectedItemById).find(
-    (candidate) => candidate.heading === heading,
-  );
-  if (!group) throw new Error(`generated catalog is missing ${heading} for ${slug}`);
-  return group.items;
+function expectedRelease(slug: string) {
+  const release = expectedReleases.find((candidate) => candidate.slug === slug);
+  if (!release) throw new Error(`generated catalog is missing release ${slug}`);
+  return release;
 }
 
 function searchFileDocument(
@@ -96,7 +98,7 @@ async function expectNotOverlapping(first: Locator, second: Locator): Promise<vo
   expect(overlaps).toBe(false);
 }
 
-test('homepage is a Hebrew RTL, cover-first entry to the archive', async ({ page }) => {
+test('homepage is a Hebrew RTL, cover-first grid of every release', async ({ page }) => {
   await page.goto(site.route());
   await expect(page).toHaveURL(site.url());
 
@@ -104,50 +106,61 @@ test('homepage is a Hebrew RTL, cover-first entry to the archive', async ({ page
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await expect(page.getByRole('heading', { level: 1, name: 'ארכיון גיליוטין' })).toHaveCount(1);
 
-  const gameTiles = page.getByTestId('game-tile');
-  expect(expectedGames).toHaveLength(6);
-  await expect(gameTiles).toHaveCount(6);
-  await expect(page.getByRole('link', { name: /פיפוש 1 — לדף המשחק/u })).toBeVisible();
-  for (const game of expectedGames) {
-    const tile = page.locator(`[data-game="${game.slug}"]`);
-    await expect(tile, `${game.slug} tile`).toHaveCount(1);
-    const image = tile.locator('.cover-frame > img');
-    const fallback = tile.locator('.cover-frame > [data-cover-kind="fallback"]');
-    if (game.coverUrl) {
-      await expect(image, `${game.slug} selected cover`).toHaveCount(1);
-      await expect(image).toHaveAttribute('src', site.route(game.coverUrl.slice(1)));
-      await expect(fallback, `${game.slug} has no fallback with a cover`).toHaveCount(0);
-    } else {
-      await expect(image, `${game.slug} has no image without a cover`).toHaveCount(0);
-      await expect(fallback, `${game.slug} cover fallback`).toHaveCount(1);
-    }
-    await expect(tile.locator('.fact-badge')).toHaveText(
-      catalogItemCountLabel(game.itemIds.length),
-    );
-  }
-  const piposhOne = page.locator('[data-game="piposh-1"]');
-  await expect(piposhOne).toContainText(
-    'פיפוש עולה למטוס, התעלומה עולה איתו, ועכשיו גם הקבצים מצטרפים לחקירה.',
-  );
-  await expect(page.getByText('הסנכרון הרשמי עוד בדרך')).toHaveCount(0);
+  const tiles = page.getByTestId('release-tile');
+  expect(expectedReleases).toHaveLength(42);
+  await expect(tiles).toHaveCount(expectedReleases.length);
 
-  const searchbox = page.getByRole('searchbox', { name: 'חיפוש בארכיון' });
-  await expect(searchbox).toBeVisible();
-  await expect(searchbox).toHaveAttribute('placeholder', /בעברית/u);
-  await expect(searchbox).toHaveAttribute('aria-describedby', 'home-search-hint');
-  await expect(searchbox).toHaveAccessibleDescription(/החיפוש הרשמי מבין עברית/u);
-  const searchForm = page.getByRole('search');
-  await expect(searchForm).toHaveAttribute('action', site.route('search/'));
-  expect(await searchForm.evaluate((form: HTMLFormElement) => form.method)).toBe('get');
-  await expect(page.getByText(/קיבינימאט/u)).toHaveCount(1);
-  await expect(page.getByText('תיק ציבורי / לעיון חופשי')).toBeVisible();
-  await expect(page.getByText('תיק ציבורי / מס׳ 1997')).toHaveCount(0);
+  for (const release of expectedReleases) {
+    const tile = page.locator(`[data-release="${release.slug}"]`);
+    await expect(tile, `${release.slug} tile`).toHaveCount(1);
+    await expect(tile).toHaveAttribute('href', site.route(`release/${release.slug}/`));
+    const image = tile.locator('.release-cover > img');
+    const placeholder = tile.locator('.release-cover > .release-placeholder');
+    if (release.coverFileId) {
+      await expect(image, `${release.slug} cover`).toHaveCount(1);
+      await expect(image).toHaveAttribute(
+        'src',
+        site.route(`generated/covers/${release.coverFileId}.webp`),
+      );
+      // The grid is image-led: art fills the frame and is never matted.
+      await expect(image).toHaveCSS('object-fit', 'cover');
+      await expect(placeholder, `${release.slug} has no placeholder with a cover`).toHaveCount(0);
+    } else {
+      await expect(image, `${release.slug} has no image without a cover`).toHaveCount(0);
+      await expect(placeholder, `${release.slug} placeholder`).toHaveCount(1);
+    }
+  }
+
+  // The five committed cover derivatives are real files, not broken links.
+  const coveredSlugs = expectedReleases.filter(({ coverFileId }) => coverFileId).map(({ slug }) => slug);
+  expect(coveredSlugs).toHaveLength(5);
+  for (const slug of coveredSlugs) {
+    const image = page.locator(`[data-release="${slug}"] .release-cover > img`);
+    // Covers are lazy, so a tile below the fold has not fetched yet on a phone viewport.
+    await image.scrollIntoViewIfNeeded();
+    await expect
+      .poll(
+        () =>
+          image.evaluate(
+            (element: HTMLImageElement) => element.complete && element.naturalWidth > 0,
+          ),
+        { message: `${slug} cover loaded` },
+      )
+      .toBe(true);
+  }
+
+  // The only quoted line on the page is a real archive string, printed with its source file.
+  await expect(page.getByText('בבקשה תקראו אותי - משעמם להיות פה לבד')).toBeVisible();
+  await expect(page.locator('.found-string figcaption')).toContainText('דיסק הקונגרס');
+
+  // Furniture stays literal: the old jokes in headings and taglines are gone.
+  await expect(page.getByText('ששת החשודים הרגילים')).toHaveCount(0);
+  await expect(page.getByText('המחלקה לעניינים שנשמרו במקרה')).toHaveCount(0);
+  await expect(page.getByText(/קיבינימאט/u)).toHaveCount(0);
 
   const character = page.getByRole('img', { name: 'חזי מפיפוש מציץ אל הארכיון' });
   await expect(character).toBeVisible();
   await expect(character).toHaveAttribute('src', site.route('assets/characters/hezi.png'));
-  await expect(character).toHaveAttribute('width', '145');
-  await expect(character).toHaveAttribute('height', '365');
   expect(
     await character.evaluate((image: HTMLImageElement) => ({
       complete: image.complete,
@@ -160,13 +173,16 @@ test('homepage is a Hebrew RTL, cover-first entry to the archive', async ({ page
   await expect(character).toHaveCSS('opacity', '1');
   await expect(character).toHaveCSS('object-fit', 'contain');
   await expectNotOverlapping(character, page.getByRole('heading', { level: 1 }));
-  await expectNotOverlapping(character, page.getByRole('search'));
 
   const skipLink = page.getByRole('link', { name: 'דלגו לתוכן' });
   await page.keyboard.press('Tab');
   await expect(skipLink).toBeFocused();
   await expect(skipLink).toHaveAttribute('href', '#main');
   await expect(page.getByRole('navigation', { name: 'ניווט ראשי' })).toBeVisible();
+  // The Drive mirror is demoted rather than deleted.
+  await expect(
+    page.getByRole('contentinfo').getByRole('link', { name: 'כל הקבצים לפי מדף' }),
+  ).toHaveAttribute('href', site.route('archive/'));
   await expect(page.getByRole('contentinfo')).toContainText('Google Drive');
 
   const hasHorizontalOverflow = await page.evaluate(
@@ -174,35 +190,36 @@ test('homepage is a Hebrew RTL, cover-first entry to the archive', async ({ page
   );
   expect(hasHorizontalOverflow).toBe(false);
   await expectWithinViewport(page, page.locator('.site-header'));
-  await expectWithinViewport(page, page.locator('.hero'));
   await expectWithinViewport(page, character);
-  await expectWithinViewport(page, page.locator('.search-controls'));
-  for (const tile of await gameTiles.all()) await expectWithinViewport(page, tile);
+  for (const tile of await tiles.all()) await expectWithinViewport(page, tile);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-test('Piposh 1 is an official-material hub with direct Drive actions', async ({ page }) => {
-  const solutions = expectedOfficialGroupItems('piposh-1', 'פתרונות');
-  expect(solutions).toHaveLength(1);
-  const solution = solutions[0]!;
-  await page.goto(site.route('games/piposh-1/'));
+test('the Piposh 1 room shows only the sections it has, with direct Drive actions', async ({ page }) => {
+  await page.goto(site.route('release/piposh-1/'));
 
   await expect(page.getByRole('heading', { level: 1, name: 'פיפוש 1' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'גרסאות בעברית' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'מהדורות רשמיות בשפות זרות' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'פתרונות' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'לשחק' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'לראות' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'לקרוא' })).toBeVisible();
+  // Piposh 1 holds no audio, so the section is absent rather than empty.
+  await expect(page.getByRole('heading', { name: 'להאזין' })).toHaveCount(0);
+
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toBeVisible();
-  await expect(page.getByText(solution.name, { exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: `צפייה ב־Drive — ${solution.name}` })).toHaveAttribute(
-    'href',
-    solution.viewUrl,
-  );
+  await expect(
+    page.getByRole('link', { name: 'צפייה ב־Drive — piposh1.exe' }),
+  ).toHaveAttribute('href', /^https:\/\/drive\.google\.com\//u);
   await expect(
     page.getByRole('link', { name: 'הורדה — piposh1.exe' }),
   ).toHaveAttribute('href', /drive\.google\.com/u);
-  await expect(page.getByText('ביקורת.jpg', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('fan.zip', { exact: true })).toHaveCount(0);
+
+  // The curator's grouping of a release survives as a per-row label.
+  await expect(page.locator('.item-group', { hasText: 'גרסאות בעברית' }).first()).toBeVisible();
+  await expect(
+    page.locator('.item-group', { hasText: 'מהדורות רשמיות בשפות זרות' }).first(),
+  ).toBeVisible();
+
   await expect(page.locator('main [download]')).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
@@ -212,7 +229,7 @@ test('complete archive browsing remains available without search', async ({ page
   const solutionCountLabel = formatFileCount(solutionItems.length);
   await page.goto(site.route('archive/'));
 
-  await expect(page.getByRole('heading', { level: 1, name: 'כל הארכיון' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'כל הקבצים לפי מדף' })).toBeVisible();
   await expect(
     page.getByRole('link', { name: `פתרונות, ${solutionCountLabel}` }),
   ).toBeVisible();
@@ -232,39 +249,19 @@ test('complete archive browsing remains available without search', async ({ page
   await expect(page.locator('.file-list > li')).toHaveCount(solutionItems.length);
 });
 
-test('game pages show official items or an honest empty state', async ({ page }) => {
-  const piposhTwo = expectedGame('piposh-2');
-  const expectedOfficialItems = groupOfficialItems(piposhTwo, expectedItemById).flatMap(
-    ({ items }) => items,
-  );
-  expect(expectedOfficialItems.map(({ id }) => id).sort()).toEqual([...piposhTwo.itemIds].sort());
-  await page.goto(site.route('games/piposh-2/'));
+test('the /games/ route the search index points at renders the release room', async ({ page }) => {
+  const release = expectedRelease('piposh-2');
+  await page.goto(site.route(`games/${release.slug}/`));
 
-  await expect(page.getByRole('heading', { level: 1, name: 'פיפוש 2' })).toBeVisible();
-  const fileList = page.locator('.file-list');
-  const emptyState = page.getByText(/עדיין אין בתיק הזה קבצים מקוטלגים/u);
-  if (expectedOfficialItems.length === 0) {
-    await expect(emptyState).toHaveCount(1);
-    await expect(emptyState).toBeVisible();
-    await expect(page.locator('.official-groups')).toHaveCount(0);
-    await expect(fileList).toHaveCount(0);
-  } else {
-    await expect(emptyState).toHaveCount(0);
-    await expect(page.locator('.official-groups')).toHaveCount(1);
-    await expect(page.locator('.official-groups .file-list > li')).toHaveCount(
-      expectedOfficialItems.length,
-    );
-    const actualViewUrls = await page
-      .locator('.official-groups .file-action.view')
-      .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href).sort());
-    expect(actualViewUrls).toEqual(expectedOfficialItems.map(({ viewUrl }) => viewUrl).sort());
-  }
+  await expect(page.getByRole('heading', { level: 1, name: release.titleHe })).toBeVisible();
+  await expect(page.locator('.release-room')).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'כל הקבצים' })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
 test('Drive actions and back links have a high-contrast visible focus indicator', async ({ page }) => {
   for (const [path, accessibleName] of [
-    ['games/piposh-1/', 'צפייה ב־Drive — piposh1.exe'],
+    ['release/piposh-1/', 'צפייה ב־Drive — piposh1.exe'],
     ['archive/games/', 'חזרה לכל הארכיון'],
   ] as const) {
     await page.goto(site.route(path));
@@ -280,7 +277,16 @@ test('Drive actions and back links have a high-contrast visible focus indicator'
 test('new archive pages remain within a 320px viewport', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== '320px', 'narrow viewport check');
 
-  for (const path of ['games/', 'games/piposh-1/', 'archive/', 'archive/games/', 'about/']) {
+  for (const path of [
+    'release/piposh-1/',
+    'release/fan-disc-69541b3e/',
+    'browse/type/game/',
+    'listen/',
+    'watch/',
+    'archive/',
+    'archive/games/',
+    'about/',
+  ]) {
     await page.goto(site.route(path));
     expect(
       await page.evaluate(
@@ -314,7 +320,7 @@ test('Latin-only search is unsupported while mixed queries use their Hebrew word
 });
 
 test('search submission and category changes rerun the current Hebrew query', async ({ page }) => {
-  const solutions = expectedOfficialGroupItems('piposh-1', 'פתרונות');
+  const solutions = expectedGroupItems('piposh-1', 'פתרונות');
   expect(solutions).toHaveLength(1);
   const solution = solutions[0]!;
   let indexRequests = 0;

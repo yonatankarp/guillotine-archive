@@ -15,13 +15,46 @@ import {
   type ReplaceCaseArtifact,
   type WriteArtifact,
 } from './artifact-transaction';
-import { extractText, isTextExtractable, optimizeCover } from './media';
+import {
+  decodeWithImageMagick,
+  extractText,
+  imageTiersFor,
+  isTextExtractable,
+  needsExternalDecoder,
+  opusBitrateFor,
+  optimizeCover,
+  optimizeLogo,
+  resizeImage,
+  resolveFfmpeg,
+  resolveImageMagick,
+  transcodeToOpus,
+} from './media';
 import { resolveRelationships } from './relationships';
 import { buildSearchIndex } from './search';
-import type { Catalog, CuratorConfig, DriveFile } from './types';
+import type {
+  Catalog,
+  CatalogItem,
+  CropRegion,
+  CuratorConfig,
+  Derivative,
+  DriveFile,
+  ItemDerivatives,
+} from './types';
 import { validateCatalog } from './validate';
 
 const DEFAULT_MAX_EXTRACTED_TEXT_BYTES = 64 * 1024 * 1024;
+/** One sync pulls roughly 1 GiB of derivative sources; the cap stops a runaway. */
+const DEFAULT_MAX_DERIVATIVE_SOURCE_BYTES = 4 * 1024 * 1024 * 1024;
+const IMAGE_DERIVATIVE_KINDS = new Set([
+  'cover',
+  'scan',
+  'booklet-page',
+  'comic-page',
+  'press-page',
+  'sprite',
+]);
+const AUDIO_DERIVATIVE_KINDS = new Set(['track', 'sound']);
+const MAX_THUMBNAIL_BYTES = 4 * 1024 * 1024;
 
 export type { BuildFaultInjection } from './artifact-transaction';
 
@@ -33,6 +66,13 @@ export interface BuildCatalogInput {
   minimumFileCount?: number;
   previousFileCount?: number;
   maxExtractedTextBytes?: number;
+  maxDerivativeSourceBytes?: number;
+  /** Pulling ~1 GiB of sources is opt-in, so a catalog-only sync stays cheap. */
+  buildDerivatives?: boolean;
+  /** Test seam for the external decoder and encoder. Production callers omit these. */
+  externalTools?: { imageMagick?: string | null; ffmpeg?: string | null };
+  /** Fetches a Drive-hosted thumbnail. Defaults to global fetch. */
+  fetchThumbnail?(url: string): Promise<Buffer>;
   /** Test-only filesystem fault injection. Production callers must omit this. */
   faultInjection?: BuildFaultInjection;
   download(fileId: string): Promise<Buffer>;
@@ -146,26 +186,297 @@ async function prepareCovers(
   report: ReturnType<typeof validateCatalog>,
   input: BuildCatalogInput,
   reportPath: string,
+  sourceCache: Map<string, Buffer>,
 ): Promise<Map<string, Buffer>> {
   const coverBuffers = new Map<string, Buffer>();
-  const coverCollections = new Map<string, string>();
+  const coverCollections = new Map<string, { slug: string; crop?: CropRegion }>();
   for (const collection of catalog.collections) {
     if (collection.coverFileId && !coverCollections.has(collection.coverFileId)) {
-      coverCollections.set(collection.coverFileId, collection.slug);
+      coverCollections.set(collection.coverFileId, {
+        slug: collection.slug,
+        ...(collection.coverCrop === undefined ? {} : { crop: collection.coverCrop }),
+      });
     }
   }
 
-  for (const [coverFileId, collectionSlug] of coverCollections) {
+  for (const [coverFileId, { slug, crop }] of coverCollections) {
     try {
-      coverBuffers.set(coverFileId, await optimizeCover(await input.download(coverFileId)));
+      const source = await input.download(coverFileId);
+      sourceCache.set(coverFileId, source);
+      coverBuffers.set(coverFileId, await optimizeCover(source, crop));
     } catch {
-      const message = `failed to process cover ${coverFileId} for collection ${collectionSlug}`;
+      const message = `failed to process cover ${coverFileId} for collection ${slug}`;
       report.errors.push(message);
       await writeDiagnosticReport(input.root, reportPath, report);
       throw safeBuildFailure(message);
     }
   }
   return coverBuffers;
+}
+
+/**
+ * Release titles are hand-drawn box lettering, so a logo is a second crop of the
+ * same artwork. The file id lives on the release override; the rectangle lives
+ * on the collection, because only that side is reachable from here.
+ */
+async function prepareLogos(
+  catalog: Catalog,
+  report: ReturnType<typeof validateCatalog>,
+  input: BuildCatalogInput,
+  sourceCache: Map<string, Buffer>,
+): Promise<Map<string, Buffer>> {
+  const logoBuffers = new Map<string, Buffer>();
+  const logoFileIdBySlug = new Map<string, string>();
+  for (const override of input.curator.releases ?? []) {
+    if (override.logoFileId === undefined) continue;
+    for (const path of override.paths) logoFileIdBySlug.set(path, override.logoFileId);
+  }
+
+  for (const collection of catalog.collections) {
+    const logoFileId = logoFileIdBySlug.get(collection.slug);
+    if (logoFileId === undefined || collection.logoCrop === undefined) continue;
+    if (logoBuffers.has(logoFileId)) continue;
+
+    try {
+      const source = sourceCache.get(logoFileId) ?? (await input.download(logoFileId));
+      sourceCache.set(logoFileId, source);
+      logoBuffers.set(logoFileId, await optimizeLogo(source, collection.logoCrop));
+      collection.logoUrl = `/generated/logos/${logoFileId}.webp`;
+    } catch {
+      // A missing logo degrades to the typeface title rather than failing the sync.
+      report.warnings.push(`failed to process logo ${logoFileId} for release ${collection.slug}`);
+    }
+  }
+  return logoBuffers;
+}
+
+interface DerivativeTools {
+  imageMagick: string | null;
+  ffmpeg: string | null;
+}
+
+interface DerivativePlan {
+  artifacts: WriteArtifact[];
+  bytes: number;
+}
+
+function derivativeOf(path: string, data: Buffer, width?: number, height?: number): Derivative {
+  return {
+    path,
+    bytes: data.length,
+    ...(width === undefined ? {} : { width }),
+    ...(height === undefined ? {} : { height }),
+  };
+}
+
+async function decodeImageSource(
+  item: CatalogItem,
+  data: Buffer,
+  tools: DerivativeTools,
+): Promise<Buffer | null> {
+  if (!needsExternalDecoder(item.mimeType)) return data;
+  if (tools.imageMagick === null) return null;
+  return decodeWithImageMagick(data, tools.imageMagick);
+}
+
+async function imageDerivatives(
+  item: CatalogItem,
+  data: Buffer,
+  tools: DerivativeTools,
+  directory: string,
+  plan: DerivativePlan,
+): Promise<ItemDerivatives | null> {
+  const decoded = await decodeImageSource(item, data, tools);
+  if (decoded === null) return null;
+
+  const derivatives: ItemDerivatives = {};
+  for (const tier of imageTiersFor(item.kind)) {
+    const resized = await resizeImage(decoded, tier.edge);
+    const relative = `generated/derivatives/${item.id}-${tier.name}.webp`;
+    plan.artifacts.push({
+      kind: 'write',
+      target: join(directory, `${item.id}-${tier.name}.webp`),
+      data: resized.data,
+    });
+    derivatives[tier.name] = derivativeOf(
+      `/${relative}`,
+      resized.data,
+      resized.width,
+      resized.height,
+    );
+  }
+  return derivatives;
+}
+
+async function audioDerivative(
+  item: CatalogItem,
+  data: Buffer,
+  tools: DerivativeTools,
+  directory: string,
+  plan: DerivativePlan,
+): Promise<ItemDerivatives | null> {
+  if (tools.ffmpeg === null) return null;
+
+  const opus = await transcodeToOpus(data, tools.ffmpeg, opusBitrateFor(item.kind));
+  const relative = `generated/derivatives/${item.id}.opus`;
+  plan.artifacts.push({ kind: 'write', target: join(directory, `${item.id}.opus`), data: opus });
+  return { audio: derivativeOf(`/${relative}`, opus) };
+}
+
+async function defaultFetchThumbnail(url: string): Promise<Buffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`thumbnail request failed with ${String(response.status)}`);
+
+  const data = Buffer.from(await response.arrayBuffer());
+  if (data.length > MAX_THUMBNAIL_BYTES) throw new Error('thumbnail too large');
+  return data;
+}
+
+/**
+ * A poster must never cost the 6.4 GB of video bytes. Drive already renders a
+ * thumbnail for every video it can decode, so that is the only source used; a
+ * video without one keeps its duration and goes posterless.
+ */
+async function preparePosters(
+  catalog: Catalog,
+  report: ReturnType<typeof validateCatalog>,
+  input: BuildCatalogInput,
+  directory: string,
+): Promise<WriteArtifact[]> {
+  if (input.buildDerivatives !== true) return [];
+
+  const fetchThumbnail = input.fetchThumbnail ?? defaultFetchThumbnail;
+  const artifacts: WriteArtifact[] = [];
+  let missingThumbnail = 0;
+  let failed = 0;
+
+  for (const item of catalog.items) {
+    if (item.kind !== 'video') continue;
+
+    const durationMillis = item.durationMillis;
+    if (durationMillis !== null && durationMillis !== undefined) {
+      item.derivatives = { ...item.derivatives, durationMillis };
+    }
+
+    if (!item.thumbnailUrl) {
+      missingThumbnail += 1;
+      continue;
+    }
+
+    try {
+      const source = await fetchThumbnail(item.thumbnailUrl);
+      const resized = await resizeImage(source, 1600);
+      const relative = `generated/derivatives/${item.id}-poster.webp`;
+      artifacts.push({
+        kind: 'write',
+        target: join(directory, `${item.id}-poster.webp`),
+        data: resized.data,
+      });
+      item.derivatives = {
+        ...item.derivatives,
+        poster: derivativeOf(`/${relative}`, resized.data, resized.width, resized.height),
+      };
+    } catch {
+      failed += 1;
+    }
+  }
+
+  if (missingThumbnail > 0) {
+    report.warnings.push(
+      `${missingThumbnail} videos have no poster because Drive supplied no thumbnail and video bytes are never downloaded`,
+    );
+  }
+  if (failed > 0) {
+    report.warnings.push(`failed to build posters for ${failed} videos`);
+  }
+
+  return artifacts;
+}
+
+/**
+ * Derivatives are additive: every failure degrades one item to its Drive link
+ * rather than failing the sync, because the committed site must keep rendering
+ * when a tool or a source file is unavailable.
+ */
+async function prepareDerivatives(
+  catalog: Catalog,
+  report: ReturnType<typeof validateCatalog>,
+  input: BuildCatalogInput,
+  directory: string,
+  sourceCache: ReadonlyMap<string, Buffer>,
+): Promise<WriteArtifact[]> {
+  if (input.buildDerivatives !== true) return [];
+
+  const configured = input.externalTools;
+  const tools: DerivativeTools = {
+    imageMagick:
+      configured && 'imageMagick' in configured
+        ? (configured.imageMagick ?? null)
+        : resolveImageMagick(),
+    ffmpeg:
+      configured && 'ffmpeg' in configured ? (configured.ffmpeg ?? null) : resolveFfmpeg(),
+  };
+  const budget = input.maxDerivativeSourceBytes ?? DEFAULT_MAX_DERIVATIVE_SOURCE_BYTES;
+  const plan: DerivativePlan = { artifacts: [], bytes: 0 };
+  let skippedForDecoder = 0;
+  let skippedForEncoder = 0;
+  let failed = 0;
+  let exhausted = 0;
+
+  for (const item of catalog.items) {
+    const isImage = IMAGE_DERIVATIVE_KINDS.has(item.kind);
+    const isAudio = AUDIO_DERIVATIVE_KINDS.has(item.kind);
+    if (!isImage && !isAudio) continue;
+
+    if (isImage && needsExternalDecoder(item.mimeType) && tools.imageMagick === null) {
+      skippedForDecoder += 1;
+      continue;
+    }
+    if (isAudio && tools.ffmpeg === null) {
+      skippedForEncoder += 1;
+      continue;
+    }
+
+    const sourceBytes = item.size ?? 0;
+    if (plan.bytes + sourceBytes > budget) {
+      exhausted += 1;
+      continue;
+    }
+
+    try {
+      plan.bytes += sourceBytes;
+      const data = sourceCache.get(item.id) ?? (await input.download(item.id));
+      const derivatives = isImage
+        ? await imageDerivatives(item, data, tools, directory, plan)
+        : await audioDerivative(item, data, tools, directory, plan);
+      if (derivatives === null) {
+        skippedForDecoder += 1;
+        continue;
+      }
+      item.derivatives = derivatives;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  if (skippedForDecoder > 0) {
+    report.warnings.push(
+      `${skippedForDecoder} images have no derivatives because no ImageMagick binary was available to decode them`,
+    );
+  }
+  if (skippedForEncoder > 0) {
+    report.warnings.push(
+      `${skippedForEncoder} audio files have no derivatives because no ffmpeg binary was available`,
+    );
+  }
+  if (exhausted > 0) {
+    report.warnings.push(`${exhausted} files skipped because the derivative source budget was exceeded`);
+  }
+  if (failed > 0) {
+    report.warnings.push(`failed to build derivatives for ${failed} files`);
+  }
+
+  return plan.artifacts;
 }
 
 function coverWriteArtifacts(
@@ -193,6 +504,8 @@ async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> 
   const searchPath = join(input.root, 'public/data/search-index.json');
   const reportPath = join(input.root, 'reports/curator-report.json');
   const coverDirectory = join(input.root, 'public/generated/covers');
+  const logoDirectory = join(input.root, 'public/generated/logos');
+  const derivativeDirectory = join(input.root, 'public/generated/derivatives');
   await recoverArtifactTransaction(input.root);
   const localPreviousCount = await previousCatalogCount(input.root, catalogPath);
   const persistedPreviousCount = input.previousFileCount ?? 0;
@@ -211,7 +524,17 @@ async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> 
   }
 
   await extractCatalogText(catalog, report, input, maxExtractedTextBytes);
-  const coverBuffers = await prepareCovers(catalog, report, input, reportPath);
+  const sourceCache = new Map<string, Buffer>();
+  const coverBuffers = await prepareCovers(catalog, report, input, reportPath, sourceCache);
+  const logoBuffers = await prepareLogos(catalog, report, input, sourceCache);
+  const derivativeArtifacts = await prepareDerivatives(
+    catalog,
+    report,
+    input,
+    derivativeDirectory,
+    sourceCache,
+  );
+  const posterArtifacts = await preparePosters(catalog, report, input, derivativeDirectory);
 
   let serializedSearch: string;
   try {
@@ -231,9 +554,19 @@ async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> 
     );
     const remainingStaleCovers: Artifact[] = [...staleCovers];
     const coverArtifacts = coverWriteArtifacts(coverDirectory, coverBuffers, remainingStaleCovers);
+    // Logos and derivatives get no stale sweep on purpose: an empty selected set
+    // would delete every one of them, which is exactly how the covers were lost.
+    const logoArtifacts: WriteArtifact[] = [...logoBuffers].map(([logoFileId, data]) => ({
+      kind: 'write',
+      target: join(logoDirectory, `${logoFileId}.webp`),
+      data,
+    }));
     const artifacts: Artifact[] = [
       ...remainingStaleCovers,
       ...coverArtifacts,
+      ...logoArtifacts,
+      ...derivativeArtifacts,
+      ...posterArtifacts,
       { kind: 'write', target: catalogPath, data: prettyJson(catalog) },
       { kind: 'write', target: searchPath, data: serializedSearch },
       { kind: 'write', target: reportPath, data: prettyJson(report) },

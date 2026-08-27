@@ -1,0 +1,52 @@
+---
+import type { Release } from '../catalog/types';
+import { formatFileCount } from '../lib/archive';
+import { sitePath } from '../lib/url';
+import { releaseAccent, releaseCoverPath, releaseTypeLabel } from './release-view';
+
+interface Props {
+  release: Release;
+  itemCount: number;
+}
+
+const { release, itemCount } = Astro.props;
+const accent = releaseAccent(release);
+const cover = releaseCoverPath(release);
+const facts = [releaseTypeLabel(release.type), release.formatHe, release.year?.toString()].filter(
+  (fact): fact is string => fact !== undefined,
+);
+---
+
+<li
+  class="release-cell"
+  data-release-type={release.type}
+  data-release-subject={release.subjectSlug ?? ''}
+  data-release-year={release.year?.toString() ?? ''}
+>
+  <a
+    class="release-tile"
+    style={`--accent: ${accent};`}
+    href={sitePath(`release/${release.slug}/`)}
+    data-testid="release-tile"
+    data-release={release.slug}
+  >
+    <div class="release-cover mat">
+      {
+        cover ? (
+          <img src={sitePath(cover)} alt={`עטיפת ${release.titleHe}`} loading="lazy" width="720" height="960" />
+        ) : (
+          <div class="release-placeholder dither" aria-hidden="true">
+            <strong>{release.titleHe}</strong>
+          </div>
+        )
+      }
+    </div>
+    <div class="release-copy">
+      <h2>{release.titleHe}</h2>
+      <p class="release-facts">
+        {facts.join(' · ')}
+        <span>{formatFileCount(itemCount)}</span>
+      </p>
+    </div>
+  </a>
+</li>

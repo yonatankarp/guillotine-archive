@@ -6,6 +6,7 @@ import {
   type ArchiveSearchResult,
   type SearchDocument,
 } from '../catalog/search';
+import { deriveKind } from '../catalog/kind';
 import { externalHttpUrl, sitePathForBrowserBase } from '../lib/browser-url';
 
 const EMPTY_STATUS = 'כתבו משהו בעברית. המחשב כבר יילחץ בעצמו.';
@@ -17,6 +18,7 @@ interface SearchElements {
   form: HTMLFormElement;
   input: HTMLInputElement;
   category: HTMLSelectElement;
+  kind: HTMLSelectElement;
   submit: HTMLButtonElement;
   status: HTMLElement;
   fallback: HTMLElement;
@@ -268,10 +270,34 @@ function resultStatus(total: number): string {
   return `${total} תוצאות`;
 }
 
+/**
+ * The committed search index does not store an item's kind, and it is a build artifact this
+ * page cannot regenerate. Every input deriveKind needs is stored, though, so the filter runs
+ * the same derivation the catalog used rather than duplicating its rules.
+ */
+function filterByKind(
+  results: readonly ArchiveSearchResult[],
+  kind: string,
+): readonly ArchiveSearchResult[] {
+  if (!kind) return results;
+
+  return results.filter(
+    (result) =>
+      result.kind === 'file' &&
+      deriveKind({
+        mimeType: result.mimeType,
+        path: result.path,
+        size: result.size,
+        name: result.filename,
+      }) === kind,
+  );
+}
+
 function getElements(root: HTMLElement): SearchElements | null {
   const form = root.querySelector<HTMLFormElement>('[data-search-form]');
   const input = root.querySelector<HTMLInputElement>('[data-search-input]');
   const category = root.querySelector<HTMLSelectElement>('[data-search-category]');
+  const kind = root.querySelector<HTMLSelectElement>('[data-search-kind]');
   const status = root.querySelector<HTMLElement>('[data-search-status]');
   const fallback = root.querySelector<HTMLElement>('[data-search-fallback]');
   const list = root.querySelector<HTMLOListElement>('[data-search-results]');
@@ -281,6 +307,7 @@ function getElements(root: HTMLElement): SearchElements | null {
     !form ||
     !input ||
     !category ||
+    !kind ||
     !submit ||
     !status ||
     !fallback ||
@@ -295,6 +322,7 @@ function getElements(root: HTMLElement): SearchElements | null {
     form,
     input,
     category,
+    kind,
     submit,
     status,
     fallback,
@@ -313,6 +341,12 @@ function initializeQuery(elements: SearchElements): void {
   )
     ? requestedCategory
     : '';
+  const requestedKind = params.get('kind') ?? '';
+  elements.kind.value = Array.from(elements.kind.options).some(
+    (option) => option.value === requestedKind,
+  )
+    ? requestedKind
+    : '';
 }
 
 function updateLocation(elements: SearchElements): void {
@@ -322,6 +356,8 @@ function updateLocation(elements: SearchElements): void {
   else url.searchParams.delete('q');
   if (elements.category.value) url.searchParams.set('category', elements.category.value);
   else url.searchParams.delete('category');
+  if (elements.kind.value) url.searchParams.set('kind', elements.kind.value);
+  else url.searchParams.delete('kind');
   history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
@@ -336,6 +372,7 @@ function setLoading(elements: SearchElements, loading: boolean): void {
   elements.root.ariaBusy = String(loading);
   elements.input.disabled = loading;
   elements.category.disabled = loading;
+  elements.kind.disabled = loading;
   elements.submit.disabled = loading;
   if (loading) elements.status.textContent = 'טוענים את מפתח הארכיון…';
 }
@@ -377,11 +414,12 @@ async function start(root: HTMLElement): Promise<void> {
         if (!matches.every((match) => isSearchResult(match, elements.baseUrl))) {
           throw new Error('invalid stored search metadata');
         }
-        const rendered = matches.slice(0, RESULT_LIMIT).map((result) =>
+        const selected = filterByKind(matches, elements.kind.value);
+        const rendered = selected.slice(0, RESULT_LIMIT).map((result) =>
           renderResult(result, elements.baseUrl),
         );
         elements.list.append(...rendered);
-        elements.status.textContent = resultStatus(matches.length);
+        elements.status.textContent = resultStatus(selected.length);
       } catch {
         showFailure(elements);
       }
@@ -392,6 +430,7 @@ async function start(root: HTMLElement): Promise<void> {
       run(true);
     });
     elements.category.addEventListener('change', () => run(true));
+    elements.kind.addEventListener('change', () => run(true));
     setLoading(elements, false);
     run(false);
   } catch {

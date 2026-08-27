@@ -1,0 +1,63 @@
+---
+import type { GetStaticPaths } from 'astro';
+import ReleaseGrid from '../../../components/ReleaseGrid.astro';
+import { releaseTypeLabel } from '../../../components/release-view';
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { catalog } from '../../../lib/catalog';
+import { releaseFacets, releases } from '../../../lib/releases';
+import { sitePath } from '../../../lib/url';
+
+/**
+ * The facets are pre-rendered rather than filtered in the browser: 42 releases across 15 facet
+ * values is 15 static pages, and every one of them is a real, linkable, JavaScript-free page.
+ */
+export const getStaticPaths = (() => {
+  const titleBySlug = new Map(
+    catalog.collections.map((collection) => [collection.slug, collection.titleHe]),
+  );
+
+  return [
+    ...releaseFacets.types.map((type) => ({
+      params: { facet: 'type', value: type },
+      props: {
+        headingHe: releaseTypeLabel(type),
+        matching: releases.filter((release) => release.type === type),
+      },
+    })),
+    ...releaseFacets.subjectSlugs.map((subjectSlug) => ({
+      params: { facet: 'subject', value: subjectSlug },
+      props: {
+        headingHe: titleBySlug.get(subjectSlug) ?? subjectSlug,
+        matching: releases.filter((release) => release.subjectSlug === subjectSlug),
+      },
+    })),
+    ...releaseFacets.years.map((year) => ({
+      params: { facet: 'year', value: String(year) },
+      props: {
+        headingHe: String(year),
+        matching: releases.filter((release) => release.year === year),
+      },
+    })),
+  ].filter(({ props }) => props.matching.length > 0);
+}) satisfies GetStaticPaths;
+
+const { facet, value } = Astro.params;
+const { headingHe, matching } = Astro.props;
+const facetLabel =
+  facet === 'type' ? 'סוג מהדורה' : facet === 'subject' ? 'משחק' : 'שנה';
+---
+
+<BaseLayout title={`${headingHe} — ארכיון גיליוטין`}>
+  <header class="page-intro">
+    <p class="eyebrow">{facetLabel}</p>
+    <h1>{headingHe}</h1>
+    <p class="lead">
+      {matching.length} מהדורות. <a href={sitePath()}>חזרה לכל המהדורות</a>
+    </p>
+  </header>
+
+  <section aria-labelledby="releases-heading">
+    <h2 class="visually-hidden" id="releases-heading">מהדורות מסוננות</h2>
+    <ReleaseGrid releases={matching} active={{ facet: facet!, value: value! }} />
+  </section>
+</BaseLayout>

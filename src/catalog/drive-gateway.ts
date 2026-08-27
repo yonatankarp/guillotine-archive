@@ -10,6 +10,8 @@ export interface RemoteEntry {
   modifiedTime?: string | null;
   webViewLink?: string | null;
   webContentLink?: string | null;
+  thumbnailLink?: string | null;
+  durationMillis?: string | null;
 }
 
 export interface DriveGateway {
@@ -60,6 +62,10 @@ export async function scanDrive(rootId: string, gateway: DriveGateway): Promise<
         path,
         viewUrl: entry.webViewLink ?? `https://drive.google.com/file/d/${entry.id}/view`,
         downloadUrl: getDownloadUrl(entry),
+        ...(entry.thumbnailLink ? { thumbnailUrl: entry.thumbnailLink } : {}),
+        ...(toDuration(entry.durationMillis) === null
+          ? {}
+          : { durationMillis: toDuration(entry.durationMillis) }),
       });
     }
   }
@@ -72,6 +78,13 @@ function getDownloadUrl(entry: RemoteEntry): string | null {
   if (entry.webContentLink) return entry.webContentLink;
 
   return `https://drive.google.com/uc?export=download&id=${encodeURIComponent(entry.id)}`;
+}
+
+function toDuration(value: string | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function toSize(size: string | null | undefined): number | null {

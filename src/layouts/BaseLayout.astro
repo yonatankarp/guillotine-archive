@@ -1,5 +1,6 @@
 ---
 import Header from '../components/Header.astro';
+import { sitePath } from '../lib/url';
 import '../styles/global.css';
 
 interface Props {
@@ -36,7 +37,11 @@ const {
       <slot />
     </main>
     <footer class="site-footer">
-      <p><strong>הבהרה מטעם ההנהלה:</strong> הקבצים המקוריים נשארים ב־Google Drive, ומשם גם מציגים ומורידים אותם.</p>
+      <p>הקבצים המקוריים נשארים ב־Google Drive, ומשם גם מציגים ומורידים אותם.</p>
+      <nav aria-label="ניווט משני">
+        <a href={sitePath('archive/')}>כל הקבצים לפי מדף</a>
+        <a href={sitePath('about/')}>על הארכיון</a>
+      </nav>
     </footer>
   </body>
 </html>

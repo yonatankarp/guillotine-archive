@@ -1,0 +1,105 @@
+---
+import type { CatalogItem } from '../catalog/types';
+import { driveActions, formatFileSize, officialCollectionLinks } from '../lib/archive';
+import { creditedAuthor, itemKindLabel, neverPlayable, textExcerpt } from './release-view';
+
+interface Props {
+  items: CatalogItem[];
+  labelHe: string;
+  /**
+   * Resolves a playable derivative for an item. Returns null everywhere today because the
+   * derivative pipeline is still being built; wiring real playback later means returning a URL
+   * from here and nothing else changes.
+   */
+  mediaSrc?: (item: CatalogItem) => string | null;
+  showText?: boolean;
+  /** Off where the page already carries the playback message once, so 169 rows do not repeat it. */
+  showMediaNote?: boolean;
+}
+
+const {
+  items,
+  labelHe,
+  mediaSrc = () => null,
+  showText = false,
+  showMediaNote = true,
+} = Astro.props;
+---
+
+<ul class="item-rows" aria-label={labelHe}>
+  {
+    items.map((item) => {
+      const actions = driveActions(item);
+      const author = creditedAuthor(item);
+      const source = mediaSrc(item);
+      const isMedia = item.kind === 'track' || item.kind === 'sound' || item.kind === 'video';
+      const rawText = showText ? item.extractedTextHe?.trim() : undefined;
+      const text = rawText ? textExcerpt(rawText) : undefined;
+      /* The curator's own grouping of a release is the only editorial label on an item, so it
+         travels with the row rather than disappearing into the kind sections. */
+      const group = officialCollectionLinks(item).find((link) => link.groupHe !== undefined)?.groupHe;
+
+      return (
+        <li>
+          <div class="item-head">
+            <div class="item-identity">
+              <strong><bdi dir="auto">{item.name}</bdi></strong>
+              <p class="item-meta">
+                <span>{itemKindLabel(item.kind)}</span>
+                <span class="mono">{formatFileSize(item.size)}</span>
+                {isMedia && <span class="mono">{item.mimeType}</span>}
+                {group && <span class="item-group">{group}</span>}
+                {author && (
+                  <span>
+                    <span class="visually-hidden">קרדיט: </span>{author}
+                  </span>
+                )}
+              </p>
+            </div>
+            {actions.length > 0 && (
+              <div class="file-actions" aria-label={`פעולות עבור ${item.name}`}>
+                {actions.map((action) => (
+                  <a
+                    class:list={['file-action', action.kind]}
+                    href={action.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={action.label}
+                  >
+                    {action.kind === 'view' ? 'צפייה ב־Drive' : 'הורדה'}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {isMedia && source !== null && (
+            item.kind === 'video' ? (
+              <video class="item-player" controls preload="none" src={source}></video>
+            ) : (
+              <audio class="item-player" controls preload="none" src={source}></audio>
+            )
+          )}
+
+          {isMedia && source === null && showMediaNote && (
+            <p class:list={['item-player-note', { unplayable: neverPlayable(item) }]}>
+              {neverPlayable(item)
+                ? `${item.mimeType} לא מתנגן בדפדפן, וגם המרה לא תשנה את זה. הקובץ המקורי נשאר ב־Drive.`
+                : 'עוד אין באתר גרסה שמתנגנת. בינתיים הקובץ המקורי ב־Drive.'}
+            </p>
+          )}
+
+          {text && (
+            <div class="item-text">
+              <p>{text.textHe}</p>
+              {text.truncated && (
+                <p class="item-excerpt-note">זהו קטע מתחילת המסמך. הטקסט המלא בקובץ ב־Drive.</p>
+              )}
+              <p class="item-source mono"><bdi dir="auto">{item.path}</bdi></p>
+            </div>
+          )}
+        </li>
+      );
+    })
+  }
+</ul>

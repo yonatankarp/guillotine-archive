@@ -5,7 +5,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 <BaseLayout title="על הארכיון — ארכיון גיליוטין">
   <article class="reading-page">
     <header>
-      <p class="page-kicker">כמה מילים לפני שמורידים</p>
+      <p class="eyebrow">על האתר</p>
       <h1>על הארכיון</h1>
       <p class="lead">האתר מרכז את קטלוג המשחקים והחומרים של גיליוטין, ומקשר אל הקבצים המקוריים השמורים ב־Google Drive.</p>
     </header>
@@ -16,8 +16,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </section>
 
     <section aria-labelledby="relationships-heading">
-      <h2 id="relationships-heading">מה שייך לדף משחק?</h2>
-      <p>דפי המשחקים כוללים רק קבצים שהקטלוג מסמן כחלק מן המהדורה הרשמית. כתבות, ביקורות ויצירות מעריצים נשארות במדורים עצמאיים, גם כשהן עוסקות באותו משחק.</p>
+      <h2 id="relationships-heading">מה שייך לדף מהדורה?</h2>
+      <p>כל מהדורה היא דיסק אחד או תיקייה אחת כפי שהגיעה, והקבצים בה מסודרים לפי סוג: לשחק, לראות, להאזין ולקרוא. מדור נעדר כשאין בו קבצים.</p>
     </section>
 
     <section aria-labelledby="updates-heading">
@@ -27,58 +27,3 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   </article>
 </BaseLayout>
 
-<style>
-  .reading-page {
-    max-width: 72ch;
-    margin-inline: auto;
-  }
-
-  .reading-page header {
-    margin-bottom: clamp(2.5rem, 6vw, 4.5rem);
-  }
-
-  .page-kicker {
-    width: fit-content;
-    margin: 0 0 0.75rem;
-    padding: 0.3rem 0.55rem;
-    border: var(--line) solid var(--ink);
-    border-radius: 999px;
-    background: var(--yellow);
-    font-size: 0.72rem;
-    font-weight: 900;
-  }
-
-  h1 {
-    margin: 0;
-    font-size: clamp(3rem, 9vw, 6.5rem);
-    letter-spacing: -0.07em;
-    line-height: 0.9;
-  }
-
-  .lead {
-    margin: 1.2rem 0 0;
-    font-size: clamp(1.05rem, 2.2vw, 1.25rem);
-    font-weight: 700;
-    line-height: 1.7;
-  }
-
-  section {
-    padding: 1.4rem 0;
-    border-top: var(--line) solid var(--ink);
-  }
-
-  h2,
-  section p {
-    margin: 0;
-  }
-
-  h2 {
-    font-size: clamp(1.4rem, 3vw, 2rem);
-    letter-spacing: -0.035em;
-  }
-
-  section p {
-    margin-top: 0.65rem;
-    line-height: 1.75;
-  }
-</style>

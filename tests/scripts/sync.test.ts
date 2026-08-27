@@ -404,6 +404,10 @@ describe('fixture synchronization', () => {
     for (const collection of expectedFixtureCurator.collections) {
       delete collection.coverFileId;
     }
+    for (const override of expectedFixtureCurator.releases ?? []) {
+      delete override.coverFileId;
+      delete override.logoFileId;
+    }
     expect(receivedInput?.curator).toEqual(expectedFixtureCurator);
     expect(sourceCurator).toEqual(sourceBefore);
     expect(

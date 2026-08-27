@@ -60,12 +60,36 @@ function supportedCharset(value: string): string | undefined {
   return charset === 'windows-1255' || charset === 'iso-8859-8' ? charset : undefined;
 }
 
+/**
+ * The archive is late-1990s Israeli material, so a file that is not valid UTF-8
+ * is almost certainly Windows-1255 rather than genuinely broken. Decoding it as
+ * UTF-8 anyway turns every Hebrew byte into U+FFFD, which is silent and total
+ * data loss: the whole corpus reduced to its ASCII digits.
+ *
+ * A declared HTML charset still wins, and the sniff window stays bounded, so a
+ * declaration outside it is handled by the same fallback as no declaration.
+ */
+const LEGACY_HEBREW_ENCODING = 'windows-1255';
+
+function decodeExactly(data: Buffer, encoding: string): string | null {
+  try {
+    return new TextDecoder(encoding, { fatal: true }).decode(data);
+  } catch {
+    return null;
+  }
+}
+
 function decodeText(data: Buffer, isHtmlInput: boolean): string {
   const charset = isHtmlInput ? getHtmlCharset(data) : undefined;
-  const encoding =
-    charset === 'windows-1255' || charset === 'iso-8859-8' ? charset : 'utf-8';
+  if (charset === 'windows-1255' || charset === 'iso-8859-8') {
+    return new TextDecoder(charset).decode(data);
+  }
 
-  return new TextDecoder(encoding).decode(data);
+  return (
+    decodeExactly(data, 'utf-8') ??
+    decodeExactly(data, LEGACY_HEBREW_ENCODING) ??
+    new TextDecoder('utf-8').decode(data)
+  );
 }
 
 function isHtml(mimeType: string, name: string): boolean {

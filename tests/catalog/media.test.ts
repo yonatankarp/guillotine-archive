@@ -88,6 +88,22 @@ function mockDocxReadEntryError(error: Error): void {
   });
 }
 
+
+/**
+ * Windows-1255 maps א..ת contiguously onto 0xE0..0xFA, so a period Hebrew file
+ * can be reconstructed byte for byte. Buffer has no encoder for it.
+ */
+function legacyHebrew(value: string): Buffer {
+  return Buffer.from(
+    [...value].map((character) => {
+      const code = character.codePointAt(0)!;
+      if (code === 0x20) return 0x20;
+      if (code < 0x05d0 || code > 0x05ea) throw new Error(`not a Hebrew letter: ${character}`);
+      return code - 0x05d0 + 0xe0;
+    }),
+  );
+}
+
 describe('extractText', () => {
   beforeEach(() => {
     extractRawText.mockReset();
@@ -193,6 +209,50 @@ describe('extractText', () => {
     );
 
     expect(text).toBe('charset=windows-1255 פיפוש');
+  });
+
+  test('decodes Windows-1255 plain text that no charset declaration announces', async () => {
+    const text = await extractText('text/plain', 'notes.txt', legacyHebrew('פיפוש חוזר'));
+
+    expect(text).toBe('פיפוש חוזר');
+  });
+
+  test('decodes Windows-1255 HTML with no charset declaration at all', async () => {
+    const text = await extractText(
+      'text/html',
+      'guide.html',
+      Buffer.concat([Buffer.from('<p>', 'ascii'), legacyHebrew('פתרון מלא'), Buffer.from('</p>', 'ascii')]),
+    );
+
+    expect(text).toContain('פתרון מלא');
+  });
+
+  test('decodes Windows-1255 HTML whose declaration sits past the sniff window', async () => {
+    const text = await extractText(
+      'text/html',
+      'guide.html',
+      Buffer.concat([
+        Buffer.alloc(2048, 0x20),
+        Buffer.from('<meta charset="windows-1255"><p>', 'ascii'),
+        legacyHebrew('פיפוש'),
+        Buffer.from('</p>', 'ascii'),
+      ]),
+    );
+
+    expect(text).toContain('פיפוש');
+  });
+
+  test('never leaves replacement characters in extracted Hebrew', async () => {
+    const text = await extractText('text/plain', 'notes.txt', legacyHebrew('קיבינימאט'));
+
+    expect(text).not.toContain('\uFFFD');
+    expect(text).toBe('קיבינימאט');
+  });
+
+  test('leaves undecodable bytes to the replacement character rather than throwing', async () => {
+    const text = await extractText('text/plain', 'notes.txt', Buffer.from([0x81, 0x8d, 0x8f]));
+
+    expect(typeof text).toBe('string');
   });
 
   test('uses Mammoth for DOCX files and trims its text', async () => {

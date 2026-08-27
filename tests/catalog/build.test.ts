@@ -512,6 +512,70 @@ describe('buildCatalog', () => {
     }
   });
 
+  test('warns when extraction yields text but no Hebrew, the shape of a charset fault', async () => {
+    const root = await temporaryRoot();
+    const files = [
+      driveFile('solution', {
+        name: 'פתרון.txt',
+        mimeType: 'text/plain',
+        path: 'פתרונות/פתרון.txt',
+      }),
+    ];
+    const config = curator({
+      collections: [
+        curatedCollection({
+          rules: [{ match: 'file-id', value: 'solution', relationship: 'part-of-release' }],
+        }),
+      ],
+    });
+
+    // What a Windows-1255 file decoded as UTF-8 leaves behind: the digits only.
+    const result = await buildCatalog({
+      files,
+      curator: config,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      download: async () => Buffer.from('2002 12 61'),
+    });
+
+    expect(result.items[0]?.extractedTextHe).toBe('2002 12 61');
+    expect((await readJson(join(root, 'reports/curator-report.json'))) as { warnings: string[] })
+      .toMatchObject({
+        warnings: [
+          'extracted text from 1 files but found no Hebrew in any of them; suspect a character encoding fault',
+        ],
+      });
+  });
+
+  test('stays quiet when extracted text actually contains Hebrew', async () => {
+    const root = await temporaryRoot();
+    const files = [
+      driveFile('solution', {
+        name: 'פתרון.txt',
+        mimeType: 'text/plain',
+        path: 'פתרונות/פתרון.txt',
+      }),
+    ];
+    const config = curator({
+      collections: [
+        curatedCollection({
+          rules: [{ match: 'file-id', value: 'solution', relationship: 'part-of-release' }],
+        }),
+      ],
+    });
+
+    await buildCatalog({
+      files,
+      curator: config,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      download: async () => Buffer.from('קיבינימאט 2002'),
+    });
+
+    expect((await readJson(join(root, 'reports/curator-report.json'))) as { warnings: string[] })
+      .toMatchObject({ warnings: [] });
+  });
+
   test('builds nested deterministic artifacts and reloadable Hebrew search data', async () => {
     const root = await temporaryRoot();
     const files = [

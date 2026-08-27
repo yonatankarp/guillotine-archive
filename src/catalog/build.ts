@@ -94,6 +94,8 @@ async function previousCatalogCount(root: string, path: string): Promise<number>
   }
 }
 
+const HEBREW_LETTER = /[\u0590-\u05FF]/u;
+
 async function extractCatalogText(
   catalog: Catalog,
   report: ReturnType<typeof validateCatalog>,
@@ -126,6 +128,16 @@ async function extractCatalogText(
       item.extractedTextHe = '';
       report.warnings.push(`failed to extract text for item ${item.id}`);
     }
+  }
+
+  // A charset mistake destroys Hebrew silently: every letter becomes U+FFFD and
+  // the corpus reduces to its ASCII digits, which still looks like a successful
+  // extraction. This is a Hebrew archive, so no Hebrew anywhere is a defect.
+  const extracted = extractableItems.filter((item) => (item.extractedTextHe ?? '') !== '');
+  if (extracted.length > 0 && !extracted.some((item) => HEBREW_LETTER.test(item.extractedTextHe!))) {
+    report.warnings.push(
+      `extracted text from ${extracted.length} files but found no Hebrew in any of them; suspect a character encoding fault`,
+    );
   }
 }
 

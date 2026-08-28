@@ -1,12 +1,17 @@
 ---
 import type { CatalogItem } from '../catalog/types';
 import { driveActions, formatFileSize, officialCollectionLinks } from '../lib/archive';
+import AlbumPlayer from './AlbumPlayer.astro';
 import { formatDuration, posterUrl } from './derivative';
 import { creditedAuthor, itemKindLabel, neverPlayable, textExcerpt } from './release-view';
 
 interface Props {
   items: CatalogItem[];
   labelHe: string;
+  /** The release this list belongs to, where the page knows it. The album player shows it. */
+  releaseTitleHe?: string;
+  /** Catalog-relative cover path of that release, or null where none was ever scanned. */
+  coverPath?: string | null;
   /**
    * Resolves a playable derivative for an item, or null where the pipeline has not produced
    * one. Audio resolves for every track; video resolves once the transcode has run, and a
@@ -21,6 +26,8 @@ interface Props {
 const {
   items,
   labelHe,
+  releaseTitleHe,
+  coverPath = null,
   mediaSrc = () => null,
   showText = false,
   showMediaNote = true,
@@ -38,23 +45,24 @@ const audioSrc = (item: CatalogItem): string | null =>
    as the plain row it has always been. */
 const playlist = items.filter((item) => audioSrc(item) !== null);
 const hasAlbumPlayer = playlist.length > 1;
+
+/**
+ * Tracklist position, counted over the rows rather than over the playlist: a release whose
+ * pipeline has not produced every rendition yet would otherwise number its tracks 1, 2, 4.
+ * A number belongs to the track on the disc, not to what happens to play today.
+ */
+const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
 ---
 
 <div class="album">
   {
     hasAlbumPlayer && (
-      /* Rendered hidden and revealed by src/scripts/audio-queue.ts. Without that script this
-         whole block stays out of the page and out of the accessibility tree, and every row
-         below keeps its own working player. */
-      <div class="album-player" data-album-player hidden>
-        <p class="album-now" role="status">
-          {/* Cued, not playing: the script swaps this the first time the album actually
-              starts, so the line never claims a track is running before one is. */}
-          <span data-album-now-label>מוכן לנגן:</span>{' '}
-          <bdi dir="auto" data-album-now-name>{playlist[0]!.name}</bdi>
-        </p>
-        <audio class="album-audio" data-album-audio controls preload="none" aria-label={labelHe}></audio>
-      </div>
+      <AlbumPlayer
+        labelHe={labelHe}
+        titleHe={releaseTitleHe}
+        coverPath={coverPath}
+        firstTrackNameHe={playlist[0]!.name}
+      />
     )
   }
 
@@ -77,19 +85,54 @@ const hasAlbumPlayer = playlist.length > 1;
         return (
           <li>
             <div class="item-head">
-              <div class="item-identity">
-                <strong><bdi dir="auto">{item.name}</bdi></strong>
-                <p class="item-meta">
-                  <span>{itemKindLabel(item.kind)}</span>
-                  <span class="mono">{formatFileSize(item.size)}</span>
-                  {duration && <span class="mono">{duration}</span>}
-                  {group && <span class="item-group">{group}</span>}
-                  {author && (
-                    <span>
-                      <span class="visually-hidden">קרדיט: </span>{author}
-                    </span>
-                  )}
-                </p>
+              {/* Handle and name are one line at every width. The head itself stacks under
+                  680px, and a tracklist whose play button lands on its own row above the
+                  track is not a tracklist. */}
+              <div class="item-line">
+                {audio !== null && hasAlbumPlayer && (
+                  /* The row's handle on the album player. Hidden until the script has taken
+                     the per-row players away and has somewhere else to send the track. It
+                     only ever means "play this one": pausing is the panel's job, so the
+                     button never claims to do something it is not doing. */
+                  <button
+                    class="track-play"
+                    type="button"
+                    aria-label={`נגן את ${item.name}`}
+                    data-track-play
+                    data-track={item.name}
+                    hidden
+                  >
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                      <path fill="currentColor" d="M8 5v14l11-7z" />
+                    </svg>
+                  </button>
+                )}
+                <div class="item-identity">
+                  <strong>
+                    {hasAlbumPlayer && (
+                      <span class="track-number mono">{String(trackNumber.get(item.id) ?? 0).padStart(2, '0')}</span>
+                    )}
+                    <bdi dir="auto">{item.name}</bdi>
+                  </strong>
+                  <p class="item-meta">
+                    <span>{itemKindLabel(item.kind)}</span>
+                    <span class="mono">{formatFileSize(item.size)}</span>
+                    {/* Drive reports a duration for video and for nothing else, so every one
+                        of the 169 tracks arrives here without one. The script writes it in
+                        once the browser has loaded that track and knows how long it is. */}
+                    {audio !== null && hasAlbumPlayer ? (
+                      <span class="mono track-time" data-track-time>{duration}</span>
+                    ) : (
+                      duration && <span class="mono">{duration}</span>
+                    )}
+                    {group && <span class="item-group">{group}</span>}
+                    {author && (
+                      <span>
+                        <span class="visually-hidden">קרדיט: </span>{author}
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
               {actions.length > 0 && (
                 <div class="file-actions">
@@ -129,18 +172,7 @@ const hasAlbumPlayer = playlist.length > 1;
               ></video>
             )}
 
-            {audio !== null && (
-              <Fragment>
-                <audio class="item-player" controls preload="none" src={audio}></audio>
-                {hasAlbumPlayer && (
-                  /* The row's handle on the album player. Hidden until the script takes the
-                     per-row players away and has somewhere else to send the track. */
-                  <button class="track-play" type="button" data-track-play data-track={item.name} hidden>
-                    נגן<span class="visually-hidden"> את {item.name}</span>
-                  </button>
-                )}
-              </Fragment>
-            )}
+            {audio !== null && <audio class="item-player" controls preload="none" src={audio}></audio>}
 
             {isMedia && source === null && showMediaNote && (
               <p class:list={['item-player-note', { unplayable: neverPlayable(item) }]}>
@@ -171,48 +203,29 @@ const hasAlbumPlayer = playlist.length > 1;
     min-width: 0;
   }
 
-  .album-player {
+  /* Handle beside name, at every width. The head around it stacks under 680px; this line
+     does not, because that is the difference between a tracklist and a pile of rows. */
+  .item-line {
+    min-width: 0;
+    flex: 1 1 auto;
     display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    margin-bottom: 0.9rem;
-    padding: 0.9rem 1rem;
-    border: 1px solid var(--stroke);
-    border-radius: var(--radius-s);
-    background: var(--raise);
-  }
-
-  .album-now {
-    margin: 0;
-    color: var(--dim);
-    font-size: var(--t-2xs);
-    line-height: 1.5;
-    /* Track names are long, unbroken and Latin inside a Hebrew line. */
-    overflow-wrap: anywhere;
-  }
-
-  .album-now bdi {
-    unicode-bidi: isolate;
-    color: var(--text);
-  }
-
-  .album-audio {
-    width: 100%;
-  }
-
-  .track-play {
-    display: inline-flex;
-    min-height: 2.4rem;
     align-items: center;
-    margin-top: 0.75rem;
-    padding: 0.4rem 0.75rem;
+    gap: 0.7rem;
+  }
+
+  /* The play handle leads the row, which in RTL puts it on the right: button, number, name. */
+  .track-play {
+    flex: 0 0 auto;
+    min-width: 2.4rem;
+    min-height: 2.4rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
     border: 1px solid var(--stroke);
-    border-radius: var(--radius-s);
+    border-radius: 999px;
     background: var(--sunk);
     color: var(--text);
     font: inherit;
-    font-size: var(--t-xs);
-    font-weight: 500;
     cursor: pointer;
   }
 
@@ -220,11 +233,46 @@ const hasAlbumPlayer = playlist.length > 1;
     border-color: var(--dim);
   }
 
-  /* The row the player is cued to. Weight carries it as well as colour does, so the state
-     survives a visitor who cannot tell the border apart. */
+  /* The track the player is on. The accent is a wash and a rule here, never the text, and
+     the number carries the same state in weight, so nothing depends on telling hues apart. */
   .track-play[aria-current='true'] {
-    border-color: var(--accent, var(--text));
-    background: var(--raise);
+    border-color: color-mix(in oklab, var(--accent) 60%, var(--stroke));
+    background: color-mix(in oklab, var(--accent) 30%, var(--raise));
+  }
+
+  .item-rows > li:has(.track-play[aria-current='true']) {
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--stroke));
+    background: color-mix(in oklab, var(--accent) 8%, var(--raise));
+  }
+
+  /* The number is its own bidi isolate, and the whitespace between it and the name collapses
+     at that boundary — the two ran together as "Track02.mp301". A flex line puts the gap back
+     without depending on which side of an RTL line either one lands on. */
+  .item-identity strong:has(.track-number) {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .track-number {
+    flex: 0 0 auto;
+    color: var(--dim);
+    font-size: var(--t-2xs);
+    font-weight: 400;
+  }
+
+  .item-identity strong bdi {
+    min-width: 0;
+  }
+
+  .item-rows > li:has(.track-play[aria-current='true']) .track-number {
+    color: var(--text);
     font-weight: 700;
+  }
+
+  /* Empty until the browser has loaded that track and knows its length, and the row must not
+     hold a gap open for a number nobody has yet. */
+  .track-time:empty {
+    display: none;
   }
 </style>

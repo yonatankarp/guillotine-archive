@@ -20,8 +20,8 @@ import { galleryGroups, itemKindLabel } from './release-view';
  * a lyrics book are three things, and the archive already filed them as three
  * directories.
  *
- * Nothing here runs a script. The slides sit in a scroll-snap track and קדימה/אחורה
- * are ordinary in-page links to the neighbouring slide, so the browser does the
+ * Nothing here runs a script. The slides sit in a scroll-snap track and the two step
+ * controls are ordinary in-page links to the neighbouring slide, so the browser does the
  * moving — which is also why the direction is right in RTL without a rule about it,
  * and why the whole thing works with JavaScript off. Everything scrolls inside its own
  * track, so nothing here can widen the page.
@@ -31,6 +31,23 @@ interface Props {
   labelHe: string;
   releaseTitleHe: string;
 }
+
+/* The controls are chevrons, the way every photo gallery draws them, and the arrow is
+   drawn rather than typed: ‹ and › are Bidi_Mirrored characters, so a browser flips them
+   inside an RTL run and the glyph ends up contradicting the link under it. An SVG path is
+   geometry, which no bidi rule touches.
+
+   Each direction gets its own path, written out, because the whole hazard here is a flip
+   rule applied in the wrong places. RTL reads rightwards, so stepping FORWARD through a
+   booklet moves LEFT and the forward chevron points left; אחורה points back to the right.
+   These are physical directions on screen, not logical ones — the mirror of the LTR habit,
+   which is exactly why the e2e test measures where the drawn point ends up. */
+const CHEVRON = {
+  /* Apex at x=16, the rightmost point of the path. */
+  back: 'M9 5 16 12 9 19',
+  /* Apex at x=8, the leftmost. */
+  forward: 'M15 5 8 12 15 19',
+} as const;
 
 const { items, labelHe, releaseTitleHe } = Astro.props;
 const groups = galleryGroups(items, releaseTitleHe);
@@ -107,16 +124,24 @@ const named = groups.length > 1;
                 {/* The bar sits inside the slide, so the controls of the scan you are
                     looking at are the ones on screen. אחורה comes first and lands on the
                     right, where the page you came from is in Hebrew. An object scanned once
-                    has nowhere to step and nothing to count, so it gets no bar at all. */}
+                    has nowhere to step and nothing to count, so it gets no bar at all.
+
+                    The chevron is decoration and says so; the name a screen reader reads is
+                    the aria-label, which still names the direction AND the scan it lands on,
+                    because "‹" on its own is announced as punctuation and points at nothing. */}
                 {total > 1 && (
                 <p class="viewer-bar">
                   {previous === null ? (
                     <span class="viewer-step is-off" aria-hidden="true">
-                      אחורה
+                      <svg class="viewer-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d={CHEVRON.back} />
+                      </svg>
                     </span>
                   ) : (
                     <a class="viewer-step" href={`#${previous}`} aria-label={`אחורה — תמונה ${index}`}>
-                      אחורה
+                      <svg class="viewer-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d={CHEVRON.back} />
+                      </svg>
                     </a>
                   )}
                   <span class="viewer-count mono">
@@ -124,7 +149,9 @@ const named = groups.length > 1;
                   </span>
                   {next === null ? (
                     <span class="viewer-step is-off" aria-hidden="true">
-                      קדימה
+                      <svg class="viewer-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d={CHEVRON.forward} />
+                      </svg>
                     </span>
                   ) : (
                     <a
@@ -132,7 +159,9 @@ const named = groups.length > 1;
                       href={`#${next}`}
                       aria-label={`קדימה — תמונה ${position + 1}`}
                     >
-                      קדימה
+                      <svg class="viewer-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d={CHEVRON.forward} />
+                      </svg>
                     </a>
                   )}
                 </p>

@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { deriveKind } from '../../src/catalog/kind';
 import {
   creditedWorks,
@@ -282,15 +282,114 @@ test('a scan viewer opens on page one and steps with JavaScript off', async ({
     await expect(bar.getByRole('link', { name: /^אחורה/u })).toHaveCount(0);
     const secondBar = track.locator('> .viewer-slide').nth(1).locator('.viewer-bar');
     const back = secondBar.getByRole('link', { name: /^אחורה/u });
+    const secondForward = secondBar.getByRole('link', { name: /^קדימה/u });
     const sides = {
       back: (await back.boundingBox())!.x,
-      forward: (await secondBar.getByRole('link', { name: /^קדימה/u }).boundingBox())!.x,
+      forward: (await secondForward.boundingBox())!.x,
     };
     expect(sides.back, 'אחורה sits to the right of קדימה').toBeGreaterThan(sides.forward);
 
+    /* And the chevrons point the way the controls actually go. This is the one thing about
+       the viewer an LTR-trained eye will wave through while it is backwards, so it is
+       measured off the painted geometry rather than read off an attribute: sample the path,
+       map every point through getScreenCTM — which folds in any CSS transform an edit might
+       add — and ask where the drawn apex ended up relative to the two tails. A chevron that
+       was flipped in CSS fails here; one that merely claims a direction in markup cannot
+       pass. Forward is leftwards in RTL, so קדימה's point is the LEFTMOST part of its arrow
+       and אחורה's is the rightmost. */
+    const aim = (link: Locator) =>
+      link.locator('svg.viewer-chevron path').evaluate((path: SVGPathElement) => {
+        const matrix = path.getScreenCTM()!;
+        const length = path.getTotalLength();
+        const xs = Array.from({ length: 21 }, (_, step) =>
+          path.getPointAtLength((length * step) / 20).matrixTransform(matrix).x,
+        );
+        const [start] = xs;
+        const end = xs[xs.length - 1]!;
+        const tails = { left: Math.min(start!, end), right: Math.max(start!, end) };
+
+        return {
+          /* The apex overhangs both tails on one side, and nothing overhangs the other. */
+          pointsLeft: Math.min(...xs) < tails.left - 1 && Math.max(...xs) <= tails.right + 0.5,
+          pointsRight: Math.max(...xs) > tails.right + 1 && Math.min(...xs) >= tails.left - 0.5,
+        };
+      });
+
+    expect(await aim(secondForward), 'קדימה points left, the way RTL runs').toEqual({
+      pointsLeft: true,
+      pointsRight: false,
+    });
+    expect(await aim(back), 'אחורה points right, back the way you came').toEqual({
+      pointsLeft: false,
+      pointsRight: true,
+    });
+    /* The arrow is scenery; the name is the label, and it still says where you land. */
+    expect(
+      await secondBar.locator('a.viewer-step svg').evaluateAll((nodes) => ({
+        chevrons: nodes.length,
+        hidden: nodes.filter((node) => node.getAttribute('aria-hidden') === 'true').length,
+      })),
+      'no chevron is announced as "less than"',
+    ).toEqual({ chevrons: 2, hidden: 2 });
+    await expect(back).toHaveAttribute('aria-label', /^אחורה — תמונה \d+$/u);
+    await expect(secondForward).toHaveAttribute('aria-label', /^קדימה — תמונה \d+$/u);
+
+    /* Following a step control moves the element that was just followed: the bar rides inside
+       the slide — which is what lets it work with no script, since a bar outside the track
+       could not know which slide is showing — so the track scrolls and slide one's bar leaves
+       the viewport. Playwright keeps re-running actionability while that happens, scrolls the
+       control back, fights scroll-snap doing it, and can stall past its own timeout after the
+       click has in fact landed. That is a property of the harness, not something a visitor
+       meets: the next slide's bar arrives at the same screen position, so the controls read as
+       stationary.
+
+       So the control is proved reachable explicitly and then pressed. This is not force:
+       viewport, paint and a hit test at the control's own centre are all checked here, and the
+       hit test is stricter than click() — an overlay sitting on top of a control fails it,
+       which click() would happily scroll around. What is dropped is only the retry loop that
+       cannot converge on a control that moves itself.
+
+       Scroll, measure, hit-test and press all happen inside ONE page turn, so there is no
+       window in which the control can move between being checked and being pressed. That is
+       what makes this immune rather than merely luckier: nothing to wait for, and no second
+       look at a control that has by then travelled. */
+    const press = async (control: Locator, what: string) => {
+      expect(
+        await control.evaluate((node: HTMLElement) => {
+          /* instant, not the page's smooth default: a scroll still animating would be
+             measured mid-flight. */
+          node.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+          const box = node.getBoundingClientRect();
+          const topmost = document.elementFromPoint(
+            box.left + box.width / 2,
+            box.top + box.height / 2,
+          );
+          const checks = {
+            onScreen:
+              box.top >= 0 &&
+              box.left >= 0 &&
+              box.bottom <= window.innerHeight &&
+              box.right <= window.innerWidth,
+            /* Nothing covers it, and the centre of the target belongs to the control. */
+            reachable: topmost !== null && (topmost === node || node.contains(topmost)),
+            painted:
+              getComputedStyle(node).visibility === 'visible' && box.width > 0 && box.height > 0,
+            /* Still a link to a slide, which is the whole no-JS mechanism. */
+            linked: (node.getAttribute('href') ?? '').startsWith('#'),
+          };
+
+          /* Only press a control that passed, so a broken one reports the reason rather than
+             navigating anyway and failing later as something else. */
+          if (Object.values(checks).every(Boolean)) node.click();
+          return checks;
+        }),
+        `${what} is a control a finger could actually land on`,
+      ).toEqual({ onScreen: true, reachable: true, painted: true, linked: true });
+    };
+
     /* No script to run a control: קדימה is a link to the next slide, and following it is
        what moves the track. This is the whole no-JS story. */
-    await forward.click();
+    await press(forward, 'קדימה');
     await expect
       .poll(async () =>
         track.evaluate((element) => {
@@ -314,8 +413,8 @@ test('a scan viewer opens on page one and steps with JavaScript off', async ({
       'the other viewer stayed on its own page one',
     ).toBe(0);
 
-    // And back the way we came.
-    await back.click();
+    // And back the way we came. Same exposure, same treatment: this bar moves itself too.
+    await press(back, 'אחורה');
     await expect
       .poll(async () =>
         track.evaluate((element) => {

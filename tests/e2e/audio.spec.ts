@@ -24,15 +24,66 @@ const lonePlayers = counts.filter((size) => size === 1);
 
 /* The listening page orders its albums by size, so the biggest is the first one on the page.
    Its rows are every track of that release; its playlist is the rows that can play. */
-const biggestSlug = [...tracksByRelease].sort(([, left], [, right]) => right - left)[0]![0];
+const albumOrder = [...tracksByRelease]
+  .filter(([, size]) => size > 1)
+  .sort(([, left], [, right]) => right - left)
+  .map(([slug]) => slug);
+const biggestSlug = albumOrder[0]!;
 const biggestRows = expectedCatalog.items.filter(
   (item) => item.kind === 'track' && item.releaseSlug === biggestSlug,
 ).length;
 const biggestPlaylist = tracksByRelease.get(biggestSlug)!;
 
+/* Five of the 42 releases were ever scanned, so the panel meets a release with no cover far
+   more often than one with a cover, and both have to be on the page to be checked. */
+const coveredSlugs = new Set(
+  expectedCatalog.releases.filter((release) => release.coverFileId).map((release) => release.slug),
+);
+
 function album(page: Page, index = 0) {
   return page.locator('.album').nth(index);
 }
+
+/** The panel's own controls, which exist only once the script has run. */
+function panel(page: Page, index = 0) {
+  const scope = album(page, index);
+  return {
+    audio: scope.locator('[data-album-audio]'),
+    seek: scope.locator('[data-album-seek]'),
+    elapsed: scope.locator('[data-album-elapsed]'),
+    total: scope.locator('[data-album-total]'),
+    toggle: scope.locator('[data-album-toggle]'),
+    previous: scope.locator('[data-album-prev]'),
+    next: scope.locator('[data-album-next]'),
+    tracks: scope.locator('.track-play'),
+  };
+}
+
+const isPaused = (page: Page, index = 0) =>
+  panel(page, index)
+    .audio.first()
+    .evaluate((node: HTMLAudioElement) => node.paused);
+
+/**
+ * Hangs up every stream this file opened.
+ *
+ * Pausing an <audio> does not close its connection, and this is the only spec on the site that
+ * fetches media at all, so without this a run leaves buffering Opus streams open behind every
+ * test that pressed play. Hygiene rather than a fix for anything: it was added while chasing a
+ * timeout in another spec, and it did not change that timeout. Guarded because the no-JS
+ * context cannot evaluate anything.
+ */
+test.afterEach(async ({ page }) => {
+  await page
+    .evaluate(() => {
+      for (const media of document.querySelectorAll('audio')) {
+        media.pause();
+        media.removeAttribute('src');
+        media.load();
+      }
+    })
+    .catch(() => undefined);
+});
 
 test.describe('with the script switched off', () => {
   test.use({ javaScriptEnabled: false });
@@ -42,9 +93,9 @@ test.describe('with the script switched off', () => {
        is the only proof that what it takes away was ever there. */
     await page.goto(site.route('listen/'));
 
-    /* The rows only. The panel's own player is on the page too and also carries `controls`,
-       but it is hidden and has no source until the script cues it, so it is not part of what
-       a visitor without the script can play. */
+    /* The rows only. The panel's own player is on the page too, but it is hidden, carries no
+       controls and has no source until the script cues it, so it is not part of what a
+       visitor without the script can play. */
     await expect(page.locator('.item-rows audio[controls]')).toHaveCount(playableTracks.length);
     for (const source of await page.locator('.item-rows audio').evaluateAll((nodes) =>
       nodes.map((node) => node.getAttribute('src') ?? ''),
@@ -55,16 +106,30 @@ test.describe('with the script switched off', () => {
     }
 
     /* The script-only layer ships in the HTML, so it has to be inert rather than merely
-       unstyled: none of it may reach the page, the accessibility tree or the tab order. */
+       unstyled: none of it may reach the page, the accessibility tree or the tab order. The
+       seek bar is the part with a scoped `display` of its own, and a scoped rule ties with
+       [hidden] and wins on source order — which is exactly what this catches. */
     await expect(page.locator('.album-player')).toHaveCount(albumsWithPlayer.length);
     await expect(page.locator('.album-player:visible')).toHaveCount(0);
+    /* Both halves matter: the bar has to be in the served HTML, and it has to be invisible.
+       Counting only what is visible would pass just as well on a page that lost the bar. */
+    await expect(page.locator('.album-player input[type="range"]')).toHaveCount(
+      albumsWithPlayer.length,
+    );
+    await expect(page.locator('.album-player input[type="range"]:visible')).toHaveCount(0);
+    await expect(page.locator('.player-transport button:visible')).toHaveCount(0);
     await expect(page.locator('.track-play:visible')).toHaveCount(0);
+    await expect(page.getByRole('slider')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /נגן/u })).toHaveCount(0);
     await expect(page.getByRole('status')).toHaveCount(0);
+
+    /* The numbering is the disc's, not the script's: a tracklist is numbered either way. */
+    await expect(album(page).locator('.track-number')).toHaveCount(biggestRows);
+    await expect(album(page).locator('.track-number').first()).toHaveText('01');
   });
 });
 
-test('an album is upgraded to one player and a playlist', async ({ page }) => {
+test('an album is upgraded to one designed player and a playlist', async ({ page }) => {
   await page.goto(site.route('listen/'));
 
   /* One player per album that has more than one track, plus the lone tracks that were left
@@ -73,26 +138,63 @@ test('an album is upgraded to one player and a playlist', async ({ page }) => {
   await expect(page.locator('.item-rows audio')).toHaveCount(lonePlayers.length);
 
   const first = album(page);
+  const controls = panel(page);
   await expect(first.locator('.album-player')).toBeVisible();
-  await expect(first.locator('[data-album-audio]')).toHaveCount(1);
+  await expect(controls.audio).toHaveCount(1);
   await expect(first.locator('.item-rows > li')).toHaveCount(biggestRows);
 
+  /* The browser's own control is gone: the panel around it is the control now. */
+  await expect(controls.audio).toHaveJSProperty('controls', false);
+  await expect(controls.toggle).toBeVisible();
+  await expect(controls.previous).toBeVisible();
+  await expect(controls.next).toBeVisible();
+  await expect(controls.seek).toBeVisible();
+
   /* The list is still a list, and each track is still one row of it. */
-  const buttons = first.locator('.track-play');
-  await expect(buttons).toHaveCount(biggestPlaylist);
-  await expect(buttons.first()).toBeVisible();
+  await expect(controls.tracks).toHaveCount(biggestPlaylist);
+  await expect(controls.tracks.first()).toBeVisible();
   await expect(first.getByRole('list')).toHaveCount(1);
   await expect(first.getByRole('listitem')).toHaveCount(biggestRows);
 
-  const cued = first.locator('[data-album-audio]');
-  await expect(cued).toHaveJSProperty('preload', 'none');
-  await expect(cued).toHaveAttribute('src', /generated\/derivatives\//u);
-  await expect(buttons.first()).toHaveAttribute('aria-current', 'true');
+  await expect(controls.audio).toHaveJSProperty('preload', 'none');
+  await expect(controls.audio).toHaveAttribute('src', /generated\/derivatives\//u);
+  await expect(controls.tracks.first()).toHaveAttribute('aria-current', 'true');
   await expect(first.locator('[data-album-now-name]')).toHaveText(
-    (await buttons.first().getAttribute('data-track')) ?? '',
+    (await controls.tracks.first().getAttribute('data-track')) ?? '',
   );
   /* Cued is not playing, and the panel says the cued thing until a track actually starts. */
   await expect(first.locator('[data-album-now-label]')).toHaveText('מוכן לנגן:');
+  await expect(controls.toggle).toHaveAttribute('aria-label', 'נגן');
+  /* Nothing has been loaded, so nothing knows how long it is, and the bar says so rather
+     than offering a position inside a length it does not have. */
+  await expect(controls.total).toHaveText('--:--');
+  await expect(controls.elapsed).toHaveText('0:00');
+  await expect(controls.seek).toHaveAttribute('aria-disabled', 'true');
+  /* The album starts at its first track, so there is nothing behind it. */
+  await expect(controls.previous).toHaveAttribute('aria-disabled', 'true');
+  await expect(controls.next).toHaveAttribute('aria-disabled', 'false');
+});
+
+test('every album gets art, and one with no scan gets the filed placeholder', async ({ page }) => {
+  await page.goto(site.route('listen/'));
+
+  const panels = page.locator('.album-player');
+  await expect(panels).toHaveCount(albumsWithPlayer.length);
+  expect(albumOrder.some((slug) => !coveredSlugs.has(slug)), 'a coverless album is on the page').toBe(
+    true,
+  );
+
+  for (const [index, slug] of albumOrder.entries()) {
+    const art = panels.nth(index).locator('.player-art');
+    const covered = coveredSlugs.has(slug);
+    await expect(art.locator('img'), slug).toHaveCount(covered ? 1 : 0);
+    /* The dither the whole site uses for a release nobody ever scanned, and it is decoration:
+       the page already says the release name in its own heading. */
+    await expect(art.locator('.release-placeholder.dither'), slug).toHaveCount(covered ? 0 : 1);
+    if (!covered) {
+      await expect(art.locator('.release-placeholder')).toHaveAttribute('aria-hidden', 'true');
+    }
+  }
 });
 
 test('cueing an album fetches nothing', async ({ page }) => {
@@ -125,8 +227,8 @@ test('picking a track plays it in the album player and says which one', async ({
   await page.goto(site.route('listen/'));
 
   const first = album(page);
-  const player = first.locator('[data-album-audio]');
-  const third = first.locator('.track-play').nth(2);
+  const controls = panel(page);
+  const third = controls.tracks.nth(2);
   const name = (await third.getAttribute('data-track')) ?? '';
 
   await third.click();
@@ -136,10 +238,80 @@ test('picking a track plays it in the album player and says which one', async ({
   /* The live region names the track, which is how a change with no control behind it —
      the album moving on by itself — reaches a screen reader at all. */
   await expect(first.getByRole('status')).toContainText(name);
-  await expect
-    .poll(async () => player.evaluate((node: HTMLAudioElement) => node.paused))
-    .toBe(false);
+  await expect.poll(() => isPaused(page)).toBe(false);
   await expect(first.locator('[data-album-now-label]')).toHaveText('מתנגן עכשיו:');
+  await expect(controls.toggle).toHaveAttribute('aria-label', 'עצור');
+});
+
+test('the panel plays, pauses and steps through the album', async ({ page }) => {
+  await page.goto(site.route('listen/'));
+
+  const controls = panel(page);
+  const second = (await controls.tracks.nth(1).getAttribute('data-track')) ?? '';
+
+  await controls.toggle.click();
+  await expect.poll(() => isPaused(page), { message: 'the panel started the cued track' }).toBe(
+    false,
+  );
+  await expect(controls.toggle).toHaveAttribute('aria-label', 'עצור');
+
+  await controls.toggle.click();
+  await expect.poll(() => isPaused(page), { message: 'the same button stopped it' }).toBe(true);
+  await expect(controls.toggle).toHaveAttribute('aria-label', 'נגן');
+
+  /* Stepping keeps the album as it was found: a paused album is cued on, not started. */
+  await controls.next.click();
+  await expect(controls.tracks.nth(1)).toHaveAttribute('aria-current', 'true');
+  await expect(album(page).locator('[data-album-now-name]')).toHaveText(second);
+  expect(await isPaused(page), 'a paused album stays paused when it is stepped').toBe(true);
+  await expect(controls.previous).toHaveAttribute('aria-disabled', 'false');
+
+  await controls.previous.click();
+  await expect(controls.tracks.first()).toHaveAttribute('aria-current', 'true');
+  /* Nothing sits before the first track, and the control that would go there says so. It is
+     marked rather than disabled so it keeps its place in the tab order — losing focus because
+     the album reached its end is worse than a control that says it has nothing to do.
+     dispatchEvent, not click: Playwright refuses to click an aria-disabled control, which is
+     the tooling agreeing about the state. This drives the listener past that refusal to prove
+     the guard behind it holds too. */
+  await expect(controls.previous).toHaveAttribute('aria-disabled', 'true');
+  await controls.previous.dispatchEvent('click');
+  await expect(controls.tracks.first()).toHaveAttribute('aria-current', 'true');
+  expect(await isPaused(page), 'the album did not start itself at its own edge').toBe(true);
+});
+
+test('the bar says where the track is and seeks from the keyboard', async ({ page }) => {
+  await page.goto(site.route('listen/'));
+
+  const controls = panel(page);
+  await controls.tracks.first().click();
+
+  /* A length is only ever learned from the file itself: the catalog has none for a track. */
+  await expect
+    .poll(() => controls.seek.getAttribute('aria-disabled'), {
+      message: 'the length arrived with the track',
+    })
+    .toBe('false');
+  await expect(controls.total).toHaveText(/^\d+:\d\d$/u);
+  expect(Number(await controls.seek.getAttribute('max'))).toBeGreaterThan(0);
+  /* And the row keeps what the panel learned, because nothing else was ever going to tell it. */
+  await expect(album(page).locator('.item-rows > li').first().locator('[data-track-time]')).toHaveText(
+    /^\d+:\d\d$/u,
+  );
+
+  await controls.audio.evaluate((node: HTMLAudioElement) => node.pause());
+  await controls.seek.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight');
+
+  /* The bar is forced LTR like every other number on the site, so the forward arrow moves
+     forward whatever the page direction is. */
+  await expect
+    .poll(() => controls.audio.evaluate((node: HTMLAudioElement) => node.currentTime))
+    .toBeGreaterThan(0);
+  /* A slider reading "37" is a slider reading nothing: a position is a time. */
+  await expect(controls.seek).toHaveAttribute('aria-valuetext', /^\d+:\d\d מתוך \d+:\d\d$/u);
+  await expect(controls.elapsed).toHaveText(/^\d+:\d\d$/u);
 });
 
 test('one track plays at a time, across albums', async ({ page }) => {
@@ -148,78 +320,77 @@ test('one track plays at a time, across albums', async ({ page }) => {
   const players = page.locator('[data-album-audio]');
   expect(await players.count()).toBeGreaterThan(1);
 
-  await album(page, 0).locator('.track-play').first().click();
-  await expect
-    .poll(async () => players.nth(0).evaluate((node: HTMLAudioElement) => node.paused))
-    .toBe(false);
+  await panel(page, 0).tracks.first().click();
+  await expect.poll(() => isPaused(page, 0)).toBe(false);
 
-  await album(page, 1).locator('.track-play').first().click();
-  await expect
-    .poll(async () => players.nth(1).evaluate((node: HTMLAudioElement) => node.paused))
-    .toBe(false);
+  await panel(page, 1).tracks.first().click();
+  await expect.poll(() => isPaused(page, 1)).toBe(false);
 
   const playing = await page.evaluate(
     () => [...document.querySelectorAll('audio')].filter((node) => !node.paused).length,
   );
   expect(playing, 'exactly one player is active').toBe(1);
-  await expect
-    .poll(async () => players.nth(0).evaluate((node: HTMLAudioElement) => node.paused))
-    .toBe(true);
+  await expect.poll(() => isPaused(page, 0)).toBe(true);
 });
 
 test('an album plays through', async ({ page }) => {
   await page.goto(site.route('listen/'));
 
   const first = album(page);
-  const player = first.locator('[data-album-audio]');
-  const buttons = first.locator('.track-play');
-  const second = (await buttons.nth(1).getAttribute('data-track')) ?? '';
+  const controls = panel(page);
+  const second = (await controls.tracks.nth(1).getAttribute('data-track')) ?? '';
 
-  await buttons.first().click();
-  const played = await player.getAttribute('src');
+  await controls.tracks.first().click();
+  const played = await controls.audio.getAttribute('src');
 
   /* A finished track hands over to the next one in the same album, and the playlist says so. */
-  await player.evaluate((node) => node.dispatchEvent(new Event('ended')));
+  await controls.audio.evaluate((node) => node.dispatchEvent(new Event('ended')));
 
-  await expect(player).not.toHaveAttribute('src', played ?? '');
-  await expect(buttons.nth(1)).toHaveAttribute('aria-current', 'true');
-  await expect(buttons.first()).not.toHaveAttribute('aria-current', 'true');
+  await expect(controls.audio).not.toHaveAttribute('src', played ?? '');
+  await expect(controls.tracks.nth(1)).toHaveAttribute('aria-current', 'true');
+  await expect(controls.tracks.first()).not.toHaveAttribute('aria-current', 'true');
   await expect(first.getByRole('status')).toContainText(second);
 });
 
-test('the playlist is usable from the keyboard alone', async ({ page }) => {
+test('the player is usable from the keyboard alone', async ({ page }) => {
   await page.goto(site.route('listen/'));
 
-  const buttons = album(page).locator('.track-play');
-  await buttons.nth(1).focus();
+  const controls = panel(page);
+
+  /* The panel first: its three controls are ordinary buttons, so Enter works the transport. */
+  await controls.next.focus();
   await page.keyboard.press('Enter');
-  await expect(buttons.nth(1)).toHaveAttribute('aria-current', 'true');
-  await expect(buttons.first()).not.toHaveAttribute('aria-current', 'true');
+  await expect(controls.tracks.nth(1)).toHaveAttribute('aria-current', 'true');
+
+  await controls.tracks.nth(1).focus();
+  await page.keyboard.press('Enter');
+  await expect(controls.tracks.nth(1)).toHaveAttribute('aria-current', 'true');
 
   /* Tabbing forward reaches the next track without passing anything that traps: the rest of
      a row is the two Drive links and nothing else. */
   for (let press = 0; press < 6; press += 1) {
-    if (await buttons.nth(2).evaluate((node) => node === document.activeElement)) break;
+    if (await controls.tracks.nth(2).evaluate((node) => node === document.activeElement)) break;
     await page.keyboard.press('Tab');
   }
-  await expect(buttons.nth(2)).toBeFocused();
+  await expect(controls.tracks.nth(2)).toBeFocused();
 
   await page.keyboard.press('Enter');
-  await expect(buttons.nth(2)).toHaveAttribute('aria-current', 'true');
+  await expect(controls.tracks.nth(2)).toHaveAttribute('aria-current', 'true');
   await expect(album(page).locator('.track-play[aria-current="true"]')).toHaveCount(1);
 });
 
-test('the playlist is clean for axe and stays inside 320px', async ({ page }) => {
+test('the player is clean for axe and stays inside 320px', async ({ page }) => {
   for (const route of ['listen/', 'release/hatbara-shel-piposh/']) {
     await page.goto(site.route(route));
 
-    /* Analysed with a track current, because aria-current and the live region only carry
-       anything once the album has been sent somewhere. Paused again so the scan is not
-       reading a page mid-playback. */
-    const player = album(page).locator('[data-album-audio]');
-    await album(page).locator('.track-play').nth(1).click();
-    await expect(player).toHaveAttribute('aria-label', /.+/u);
-    await player.evaluate((node: HTMLAudioElement) => node.pause());
+    /* Analysed with a track current and a length known, because aria-current, the live region
+       and the bar's own range only carry anything once the album has been sent somewhere.
+       Paused again so the scan is not reading a page mid-playback. */
+    const controls = panel(page);
+    await controls.tracks.nth(1).click();
+    await expect(controls.audio).toHaveAttribute('aria-label', /.+/u);
+    await expect.poll(() => controls.seek.getAttribute('aria-disabled')).toBe('false');
+    await controls.audio.evaluate((node: HTMLAudioElement) => node.pause());
     expect((await new AxeBuilder({ page }).analyze()).violations, route).toEqual([]);
 
     const overflow = await page.evaluate(() => ({

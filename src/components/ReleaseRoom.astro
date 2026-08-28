@@ -104,6 +104,8 @@ const facts = [
             <ItemRows
               items={section.items}
               labelHe={`${section.headingHe} — ${release.titleHe}`}
+              releaseTitleHe={release.titleHe}
+              coverPath={cover}
               showText={section.id === 'documents'}
               showMediaNote={section.id !== 'music'}
               mediaSrc={

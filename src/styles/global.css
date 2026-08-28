@@ -1350,8 +1350,8 @@ main {
    grid made a booklet read as a pile of loose pages.
 
    One scan at a time, as big as the column allows. No script anywhere in here: the track is
-   a scroll container, each slide is one page of the object, and קדימה/אחורה are links to the
-   slide beside it — so the browser does the moving, with JavaScript off as well as on, and
+   a scroll container, each slide is one page of the object, and the two chevrons are links to
+   the slide beside it — so the browser does the moving, with JavaScript off as well as on, and
    the direction comes out right in RTL without a single rule about it. Tabbing works for the
    same reason: a focused link is a link the browser scrolls into view. */
 .media-gallery {
@@ -1480,18 +1480,21 @@ main {
   width: min(100%, max(13rem, var(--frame-width, 100%)));
 }
 
+/* A chevron-only control is the classic too-small tap target, so the box is pinned square at
+   2.75rem rather than left to shrink to the size of the arrow inside it. That is 44px each
+   way, comfortably past the 24px WCAG 2.5.8 floor the worded control used to clear on its
+   text alone. */
 .viewer-step {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 2.75rem;
   min-height: 2.75rem;
-  padding: 0.35rem 1.1rem;
+  padding: 0.35rem 0.8rem;
   border: 1px solid var(--stroke);
   border-radius: var(--radius-s);
   background: var(--raise);
   color: inherit;
-  font-size: var(--t-s);
-  font-weight: 500;
   text-decoration: none;
 }
 
@@ -1503,6 +1506,20 @@ main {
    its space so the live one does not move between slides, and says nothing to anyone. */
 .viewer-step.is-off {
   visibility: hidden;
+}
+
+/* Decoration: the direction a reader is told is on the link's aria-label, and the shape of
+   the arrow is in the path itself, not in a transform here. Nothing in this rule may flip
+   it — a mirrored chevron would silently disagree with the label beside it, and in RTL that
+   is a viewer that looks like it runs backwards. */
+.viewer-chevron {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .viewer-count {

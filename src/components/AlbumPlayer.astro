@@ -1,0 +1,327 @@
+---
+import { sitePath } from '../lib/url';
+
+/**
+ * The album's one player: cover, transport, a seek bar, and the line that says what is on.
+ *
+ * Served hidden and revealed only by src/scripts/audio-queue.ts. Nothing in here works
+ * without that script, which is why the rows below it keep their own <audio controls> until
+ * the script has this panel on screen and wired. The `hidden` attribute is load-bearing:
+ * global.css carries `[hidden] { display: none !important }` because a scoped rule here
+ * would otherwise tie with the UA sheet and show a dead player to a visitor with no
+ * JavaScript.
+ *
+ * The catalog has no length for any of the 169 tracks — Drive only reports duration for
+ * video — so the clocks and the bar's range open unknown and are filled in from the audio
+ * element the first time a track is actually loaded. Nothing here is allowed to fetch a
+ * byte before someone presses play.
+ */
+
+interface Props {
+  /** Names the album's single player, the same label the list of tracks carries. */
+  labelHe: string;
+  /** The release these tracks came out on, shown when it has no cover to show instead. */
+  titleHe?: string;
+  /** Catalog-relative cover path, or null for the 37 releases that were never scanned. */
+  coverPath?: string | null;
+  /** What the panel is cued to before the script has run a line. */
+  firstTrackNameHe: string;
+}
+
+const { labelHe, titleHe, coverPath = null, firstTrackNameHe } = Astro.props;
+---
+
+<div class="album-player" data-album-player hidden>
+  <div class="player-art mat">
+    {
+      coverPath ? (
+        <img src={sitePath(coverPath)} alt={titleHe ? `עטיפת ${titleHe}` : ''} loading="lazy" decoding="async" />
+      ) : (
+        /* The archive's usual state, not its exception: no scan, so the dither carries the
+           frame and the title is the artwork. Hidden from assistive tech because the page
+           already says the release name in its own heading. */
+        <div class="release-placeholder dither" aria-hidden="true">
+          <strong>{titleHe ?? 'גיליוטין'}</strong>
+        </div>
+      )
+    }
+  </div>
+
+  <div class="player-body">
+    <p class="player-now" role="status">
+      {/* Cued, not playing: the script swaps this the first time the album actually starts,
+          so the line never claims a track is running before one is. This is also the only
+          live region on the page, which is how the album moving on by itself — a change no
+          control made — reaches a screen reader at all. */}
+      <span data-album-now-label>מוכן לנגן:</span>{' '}
+      <bdi dir="auto" data-album-now-name>{firstTrackNameHe}</bdi>
+    </p>
+
+    {/* One LTR instrument inside an RTL page, the same call .mono makes for filenames and
+        sizes: a position inside a duration is a number line, and its two clocks read
+        0:00 on the left and the total on the right whatever the page direction is. */}
+    <div class="player-controls">
+      <div class="player-seek">
+        <span class="mono player-clock" data-album-elapsed>0:00</span>
+        <input
+          class="player-range"
+          type="range"
+          min="0"
+          max="0"
+          step="1"
+          value="0"
+          aria-label="איפה אנחנו בשיר"
+          aria-valuetext="0:00"
+          aria-disabled="true"
+          data-album-seek
+        />
+        <span class="mono player-clock" data-album-total>--:--</span>
+      </div>
+
+      <div class="player-transport">
+        <button class="player-button" type="button" aria-label="השיר הקודם" aria-disabled="true" data-album-prev>
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M7 5h2.5v14H7zM19 5v14l-8.5-7z"></path>
+          </svg>
+        </button>
+        <button class="player-button player-toggle" type="button" aria-label="נגן" data-album-toggle>
+          <svg class="icon-play" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M8 5v14l11-7z"></path>
+          </svg>
+          <svg class="icon-pause" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"></path>
+          </svg>
+        </button>
+        <button class="player-button" type="button" aria-label="השיר הבא" data-album-next>
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M14.5 5H17v14h-2.5zM5 5l8.5 7L5 19z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {/* No controls: the panel around it is the control. preload="none" is what keeps a page of
+      169 tracks free to open. */}
+  <audio class="album-audio" data-album-audio preload="none" aria-label={labelHe}></audio>
+</div>
+
+<style>
+  /* The art grows with the panel: at a phone width it is a stamp beside the controls, and on
+     a wide page it is the piece of art the album is, which is what the archive is for. */
+  .album-player {
+    display: grid;
+    grid-template-columns: clamp(4rem, 12vw, 8rem) minmax(0, 1fr);
+    gap: clamp(0.7rem, 2vw, 1.2rem);
+    align-items: center;
+    /* The card is as wide as a player needs and no wider. Left to span the whole column it
+       stretched the bar into a rule and left a hole beside the controls; the tracklist under
+       it still runs full width, which is the shape a sleeve and its back cover have. */
+    max-width: 46rem;
+    margin-bottom: 0.9rem;
+    padding: clamp(0.7rem, 2vw, 1rem);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-s);
+    background: color-mix(in oklab, var(--accent) 8%, var(--raise));
+  }
+
+  .player-art {
+    aspect-ratio: 4 / 5;
+    display: grid;
+    overflow: hidden;
+    border-radius: var(--radius-s);
+  }
+
+  .player-art img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+  }
+
+  /* The placeholder is sized for a release tile; at this size its display face would swallow
+     the box, so only the type comes down. */
+  .player-art .release-placeholder {
+    padding: 0.4rem;
+  }
+
+  .player-art .release-placeholder strong {
+    font-size: var(--t-2xs);
+    line-height: 1.2;
+  }
+
+  .player-art .release-placeholder::before {
+    inset: 0.3rem;
+  }
+
+  .player-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  /* The track is the headline of this panel. At label size the whole thing read as a toolbar
+     with a caption; the name carries it, and the state word stays small beside it. */
+  .player-now {
+    margin: 0;
+    color: var(--dim);
+    font-size: var(--t-2xs);
+    line-height: 1.4;
+    /* Track names are long, unbroken and Latin inside a Hebrew line. */
+    overflow-wrap: anywhere;
+  }
+
+  .player-now bdi {
+    unicode-bidi: isolate;
+    color: var(--text);
+    font-size: var(--t-m);
+    font-weight: 500;
+  }
+
+  .player-controls {
+    direction: ltr;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .player-seek {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .player-clock {
+    flex: 0 0 auto;
+    /* Wide enough for the longest thing either clock ever says, so the bar keeps its length
+       while the seconds tick. --faint is below AA at this size in both themes; the tokens
+       file says so, which is why this is --dim. */
+    min-width: 2.75rem;
+    color: var(--dim);
+    font-size: var(--t-2xs);
+  }
+
+  /* A range input has an intrinsic minimum width of its own, which is what pushes a 320px
+     page sideways when it sits in a row between two clocks. The height comes from padding
+     rather than a fixed box: the track then centres itself in the hit area in both engines
+     instead of relying on where each one decides to put it. */
+  .player-range {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+    padding: 0.55rem 0;
+    background: none;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+  }
+
+  .player-range[aria-disabled='true'] {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  /* Chromium has one track and no notion of a played part, so the fill is a gradient the
+     script moves through --played. Firefox has ::-moz-range-progress and fills it itself,
+     which is why the two engines are styled apart rather than made to share a rule. */
+  .player-range::-webkit-slider-runnable-track {
+    height: 0.35rem;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--accent) 0 var(--played, 0%),
+      var(--sunk) var(--played, 0%)
+    );
+  }
+
+  .player-range::-moz-range-track {
+    height: 0.35rem;
+    border-radius: 999px;
+    background: var(--sunk);
+  }
+
+  .player-range::-moz-range-progress {
+    height: 0.35rem;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+
+  .player-range::-webkit-slider-thumb {
+    width: 0.85rem;
+    height: 0.85rem;
+    /* Half the thumb above the 0.35rem track, so it rides the line instead of sitting on it. */
+    margin-top: -0.25rem;
+    border: 1px solid var(--stroke);
+    border-radius: 999px;
+    background: var(--text);
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .player-range::-moz-range-thumb {
+    width: 0.85rem;
+    height: 0.85rem;
+    border: 1px solid var(--stroke);
+    border-radius: 999px;
+    background: var(--text);
+  }
+
+  .player-transport {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .player-button {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--stroke);
+    border-radius: 999px;
+    background: var(--sunk);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .player-toggle {
+    min-width: 3rem;
+    min-height: 3rem;
+    background: color-mix(in oklab, var(--accent) 30%, var(--raise));
+    border-color: color-mix(in oklab, var(--accent) 60%, var(--stroke));
+  }
+
+  .player-button:hover {
+    border-color: var(--dim);
+  }
+
+  .player-button[aria-disabled='true'] {
+    cursor: default;
+    opacity: 0.4;
+  }
+
+  /* The panel carries the playing state, so the icon swap is a class away rather than an
+     attribute that has to win a fight with [hidden]. */
+  .icon-pause {
+    display: none;
+  }
+
+  .album-player[data-playing] .icon-play {
+    display: none;
+  }
+
+  .album-player[data-playing] .icon-pause {
+    display: block;
+  }
+
+  @media (max-width: 30rem) {
+    .album-player {
+      grid-template-columns: 4rem minmax(0, 1fr);
+      gap: 0.7rem;
+      padding: 0.7rem;
+    }
+  }
+</style>

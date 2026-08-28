@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { sitePath } from '../lib/url';
 ---
 
 <BaseLayout title="על הארכיון — ארכיון גיליוטין">
@@ -27,6 +28,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         כל מהדורה זה דיסק אחד או תיקייה אחת, בדיוק כמו שהגיעה. לא סידרנו, לא ניקינו, לא שיפרנו
         — כי מי שמשפר ארכיון כבר לא מחזיק ארכיון, הוא מחזיק תערוכה. בפנים הקבצים מסודרים לפי
         סוג, ומדור שאין בו כלום פשוט לא מופיע. למה שתלחצו עליו סתם?
+      </p>
+    </section>
+
+    <section aria-labelledby="missing-heading">
+      <h2 id="missing-heading">רגע, ומה שאין לכם?</h2>
+      <p>
+        יש, יש. הארכיון לא שלם ואנחנו לא מתביישים בזה — יש אפילו רשימה מסודרת של
+        <a href={sitePath('missing/')}>מה שעוד חסר לנו</a>. אם משהו משם שוכב לכם בבית
+        בארגז, נו! זה בדיוק הרגע.
       </p>
     </section>
 

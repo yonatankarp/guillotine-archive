@@ -11,6 +11,11 @@ import {
   type DriveFilesClient,
 } from '../../src/catalog/google-drive';
 
+/** scanDrive never exports: it reads metadata, and the export seam belongs to the build. */
+const unusedExport = async (): Promise<Buffer> => {
+  throw new Error('export is not part of a scan');
+};
+
 describe('scanDrive', () => {
   test('recursively scans files in Hebrew path order', async () => {
     const children: Record<string, RemoteEntry[]> = {
@@ -35,6 +40,7 @@ describe('scanDrive', () => {
       async download() {
         return Buffer.alloc(0);
       },
+      exportFile: unusedExport,
     };
 
     const files = await scanDrive('root', gateway);
@@ -66,6 +72,7 @@ describe('scanDrive', () => {
       async download() {
         return Buffer.alloc(0);
       },
+      exportFile: unusedExport,
     };
 
     await expect(scanDrive('root', gateway)).resolves.toHaveLength(1);
@@ -86,6 +93,7 @@ describe('scanDrive', () => {
       async download() {
         return Buffer.alloc(0);
       },
+      exportFile: unusedExport,
     };
 
     await expect(scanDrive('root', gateway)).rejects.toThrow(
@@ -104,6 +112,7 @@ describe('scanDrive', () => {
       async download() {
         return Buffer.alloc(0);
       },
+      exportFile: unusedExport,
     };
 
     await expect(scanDrive('root', gateway)).rejects.toThrow(
@@ -139,6 +148,7 @@ describe('scanDrive', () => {
       async download() {
         return Buffer.alloc(0);
       },
+      exportFile: unusedExport,
     };
 
     const files = await scanDrive('root', gateway);
@@ -172,6 +182,7 @@ describe('createDriveGatewayFromFilesClient', () => {
     const gateway = createDriveGatewayFromFilesClient({
       list,
       get: vi.fn(),
+      export: vi.fn(),
     });
 
     await expect(gateway.listChildren("a\\b'c")).resolves.toMatchObject([
@@ -196,6 +207,7 @@ describe('createDriveGatewayFromFilesClient', () => {
     const gateway = createDriveGatewayFromFilesClient({
       list: vi.fn().mockResolvedValue({ data: { files: [{ id: 'only-id', name: 'missing type' }] } }),
       get: vi.fn(),
+      export: vi.fn(),
     });
 
     await expect(gateway.listChildren('root')).rejects.toThrow(
@@ -206,7 +218,7 @@ describe('createDriveGatewayFromFilesClient', () => {
   test('downloads binary data with media and shared-drive options', async () => {
     const bytes = Uint8Array.from([1, 2, 3]).buffer;
     const get = vi.fn<DriveFilesClient['get']>().mockResolvedValue({ data: bytes });
-    const gateway = createDriveGatewayFromFilesClient({ list: vi.fn(), get });
+    const gateway = createDriveGatewayFromFilesClient({ list: vi.fn(), get, export: vi.fn() });
 
     await expect(gateway.download('file-id')).resolves.toEqual(Buffer.from([1, 2, 3]));
     expect(get).toHaveBeenCalledWith(
@@ -223,7 +235,7 @@ describe('createDriveGatewayFromFilesClient', () => {
       .fn<DriveFilesClient['get']>()
       .mockResolvedValueOnce({ data: new ArrayBuffer(MAX_DRIVE_DOWNLOAD_BYTES) })
       .mockResolvedValueOnce({ data: new ArrayBuffer(MAX_DRIVE_DOWNLOAD_BYTES + 1) });
-    const gateway = createDriveGatewayFromFilesClient({ list: vi.fn(), get });
+    const gateway = createDriveGatewayFromFilesClient({ list: vi.fn(), get, export: vi.fn() });
 
     await expect(gateway.download('at-limit')).resolves.toHaveLength(MAX_DRIVE_DOWNLOAD_BYTES);
     await expect(gateway.download('too-large')).rejects.toThrow('Drive file download failed');
@@ -235,6 +247,7 @@ describe('createDriveGatewayFromFilesClient', () => {
     const gateway = createDriveGatewayFromFilesClient({
       list: vi.fn(),
       get: vi.fn<DriveFilesClient['get']>().mockResolvedValue({ data }),
+      export: vi.fn(),
     });
 
     await expect(gateway.download('view')).resolves.toEqual(Buffer.from([1, 2, 3]));
@@ -246,7 +259,7 @@ describe('createDriveGatewayFromFilesClient', () => {
       .fn<DriveFilesClient['get']>()
       .mockRejectedValueOnce(new Error(secret))
       .mockResolvedValueOnce({ data: 'not binary' });
-    const gateway = createDriveGatewayFromFilesClient({ list: vi.fn(), get });
+    const gateway = createDriveGatewayFromFilesClient({ list: vi.fn(), get, export: vi.fn() });
 
     await expect(gateway.download('transport')).rejects.toThrow(/^Drive file download failed$/);
     await expect(gateway.download('malformed')).rejects.toThrow('Drive file download failed');

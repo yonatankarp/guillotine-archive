@@ -217,6 +217,8 @@ export async function syncDrive(
     // A real Drive sync is the only place worth pulling derivative sources.
     buildDerivatives: true,
     download: gateway.download,
+    // The only place with the credential a native Google file has to be rendered through.
+    exportSheet: gateway.exportFile,
   });
   await writeBaseline(root, catalog.items.length);
 

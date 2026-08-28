@@ -169,6 +169,11 @@ export function createFixtureGateway(fixture: Readonly<FixtureDocument>): DriveG
       if (text === undefined) throw new Error(`fixture download is unavailable for ${fileId}`);
       return createDocx(text);
     },
+    async exportFile(fileId) {
+      // The fixture tree holds no native Google file, and the fixture sync passes no
+      // export seam to the build, so nothing ever reaches this.
+      throw new Error(`fixture export is unavailable for ${fileId}`);
+    },
   };
 }
 

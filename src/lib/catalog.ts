@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { z } from 'zod';
-import type { Catalog } from '../catalog/types';
+import { MISSING_LIST_SOURCE_PATH } from '../catalog/missing-list';
+import type { Catalog, MissingList } from '../catalog/types';
 
 const nonblankString = z
   .string()
@@ -178,6 +179,27 @@ const catalogSchema = z
   })
   .strict();
 
+/**
+ * The missing list is a separate generated artifact, so nothing was added to
+ * `catalogItem` or `catalogSchema` above and no committed catalog changes shape. This
+ * schema is strict for the same reason theirs are: the writer is `src/catalog/build.ts`
+ * and the two modules can drift.
+ *
+ * Cells are plain strings and may be empty, because an empty cell in the owner's sheet
+ * is a fact about the sheet. Only the header row's existence is load-bearing.
+ */
+const missingListSchema = z
+  .object({
+    generatedAt: nonblankString,
+    sourcePath: nonblankString,
+    headerHe: z.array(z.string()),
+    rows: z.array(z.array(z.string())),
+  })
+  .strict()
+  .refine((list) => list.rows.every((row) => row.length === list.headerHe.length), {
+    message: 'every row must have exactly as many cells as the header',
+  });
+
 export const emptyDevelopmentCatalog: Catalog = {
   generatedAt: '1970-01-01T00:00:00.000Z',
   collections: [],
@@ -230,9 +252,56 @@ export function loadCatalog(path: string, allowMissing = true): Catalog {
   }
 }
 
+/** What the page renders before any credentialed sync has ever exported the sheet. */
+export const emptyMissingList: MissingList = {
+  generatedAt: '1970-01-01T00:00:00.000Z',
+  sourcePath: MISSING_LIST_SOURCE_PATH,
+  headerHe: [],
+  rows: [],
+};
+
+export function parseMissingList(source: string): MissingList {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    throw new Error('generated missing list is invalid: not JSON');
+  }
+
+  const result = missingListSchema.safeParse(parsed);
+  if (result.success) return result.data;
+
+  const issues = result.error.issues;
+  const named = issues
+    .slice(0, 5)
+    .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    .join('; ');
+
+  throw new Error(
+    `generated missing list is invalid — ${named}${issues.length > 5 ? ` (+${issues.length - 5} more)` : ''}`,
+  );
+}
+
+/**
+ * A missing artifact is the normal state: only a credentialed sync writes one, and the
+ * deployment must build without it. A file that exists and is malformed is not normal
+ * and still throws, so a broken export cannot pass for an empty list.
+ */
+export function loadMissingList(path: string): MissingList {
+  try {
+    return parseMissingList(readFileSync(path, 'utf8'));
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return emptyMissingList;
+    }
+    throw error;
+  }
+}
+
 export const catalog = loadCatalog(
   resolve('src/generated/catalog.json'),
   import.meta.env?.DEV === true || process.env.NODE_ENV === 'test',
 );
+export const missingList = loadMissingList(resolve('src/generated/missing-list.json'));
 export const games = catalog.collections.filter((collection) => collection.type === 'game');
 export const itemById = new Map(catalog.items.map((item) => [item.id, item]));

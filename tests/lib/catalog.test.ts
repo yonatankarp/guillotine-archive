@@ -2,7 +2,12 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { loadCatalog, parseCatalog } from '../../src/lib/catalog';
+import {
+  loadCatalog,
+  loadMissingList,
+  parseCatalog,
+  parseMissingList,
+} from '../../src/lib/catalog';
 
 const validCatalog = {
   generatedAt: '2026-08-26T00:00:00.000Z',
@@ -168,6 +173,77 @@ describe('parseCatalog', () => {
     };
 
     expect(() => parseCatalog(JSON.stringify(candidate))).toThrow('generated catalog is invalid');
+  });
+});
+
+describe('parseMissingList', () => {
+  const validMissingList = {
+    generatedAt: '2026-08-26T00:00:00.000Z',
+    sourcePath: 'מה חסר?',
+    headerHe: ['פריט', 'הערה'],
+    rows: [['קופסה של פיפוש', '']],
+  };
+
+  /* Same failure the derivative renditions above guard against, one artifact over: the
+     writer is src/catalog/build.ts and this schema is strict, so a field added there and
+     not here rejects the whole file and blanks the page — and only on a credentialed
+     sync, which is the one run nobody can repeat cheaply. */
+  test('accepts exactly what the sheet export pipeline writes', () => {
+    expect(parseMissingList(JSON.stringify(validMissingList))).toEqual(validMissingList);
+  });
+
+  test('accepts an exported sheet whose cells are empty', () => {
+    const candidate = { ...validMissingList, rows: [['', ''], ['', '']] };
+
+    expect(parseMissingList(JSON.stringify(candidate)).rows).toEqual(candidate.rows);
+  });
+
+  test('rejects a row that does not match the header width', () => {
+    const candidate = { ...validMissingList, rows: [['one cell only']] };
+
+    expect(() => parseMissingList(JSON.stringify(candidate))).toThrow(
+      'generated missing list is invalid',
+    );
+  });
+
+  test('rejects an unknown key rather than rendering it', () => {
+    const candidate = { ...validMissingList, sheetName: 'tab one' };
+
+    expect(() => parseMissingList(JSON.stringify(candidate))).toThrow(
+      'generated missing list is invalid',
+    );
+  });
+
+  test('says what failed rather than only that something did', () => {
+    const candidate = { ...validMissingList, headerHe: [42] };
+
+    expect(() => parseMissingList(JSON.stringify(candidate))).toThrow(/headerHe\.0/u);
+  });
+
+  test('rejects malformed JSON', () => {
+    expect(() => parseMissingList('{broken')).toThrow('generated missing list is invalid');
+  });
+});
+
+describe('loadMissingList', () => {
+  /* An absent artifact is the normal state before the first credentialed sync, and the
+     deployment has to build without one. */
+  test('returns an empty list when no sync has ever exported one', () => {
+    expect(loadMissingList('/definitely/missing/missing-list.json')).toEqual({
+      generatedAt: '1970-01-01T00:00:00.000Z',
+      sourcePath: 'מה חסר?',
+      headerHe: [],
+      rows: [],
+    });
+  });
+
+  test('propagates a malformed existing file instead of presenting an empty list', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'missing-list-loader-'));
+    await mkdir(join(root, 'src/generated'), { recursive: true });
+    const path = join(root, 'src/generated/missing-list.json');
+    await writeFile(path, '{broken');
+
+    expect(() => loadMissingList(path)).toThrow('generated missing list is invalid');
   });
 });
 

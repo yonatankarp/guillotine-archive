@@ -17,6 +17,13 @@ export interface RemoteEntry {
 export interface DriveGateway {
   listChildren(folderId: string): Promise<RemoteEntry[]>;
   download(fileId: string): Promise<Buffer>;
+  /**
+   * Renders a native Google file into a format that has bytes. `download` cannot: a
+   * Doc or a Sheet stores nothing to fetch, which is why `getDownloadUrl` below refuses
+   * to invent a link for one. Kept apart from `download` because that seam is wired
+   * into text extraction and every derivative, and must keep meaning "the real bytes".
+   */
+  exportFile(fileId: string, mimeType: string): Promise<Buffer>;
 }
 
 interface FolderToScan {

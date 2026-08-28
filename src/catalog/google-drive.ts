@@ -35,6 +35,7 @@ export interface DriveFilesClient {
     data: { files?: unknown[] | null; nextPageToken?: string | null };
   }>;
   get(params: DriveMediaRequest, options: DriveGetOptions): Promise<{ data: unknown }>;
+  export(params: DriveExportRequest, options: DriveGetOptions): Promise<{ data: unknown }>;
 }
 
 interface DriveListRequest {
@@ -51,6 +52,12 @@ interface DriveMediaRequest {
   fileId: string;
   alt: 'media';
   supportsAllDrives: true;
+}
+
+/** files.export takes no shared-drive flag: the export is rendered, not fetched. */
+interface DriveExportRequest {
+  fileId: string;
+  mimeType: string;
 }
 
 export function createGoogleDriveGateway(credentialsJson: string): DriveGateway {
@@ -108,7 +115,32 @@ export function createDriveGatewayFromFilesClient(files: DriveFilesClient): Driv
         throw new Error('Drive file download failed');
       }
     },
+
+    async exportFile(fileId, mimeType) {
+      try {
+        const response = await files.export({ fileId, mimeType }, DOWNLOAD_OPTIONS);
+        const buffer = toExportBuffer(response.data);
+
+        if (buffer.byteLength > MAX_DRIVE_DOWNLOAD_BYTES) {
+          throw new Error('response too large');
+        }
+
+        return buffer;
+      } catch {
+        throw new Error('Drive file export failed');
+      }
+    },
   };
+}
+
+/**
+ * An export of a text format arrives already decoded as a string, unlike a media
+ * download, which is always binary. Both shapes are accepted so the caller gets bytes
+ * either way and never has to guess which one the transport chose.
+ */
+function toExportBuffer(value: unknown): Buffer {
+  if (typeof value === 'string') return Buffer.from(value, 'utf8');
+  return toDownloadBuffer(value);
 }
 
 function toDownloadBuffer(value: unknown): Buffer {

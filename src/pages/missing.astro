@@ -1,0 +1,89 @@
+---
+import { GOOGLE_SHEET_MIME, MISSING_LIST_SOURCE_PATH } from '../catalog/missing-list';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { catalog, missingList } from '../lib/catalog';
+
+/* The rows come from the generated artifact; the outward link comes from the catalog
+   item, so the sheet is named in exactly one place and the link still works on a build
+   where no sync has exported anything yet. */
+const sourceItem =
+  catalog.items.find(
+    (item) => item.path === MISSING_LIST_SOURCE_PATH && item.mimeType === GOOGLE_SHEET_MIME,
+  ) ?? null;
+const hasRows = missingList.headerHe.length > 0 && missingList.rows.length > 0;
+---
+
+<BaseLayout
+  title="מה חסר — ארכיון גיליוטין"
+  description="מה שעוד חסר לארכיון גיליוטין, לפי הרשימה של הארכיון עצמו."
+>
+  <header class="page-intro">
+    <p class="eyebrow">החורים בערמה</p>
+    <h1>מה עוד חסר לנו</h1>
+    <p class="lead">
+      אז נודה בזה כבר עכשיו: הארכיון לא שלם. יש דברים שפשוט אין לנו — קופסאות, דיסקים,
+      גיליונות, מה שלא יהיה. זה בדיוק מה שרשום פה, ואם במקרה יש לכם אחד מהם בבית — תשמעו,
+      זה הרגע להגיד!
+    </p>
+  </header>
+
+  {
+    hasRows ? (
+      <div
+        class="scroll-x missing-scroll"
+        role="region"
+        aria-labelledby="missing-caption"
+        tabindex="0"
+      >
+        <table class="missing-table">
+          {/* Short on purpose: the caption is as wide as the table, and the table is wider
+              than a phone. A long one gets cut off at the edge of the scrolling box. */}
+          <caption id="missing-caption">מה חסר לארכיון, שורה אחרי שורה</caption>
+          <thead>
+            <tr>
+              {missingList.headerHe.map((cell, column) => (
+                <th scope="col">
+                  {cell === '' ? (
+                    /* A column the sheet never named still needs a name here, or the
+                       header is an empty cell nobody can hear. The number is structure,
+                       not content: nothing is invented about what the column holds. */
+                    <span class="visually-hidden">{`עמודה ${String(column + 1)}`}</span>
+                  ) : (
+                    cell
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {missingList.rows.map((row) => (
+              <tr>
+                {row.map((cell) => (
+                  <td>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <p class="empty-archive">
+        נו, איזה בושה: הרשימה עצמה לא פה כרגע. היא נמשכת מהגיליון של הארכיון בכל עדכון,
+        וכאן היא עוד לא הגיעה. זה לא אומר שלא חסר כלום — זה אומר שאין לנו מה להראות לכם
+        ברגע זה, קיבינימאט.
+      </p>
+    )
+  }
+
+  {
+    sourceItem !== null && (
+      <p class="missing-source">
+        {hasRows ? 'הטבלה למעלה היא הגיליון של הארכיון, ותו לא. ' : 'בינתיים? '}
+        <a href={sourceItem.viewUrl} target="_blank" rel="noopener noreferrer">
+          הגיליון המקורי פתוח לכולם
+        </a>
+        , למי שרוצה לראות אותו כמו שהוא.
+      </p>
+    )
+  }
+</BaseLayout>

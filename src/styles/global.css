@@ -959,6 +959,63 @@ main {
   line-height: 1.65;
 }
 
+/* ---------- what is still missing ---------- */
+
+/*
+ * The table is as wide as a spreadsheet nobody here controls, so it scrolls inside this
+ * box and the page body never scrolls sideways. It is focusable because a region that
+ * only a mouse can scroll is unreachable by keyboard, and named by its own caption.
+ */
+.missing-scroll {
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  background: var(--raise);
+}
+
+.missing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-s);
+}
+
+.missing-table caption {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--stroke);
+  color: var(--dim);
+  font-size: var(--t-2xs);
+  text-align: start;
+}
+
+.missing-table th,
+.missing-table td {
+  /* A narrow column is worse than a scrollbar: Hebrew broken to two letters a line is
+     unreadable, and the container already absorbs the width this forces. */
+  min-width: 9rem;
+  padding: 0.7rem 1rem;
+  text-align: start;
+  vertical-align: top;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.missing-table thead th {
+  border-bottom: 1px solid var(--stroke);
+  color: var(--text);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.missing-table tbody tr + tr th,
+.missing-table tbody tr + tr td {
+  border-top: 1px solid var(--stroke-soft);
+}
+
+.missing-source {
+  margin: 1.25rem 0 0;
+  color: var(--dim);
+  font-size: var(--t-s);
+}
+
 /* ---------- archive mirror ---------- */
 
 .category-grid {

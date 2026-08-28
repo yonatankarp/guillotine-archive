@@ -176,6 +176,20 @@ export interface CatalogCollection extends CuratedCollection {
   itemIds: string[];
 }
 
+/**
+ * The owner's "what is still missing" sheet, flattened into a table. Kept out of the
+ * catalog on purpose: it is one small artifact a reviewer can read in a pull request,
+ * where the same rows buried in a three-megabyte catalog would be unreviewable.
+ */
+export interface MissingList {
+  generatedAt: string;
+  /** The Drive path the rows were exported from. */
+  sourcePath: string;
+  headerHe: string[];
+  /** Every row padded to `headerHe.length`, so the rendered table cannot go ragged. */
+  rows: string[][];
+}
+
 export interface Catalog {
   generatedAt: string;
   collections: CatalogCollection[];

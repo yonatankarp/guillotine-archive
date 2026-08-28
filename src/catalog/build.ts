@@ -32,6 +32,13 @@ import {
   transcodeToMp4,
   transcodeToOpus,
 } from './media';
+import {
+  GOOGLE_SHEET_MIME,
+  MAX_MISSING_LIST_CSV_BYTES,
+  MISSING_LIST_EXPORT_MIME,
+  MISSING_LIST_SOURCE_PATH,
+  toMissingList,
+} from './missing-list';
 import { resolveRelationships } from './relationships';
 import { buildSearchIndex } from './search';
 import type {
@@ -101,6 +108,11 @@ export interface BuildCatalogInput {
   /** Test-only filesystem fault injection. Production callers must omit this. */
   faultInjection?: BuildFaultInjection;
   download(fileId: string): Promise<Buffer>;
+  /**
+   * Renders a native Google file. Optional because only a credentialed Drive sync can
+   * do it; a caller without one leaves the committed missing list exactly as it found it.
+   */
+  exportSheet?(fileId: string, mimeType: string): Promise<Buffer>;
 }
 
 class SafeBuildFailure extends Error {}
@@ -464,6 +476,68 @@ async function preparePosters(
 }
 
 /**
+ * Exports the owner's "what is still missing" sheet into rows the site can render.
+ *
+ * Returning no artifact PRESERVES whatever is committed, and every failure path returns
+ * no artifact. That is deliberate and it is not the same choice `prepareDerivatives`
+ * makes: derivatives are gated behind `buildDerivatives` because they pull about a
+ * gibibyte, while this is a few kilobytes of text. Gating it the same way would mean an
+ * offline `catalog:rebuild` writes an empty list over the real one and blanks the page,
+ * which is the same class of bug that once deleted every cover.
+ *
+ * The trade is stated rather than hidden: a sheet deleted from Drive leaves the last
+ * exported rows standing, and says so in the report.
+ */
+async function prepareMissingList(
+  catalog: Catalog,
+  report: ReturnType<typeof validateCatalog>,
+  input: BuildCatalogInput,
+  path: string,
+): Promise<WriteArtifact[]> {
+  // A build with no export seam is a fixture or an offline rebuild. It has nothing to
+  // say about a sheet it was never able to read, so it says nothing.
+  if (input.exportSheet === undefined) return [];
+
+  const source = catalog.items.find(
+    (item) => item.path === MISSING_LIST_SOURCE_PATH && item.mimeType === GOOGLE_SHEET_MIME,
+  );
+  if (source === undefined) {
+    report.warnings.push(
+      `no sheet at ${MISSING_LIST_SOURCE_PATH}, so the committed missing list was left as it was`,
+    );
+    return [];
+  }
+
+  let csv: Buffer;
+  try {
+    csv = await input.exportSheet(source.id, MISSING_LIST_EXPORT_MIME);
+  } catch {
+    report.warnings.push(
+      'failed to export the missing list sheet, so the committed one was left as it was',
+    );
+    return [];
+  }
+
+  if (csv.byteLength > MAX_MISSING_LIST_CSV_BYTES) {
+    report.warnings.push('the missing list export was too large to be that list, so it was ignored');
+    return [];
+  }
+
+  const missingList = toMissingList(csv.toString('utf8'), input.generatedAt);
+  if (missingList.headerHe.length === 0) {
+    report.warnings.push('the missing list sheet exported no rows at all');
+    return [];
+  }
+
+  // A CSV export is one tab. Nobody can see from the committed rows that a second tab
+  // went missing, so the census has to say it on every sync rather than never.
+  report.warnings.push(
+    `missing list exported as CSV: ${String(missingList.rows.length)} rows from the first tab of the sheet only`,
+  );
+  return [{ kind: 'write', target: path, data: prettyJson(missingList) }];
+}
+
+/**
  * Derivatives are additive: every failure degrades one item to its Drive link
  * rather than failing the sync, because the committed site must keep rendering
  * when a tool or a source file is unavailable.
@@ -623,6 +697,7 @@ function coverWriteArtifacts(
 
 async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> {
   const catalogPath = join(input.root, 'src/generated/catalog.json');
+  const missingListPath = join(input.root, 'src/generated/missing-list.json');
   const searchPath = join(input.root, 'public/data/search-index.json');
   const reportPath = join(input.root, 'reports/curator-report.json');
   const coverDirectory = join(input.root, 'public/generated/covers');
@@ -657,6 +732,7 @@ async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> 
     sourceCache,
   );
   const posterArtifacts = await preparePosters(catalog, report, input, derivativeDirectory);
+  const missingListArtifacts = await prepareMissingList(catalog, report, input, missingListPath);
 
   let serializedSearch: string;
   try {
@@ -689,6 +765,7 @@ async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> 
       ...logoArtifacts,
       ...derivativeArtifacts,
       ...posterArtifacts,
+      ...missingListArtifacts,
       { kind: 'write', target: catalogPath, data: prettyJson(catalog) },
       { kind: 'write', target: searchPath, data: serializedSearch },
       { kind: 'write', target: reportPath, data: prettyJson(report) },

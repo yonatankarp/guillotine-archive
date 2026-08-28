@@ -554,11 +554,15 @@ describe('production Drive synchronization', () => {
     const gateway: DriveGateway = {
       listChildren: vi.fn(),
       download: vi.fn(async () => Buffer.alloc(0)),
+      exportFile: vi.fn(async () => Buffer.alloc(0)),
     };
     const buildCatalog = vi.fn(async (input) => {
       expect(input.previousFileCount).toBe(9);
       expect(input.files).toEqual(files);
       expect(input.download).toBe(gateway.download);
+      // A native Google Sheet has no bytes to download, and this is the only run with
+      // the credential that can render one, so the export seam has to reach the build.
+      expect(input.exportSheet).toBe(gateway.exportFile);
       expect(await readArchiveBaseline(root)).toBe(9);
       return emptyCatalog(files);
     });
@@ -588,6 +592,7 @@ describe('production Drive synchronization', () => {
     const gateway: DriveGateway = {
       listChildren: vi.fn(),
       download: vi.fn(async () => Buffer.alloc(0)),
+      exportFile: vi.fn(async () => Buffer.alloc(0)),
     };
     const failure = new Error(`private ${stage} details`);
 

@@ -2,14 +2,21 @@
 import { sitePath } from '../lib/url';
 
 /**
- * The album's one player: cover, transport, a seek bar, and the line that says what is on.
+ * The album's one player: cover, transport, a seek bar, the line that says what is on, and
+ * the tracklist itself. One component, one border, the way an album player looks.
  *
- * Served hidden and revealed only by src/scripts/audio-queue.ts. Nothing in here works
- * without that script, which is why the rows below it keep their own <audio controls> until
- * the script has this panel on screen and wired. The `hidden` attribute is load-bearing:
- * global.css carries `[hidden] { display: none !important }` because a scoped rule here
- * would otherwise tie with the UA sheet and show a dead player to a visitor with no
- * JavaScript.
+ * The tracklist is not written here. ItemRows renders exactly one <ul class="item-rows">,
+ * and src/scripts/audio-queue.ts moves that list into the empty [data-album-queue] slot
+ * below once this panel is on screen and wired. That is deliberate: the rows carry the
+ * per-track view and download links and the numbering, and a second copy written here would
+ * either lose them or double a page of 169 tracks.
+ *
+ * Served hidden and revealed only by that script. Nothing in here works without it, which is
+ * why the list keeps its own <audio controls> per row until the panel is live — with the
+ * script absent the list simply stays where the server put it and the page is what it always
+ * was. The `hidden` attribute is load-bearing: global.css carries
+ * `[hidden] { display: none !important }` because a scoped rule here would otherwise tie
+ * with the UA sheet and show a dead player to a visitor with no JavaScript.
  *
  * The catalog has no length for any of the 169 tracks — Drive only reports duration for
  * video — so the clocks and the bar's range open unknown and are filled in from the audio
@@ -26,9 +33,11 @@ interface Props {
   coverPath?: string | null;
   /** What the panel is cued to before the script has run a line. */
   firstTrackNameHe: string;
+  /** How many tracks the playlist holds, which the line above it says out loud. */
+  trackCount: number;
 }
 
-const { labelHe, titleHe, coverPath = null, firstTrackNameHe } = Astro.props;
+const { labelHe, titleHe, coverPath = null, firstTrackNameHe, trackCount } = Astro.props;
 ---
 
 <div class="album-player" data-album-player hidden>
@@ -101,8 +110,22 @@ const { labelHe, titleHe, coverPath = null, firstTrackNameHe } = Astro.props;
     </div>
   </div>
 
+  {/* The playlist's own plate, spanning the panel under the art and the transport. It is
+      served empty and stays empty without JavaScript: the script moves the rendered
+      <ul class="item-rows"> in here, so there is only ever one copy of the tracklist and
+      every per-track link on it survives the move untouched. */}
+  <div class="player-list">
+    <p class="player-list-note">
+      אז יש פה {trackCount} שירים. לחצו על אחד, או תנו לזה לרוץ מהתחלה!
+    </p>
+    {/* Its own scrollport: the biggest album here has 36 tracks, and a playlist that long
+        has to run inside the player instead of dragging it down the page. */}
+    <div class="player-queue" data-album-queue></div>
+  </div>
+
   {/* No controls: the panel around it is the control. preload="none" is what keeps a page of
-      169 tracks free to open. */}
+      169 tracks free to open. Chrome's UA sheet gives audio:not([controls]) display:none, so
+      this is not a grid item and never takes a cell. */}
   <audio class="album-audio" data-album-audio preload="none" aria-label={labelHe}></audio>
 </div>
 
@@ -115,8 +138,8 @@ const { labelHe, titleHe, coverPath = null, firstTrackNameHe } = Astro.props;
     gap: clamp(0.7rem, 2vw, 1.2rem);
     align-items: center;
     /* The card is as wide as a player needs and no wider. Left to span the whole column it
-       stretched the bar into a rule and left a hole beside the controls; the tracklist under
-       it still runs full width, which is the shape a sleeve and its back cover have. */
+       stretched the bar into a rule and left a hole beside the controls. The tracklist sits
+       inside this width too — a playlist row is a name and two links, not a table. */
     max-width: 46rem;
     margin-bottom: 0.9rem;
     padding: clamp(0.7rem, 2vw, 1rem);
@@ -317,11 +340,48 @@ const { labelHe, titleHe, coverPath = null, firstTrackNameHe } = Astro.props;
     display: block;
   }
 
+  /* The playlist runs the full width of the panel, under both the art and the transport.
+     min-width: 0 because a grid item defaults to min-width: auto, and a 60-character Latin
+     filename would otherwise widen the whole card rather than wrap inside the row. */
+  .player-list {
+    grid-column: 1 / -1;
+    min-width: 0;
+    align-self: stretch;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--stroke);
+  }
+
+  .player-list-note {
+    margin: 0 0 0.4rem;
+    color: var(--dim);
+    font-size: var(--t-2xs);
+    line-height: 1.5;
+  }
+
+  /* The plate the tracks sit on. The panel around it carries the accent wash, so the list
+     drops back to the plain raised surface — which is also what lets a row's own accent wash
+     read as the track that is playing instead of vanishing into the panel. */
+  .player-queue {
+    min-width: 0;
+    /* 36 tracks is the longest album here and 169 the longest page. The list scrolls at about
+       five rows so the player stays a player; block padding leaves room for the 4px focus
+       outline and its 3px offset, which the scrollport would otherwise clip. */
+    max-height: min(60vh, 26rem);
+    overflow-y: auto;
+    padding: 0.5rem 0.4rem;
+    border-radius: var(--radius-s);
+    background: var(--raise);
+  }
+
   @media (max-width: 30rem) {
     .album-player {
       grid-template-columns: 4rem minmax(0, 1fr);
       gap: 0.7rem;
       padding: 0.7rem;
+    }
+
+    .player-queue {
+      padding-inline: 0.25rem;
     }
   }
 </style>

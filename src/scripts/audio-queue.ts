@@ -1,13 +1,21 @@
 /**
- * One player per album, and the album plays through.
+ * One player per album, the tracklist inside it, and the album plays through.
  *
  * Every track row is served with its own plain <audio controls>, so with this script absent
  * the page is exactly what it always was: a working player on each row. Everything here is
  * additive. The album player and the per-row buttons are served hidden, and this is the only
  * thing that reveals them — nothing dead is ever shown to a visitor without JavaScript.
  *
- * The upgrade takes the per-row players away only after the album player is wired and on
- * screen, so a throw halfway through leaves the fallback standing rather than nothing.
+ * The tracklist is not duplicated. The server renders exactly one <ul class="item-rows"> and
+ * the upgrade MOVES it into the panel's empty queue slot, which is why every row keeps the
+ * numbering and the per-track view and download links it was rendered with, and why a page of
+ * 169 tracks does not carry two copies of them.
+ *
+ * The order of the last four steps is the whole no-JS story, and it is load-bearing: cue,
+ * unhide the panel, move the list into it, then take the per-row players away. Moving the list
+ * before the panel is visible would put the tracklist inside a hidden box, so a throw in
+ * between would leave a visitor with no list at all; moving it after means a throw anywhere
+ * leaves the served page standing.
  *
  * Nothing here fetches audio. Cueing a track sets a source on a preload="none" element and
  * costs no bytes; the listening page carries 169 of them, and it has to stay free to open.
@@ -50,6 +58,8 @@ interface Panel {
   readonly toggle: HTMLButtonElement;
   readonly previous: HTMLButtonElement;
   readonly next: HTMLButtonElement;
+  /** The empty slot the served tracklist is moved into, and the playlist's scrollport. */
+  readonly queue: HTMLElement;
 }
 
 function isMedia(value: EventTarget | null): value is HTMLMediaElement {
@@ -85,6 +95,7 @@ function panelOf(album: Element): Panel | null {
   const toggle = album.querySelector<HTMLButtonElement>('[data-album-toggle]');
   const previous = album.querySelector<HTMLButtonElement>('[data-album-prev]');
   const next = album.querySelector<HTMLButtonElement>('[data-album-next]');
+  const queue = album.querySelector<HTMLElement>('[data-album-queue]');
 
   if (
     root === null ||
@@ -96,12 +107,13 @@ function panelOf(album: Element): Panel | null {
     total === null ||
     toggle === null ||
     previous === null ||
-    next === null
+    next === null ||
+    queue === null
   ) {
     return null;
   }
 
-  return { root, player, nowName, nowLabel, seek, elapsed, total, toggle, previous, next };
+  return { root, player, nowName, nowLabel, seek, elapsed, total, toggle, previous, next, queue };
 }
 
 /**
@@ -176,6 +188,26 @@ function upgradeAlbum(album: Element): void {
     panel.next.setAttribute('aria-disabled', current + 1 >= tracks.length ? 'true' : 'false');
   };
 
+  /**
+   * Scrolls the playlist — and ONLY the playlist — until the given row is inside its window.
+   *
+   * row.scrollIntoView({ block: 'nearest' }) does the same job in one line and was what this
+   * used, but it walks every scrollport up the chain: on the listening page, an album advancing
+   * by itself moved the document 366px as well, which is a worse thing to do to a reader than
+   * the problem it was solving. Setting scrollTop on the container is the whole fix.
+   *
+   * Gentle by construction, like block: 'nearest' was: a row already fully in view moves
+   * nothing, so someone who has scrolled off to read another part of the album is only pulled
+   * back once the track actually leaves the window.
+   */
+  const reveal = (row: HTMLElement): void => {
+    const window_ = panel.queue.getBoundingClientRect();
+    const here = row.getBoundingClientRect();
+
+    if (here.top < window_.top) panel.queue.scrollTop -= window_.top - here.top;
+    else if (here.bottom > window_.bottom) panel.queue.scrollTop += here.bottom - window_.bottom;
+  };
+
   /** Cues a track, and says which one it is in both places assistive tech reads. */
   const select = (index: number, play: boolean): void => {
     const track = tracks[index];
@@ -209,11 +241,17 @@ function upgradeAlbum(album: Element): void {
     if (index < 0 || index >= tracks.length) return;
 
     select(index, !player.paused);
-    tracks[index]?.row.scrollIntoView({ block: 'nearest' });
+    const row = tracks[index]?.row;
+    if (row) reveal(row);
   };
 
+  /* Picking a track scrolls to it too. Clicking one is usually already looking at it, so this
+     is for the keyboard and for a press that lands on a row half out of the window. */
   for (const [index, track] of tracks.entries()) {
-    track.button.addEventListener('click', () => select(index, true));
+    track.button.addEventListener('click', () => {
+      select(index, true);
+      reveal(track.row);
+    });
   }
 
   panel.toggle.addEventListener('click', () => {
@@ -264,12 +302,22 @@ function upgradeAlbum(album: Element): void {
   player.addEventListener('ended', () => {
     if (current + 1 >= tracks.length) return;
     select(current + 1, true);
-    /* Keep the track that took over in view without yanking the page around it. */
-    tracks[current]?.row.scrollIntoView({ block: 'nearest' });
+    /* The one change no control made, so the playlist following it is the only thing that says
+       where the album went — the status line says which track, this says where it is. */
+    const row = tracks[current]?.row;
+    if (row) reveal(row);
   });
 
   select(0, false);
   panel.root.hidden = false;
+
+  /* The panel is on screen and wired, so the tracklist can come inside it. Same element, so
+     every row keeps its number, its links and its place in the order. Moving an <audio> within
+     one document does not re-run the media load algorithm, and these are preload="none" with
+     nothing playing, so the move costs no bytes. */
+  const list = album.querySelector<HTMLUListElement>('ul.item-rows');
+  if (list !== null) panel.queue.append(list);
+
   for (const track of tracks) track.button.hidden = false;
 
   /* Last: until this line every row still plays on its own. */

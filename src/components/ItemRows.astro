@@ -34,8 +34,8 @@ const {
 } = Astro.props;
 
 /**
- * The one predicate for "this row gets an <audio>". The album player above the list and the
- * rows below it both read it, so the playlist can never disagree with what actually plays.
+ * The one predicate for "this row gets an <audio>". The album player and the rows it takes
+ * over both read it, so the playlist can never disagree with what actually plays.
  */
 const audioSrc = (item: CatalogItem): string | null =>
   item.kind === 'track' || item.kind === 'sound' ? mediaSrc(item) : null;
@@ -62,10 +62,15 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
         titleHe={releaseTitleHe}
         coverPath={coverPath}
         firstTrackNameHe={playlist[0]!.name}
+        trackCount={playlist.length}
       />
     )
   }
 
+  {/* One list, rendered once. It is served here, below the panel, and that is what a visitor
+      with no JavaScript keeps: numbered rows, each with its own <audio controls> and its own
+      view and download links. Where the panel exists, audio-queue.ts moves this exact element
+      into it and it becomes the playlist — same rows, same links, same order. */}
   <ul class="item-rows" aria-label={labelHe}>
     {
       items.map((item) => {
@@ -274,5 +279,82 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
      hold a gap open for a number nobody has yet. */
   .track-time:empty {
     display: none;
+  }
+
+  /* ---------- the same rows, once the album player has them ---------- */
+
+  /*
+   * audio-queue.ts moves this list inside the panel, and these rules are keyed on where it
+   * lands rather than on a class the script has to remember to add: the styling cannot drift
+   * from the structure. They live here rather than in global.css or in AlbumPlayer.astro
+   * because of how the cascade actually falls. Astro scopes with [data-astro-cid-…] attribute
+   * selectors, which ADD specificity to every compound they touch, so a rule written here
+   * outranks both `.item-rows > li` in global.css and the current-row rule above — neither of
+   * which a plain `.album-player .item-rows > li` in global.css can beat.
+   *
+   * :global() is what keeps the panel's own class out of that scoping. Without it Astro would
+   * compile `.album-player` with this component's attribute, which the panel does not carry,
+   * and none of this would match anything.
+   */
+  :global(.album-player) .item-rows {
+    gap: 0;
+  }
+
+  /* A row of a playlist, not a card in a list of cards: the plate is the box now, so the row
+     gives up its border and its background and takes a hairline off its neighbour instead. */
+  :global(.album-player) .item-rows > li {
+    padding: 0.45rem 0.55rem;
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  :global(.album-player) .item-rows > li + li {
+    border-top: 1px solid var(--stroke-soft);
+  }
+
+  /* The track the album is on. Out on the page the 8% wash lands on --raise; in here that
+     exact mix is the panel's own background, so it would say nothing at all — hence the deeper
+     one, which still clears AA for the row's --dim meta at every accent in the palette in both
+     themes. The bar down the leading edge is a shape rather than a hue, and the number goes
+     bold and the handle fills in beside it, so nothing rests on telling two colours apart. */
+  :global(.album-player) .item-rows > li:has(.track-play[aria-current='true']) {
+    border-color: var(--stroke-soft);
+    border-inline-start: 2px solid var(--accent);
+    padding-inline-start: calc(0.55rem - 2px);
+    background: color-mix(in oklab, var(--accent) 14%, var(--raise));
+  }
+
+  /* The file still opens and still downloads from inside the playlist — the same two links,
+     untouched, because the panel took the rendered rows rather than writing new ones. They
+     just stop being two filled chips per row, forty-seven rows deep, and go back to looking
+     like what they are: links out to Drive. They keep the site's 2.4rem hit area. */
+  :global(.album-player) .file-action {
+    padding: 0.25rem 0.35rem;
+    border-color: transparent;
+    background: none;
+    color: var(--link);
+    font-size: var(--t-2xs);
+    font-weight: 400;
+    text-decoration: underline;
+  }
+
+  :global(.album-player) .file-action:hover {
+    border-color: var(--stroke);
+    background: var(--sunk);
+  }
+
+  /* Under 390px global.css gives every row's actions a full-width column each, which is right
+     for a file shelf and wrong for a playlist: it made one track 167px tall and left two and a
+     half of them on a phone screen. As links they fit on one line of their own. */
+  @media (max-width: 390px) {
+    :global(.album-player) .file-actions {
+      display: flex;
+    }
+
+    :global(.album-player) .file-action {
+      justify-content: flex-start;
+      white-space: nowrap;
+    }
   }
 </style>

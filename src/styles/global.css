@@ -150,13 +150,13 @@ video {
   max-width: 100%;
 }
 
-/* Astro compiles a component's scoped styles to :where(.astro-hash), which has ZERO
-   specificity, so a scoped `.thing { display: flex }` ties with the UA sheet's
-   `[hidden] { display: none }` at (0,1,0) and wins on source order. Any component that
-   ships a progressive-enhancement layer hidden until its script runs would therefore
-   reveal it to visitors with JavaScript off. !important is load-bearing here: this file
-   is imported by BaseLayout and lands ahead of component styles, so without it the rule
-   loses the same tie it exists to win. */
+/* Astro compiles a component's scoped styles by appending [data-astro-cid-…] to every
+   compound, so a scoped `.thing { display: flex }` lands at (0,2,0) and beats the UA
+   sheet's `[hidden] { display: none }` at (0,1,0) outright. Any component that ships a
+   progressive-enhancement layer hidden until its script runs would therefore reveal it to
+   visitors with JavaScript off. !important is load-bearing here, and a specificity bump
+   would not do instead: the scoped rule is more specific, and this file lands ahead of
+   component styles, so it loses on both counts without it. */
 [hidden] {
   display: none !important;
 }
@@ -803,6 +803,10 @@ main {
   gap: 0.5rem;
 }
 
+/* A card in a list of cards. The same row becomes a playlist row once the album player has
+   taken the list inside itself, and those rules are in ItemRows.astro rather than beside this
+   one: a scoped selector there carries the component's own attribute on every compound, so it
+   outranks both this rule and the row-state rules that sit next to it. */
 .item-rows > li,
 .file-list > li {
   min-width: 0;
@@ -899,6 +903,7 @@ main {
   width: 100%;
   margin-top: 0.75rem;
 }
+
 
 .item-player-note {
   margin: 0.6rem 0 0;

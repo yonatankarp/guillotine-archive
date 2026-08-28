@@ -35,6 +35,40 @@ describe('parseCatalog', () => {
     expect(parseCatalog(JSON.stringify(validCatalog))).toEqual(validCatalog);
   });
 
+  /* The pipeline that writes derivatives (src/catalog/build.ts) and the schema that reads
+     them are separate modules, and this schema is strict — so a rendition kind added to the
+     writer and not here rejects the entire catalog. That failure surfaces only on a real
+     credentialed sync, thirty minutes in, long after the change that caused it. Enumerating
+     every field of ItemDerivatives here turns that into a unit-test failure instead. */
+  test('accepts every rendition the derivative pipeline can produce', () => {
+    const rendition = { path: 'generated/derivatives/one.bin', bytes: 1 };
+    const withEveryDerivative = {
+      ...validCatalog,
+      items: [
+        {
+          ...validItem,
+          derivatives: {
+            thumb: { ...rendition, width: 400, height: 300 },
+            view: { ...rendition, width: 1600, height: 1200 },
+            reader: { ...rendition, width: 2400, height: 1800 },
+            audio: rendition,
+            video: rendition,
+            poster: { ...rendition, width: 640, height: 360 },
+            durationMillis: 1000,
+          },
+        },
+      ],
+    };
+
+    expect(() => parseCatalog(JSON.stringify(withEveryDerivative))).not.toThrow();
+  });
+
+  test('says what failed rather than only that something did', () => {
+    const bad = { ...validCatalog, items: [{ ...validItem, kind: 'not-a-kind' }] };
+
+    expect(() => parseCatalog(JSON.stringify(bad))).toThrow(/items\.0\.kind/u);
+  });
+
   test('rejects malformed generated data instead of presenting an empty archive', () => {
     expect(() => parseCatalog('{"generatedAt":42,"collections":[]}')).toThrow(
       'generated catalog is invalid',

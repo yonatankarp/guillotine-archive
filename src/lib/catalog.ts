@@ -56,6 +56,7 @@ const itemDerivatives = z
     view: derivative.optional(),
     reader: derivative.optional(),
     audio: derivative.optional(),
+    video: derivative.optional(),
     poster: derivative.optional(),
     durationMillis: z.number().int().nonnegative().optional(),
   })
@@ -187,11 +188,30 @@ export const emptyDevelopmentCatalog: Catalog = {
 };
 
 export function parseCatalog(source: string): Catalog {
+  let parsed: unknown;
   try {
-    return catalogSchema.parse(JSON.parse(source));
+    parsed = JSON.parse(source);
   } catch {
-    throw new Error('generated catalog is invalid');
+    throw new Error('generated catalog is invalid: not JSON');
   }
+
+  const result = catalogSchema.safeParse(parsed);
+  if (result.success) return result.data;
+
+  /* Name what actually failed. This schema is strict and the pipeline that writes the
+     catalog is a separate module, so the two can drift: a derivative field added to
+     build.ts but not here rejects the WHOLE catalog. A bare "invalid" turned that into
+     a 30-minute sync round trip to diagnose, because the sync's own validation passes
+     and only the render-time parse refuses. */
+  const issues = result.error.issues;
+  const named = issues
+    .slice(0, 5)
+    .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+    .join('; ');
+
+  throw new Error(
+    `generated catalog is invalid — ${named}${issues.length > 5 ? ` (+${issues.length - 5} more)` : ''}`,
+  );
 }
 
 export function loadCatalog(path: string, allowMissing = true): Catalog {

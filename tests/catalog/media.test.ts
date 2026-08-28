@@ -17,6 +17,7 @@ vi.mock('yauzl', () => ({
 }));
 
 import {
+  coverBlackPointGain,
   extractText,
   isTextExtractable,
   optimizeCover,
@@ -419,9 +420,16 @@ describe('optimizeCover', () => {
     const original = Buffer.from(cover);
 
     const optimized = await optimizeCover(cover);
+    // Flat magenta has a luminance of 73 and so no dark content at all, which is the case the
+    // black point gain is capped for. A cover with no crop rectangle gets the same finishing
+    // pass as one with a rectangle, so that a release without a curated crop does not sit
+    // visibly outside the set.
+    const gain = coverBlackPointGain(73);
     const expected = await sharp(cover)
       .rotate()
       .resize(720, 960, { fit: 'inside', withoutEnlargement: true })
+      .linear(gain, 255 * (1 - gain))
+      .sharpen({ sigma: 0.7, m1: 0, m2: 2 })
       .webp({ quality: 82 })
       .toBuffer();
     const metadata = await sharp(optimized).metadata();

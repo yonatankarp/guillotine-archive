@@ -7,10 +7,12 @@ import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
 import {
+  coverBlackPointGain,
   cropInSource,
   decodeWithImageMagick,
   imageTiersFor,
   isStreamableVideoContainer,
+  luminancePercentile,
   needsExternalDecoder,
   opusBitrateFor,
   optimizeCover,
@@ -86,6 +88,55 @@ async function centrePixel(data: Buffer): Promise<[number, number, number]> {
     number,
     number,
   ];
+}
+
+/**
+ * A grey ramp across the width. `floor` is the darkest level in it, which makes the black
+ * point of the frame a number the test chose rather than one it has to discover.
+ */
+async function rampImage(width: number, height: number, floor: number): Promise<Buffer> {
+  const row = Buffer.alloc(width * 3);
+  for (let x = 0; x < width; x += 1) {
+    row.fill(Math.round(floor + ((255 - floor) * x) / (width - 1)), x * 3, x * 3 + 3);
+  }
+
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) row.copy(pixels, y * width * 3);
+
+  return sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer();
+}
+
+/**
+ * Luminance range of a region, which is how both the black point and flatness are read.
+ * Decoded rather than taken from sharp's stats(), which reports on the input image and
+ * silently ignores an extract earlier in the chain.
+ */
+async function regionRange(
+  image: Buffer,
+  region: { left: number; top: number; width: number; height: number },
+): Promise<{ min: number; max: number; stdev: number }> {
+  const { data, info } = await sharp(image)
+    .extract(region)
+    .greyscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  let min = 255;
+  let max = 0;
+  let sum = 0;
+  let squares = 0;
+  for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+    const level = data[pixel * info.channels]!;
+    min = Math.min(min, level);
+    max = Math.max(max, level);
+    sum += level;
+    squares += level * level;
+  }
+
+  const count = info.width * info.height;
+  const mean = sum / count;
+
+  return { min, max, stdev: Math.sqrt(Math.max(0, squares / count - mean * mean)) };
 }
 
 function stubBinary(script: string): string {
@@ -219,6 +270,187 @@ describe('cover and logo crops', () => {
     ]) {
       await expect(optimizeCover(source, crop)).rejects.toThrow(/nonnegative integers/u);
     }
+  });
+});
+
+/**
+ * A soft edge and a grainy flat field in one frame, plus a black bar wide enough to hold the
+ * black point at zero so the tone pass is a no-op and the sharpen can be judged on its own.
+ *
+ * The edge spans three pixels because that is what a downscale leaves of a printed edge, and
+ * it is the scale a 0.7-pixel radius acts on: a wider ramp passes through untouched.
+ */
+async function edgeAndGrainImage(): Promise<Buffer> {
+  const width = 720;
+  const height = 960;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      let value = 0;
+      if (x >= 20 && x < 200) value = 40;
+      else if (x >= 200 && x < 203) value = 40 + Math.round(((x - 199) * 170) / 4);
+      else if (x >= 203 && x < 400) value = 210;
+      else if (x >= 400) value = 128 + (((x * 7 + y * 13) % 13) - 6);
+      const offset = (y * width + x) * 3;
+      pixels.fill(value, offset, offset + 3);
+    }
+  }
+
+  return sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer();
+}
+
+/**
+ * How far the middle row dips below the flat level on the dark side of the edge and rises
+ * above it on the light side. An unsharp pass and nothing else puts values outside the two
+ * flat levels the source was built from, so this is the signature to assert on rather than
+ * the step across the edge, which a three-pixel ramp already maximises on its own.
+ */
+async function edgeOvershoot(image: Buffer): Promise<{ under: number; over: number }> {
+  const { data, info } = await sharp(image).greyscale().raw().toBuffer({ resolveWithObject: true });
+  const row = Math.floor(info.height / 2) * info.width;
+  let under = 255;
+  let over = 0;
+  for (let x = 195; x < 200; x += 1) under = Math.min(under, data[row + x]!);
+  for (let x = 203; x < 208; x += 1) over = Math.max(over, data[row + x]!);
+
+  return { under, over };
+}
+
+const WHOLE_FRAME: CropRegion = { left: 0, top: 0, width: 720, height: 960 };
+
+describe('cover finishing pass', () => {
+  /**
+   * The measured complaint: the box scans reach the frame with nothing near black in them,
+   * which is what reads as haze rather than as printed card.
+   */
+  test('pulls a lifted black point down to black', async () => {
+    const source = await rampImage(720, 960, 40);
+    expect((await regionRange(source, WHOLE_FRAME)).min).toBe(40);
+
+    const finished = await optimizeCover(source, WHOLE_FRAME);
+
+    expect((await regionRange(finished, WHOLE_FRAME)).min).toBeLessThan(12);
+  });
+
+  /**
+   * The same pass has to be inert on a cover that already reaches black, because that is what
+   * lets it run on every cover instead of on a hand-picked list.
+   */
+  test('leaves a cover that already reaches black alone', async () => {
+    const finished = await optimizeCover(await rampImage(720, 960, 0), WHOLE_FRAME);
+    const { min, max } = await regionRange(finished, WHOLE_FRAME);
+
+    expect(min).toBeLessThan(4);
+    expect(max).toBeGreaterThan(251);
+    // The ramp's midpoint moves only by the encoder, not by a tone curve.
+    const middle = await regionRange(finished, { left: 356, top: 400, width: 8, height: 160 });
+    expect(middle.min).toBeGreaterThan(120);
+    expect(middle.max).toBeLessThan(136);
+  });
+
+  /**
+   * A frame with no dark content at all is a legitimately light image, not a hazy one. The
+   * gain cap is what stops the pass from reading it as haze and slamming it.
+   */
+  test('caps the pull instead of slamming a frame with no dark content', async () => {
+    const finished = await optimizeCover(await solidImage(720, 960, '#c8c8c8'), WHOLE_FRAME);
+    const { min } = await regionRange(finished, WHOLE_FRAME);
+
+    expect(min).toBeGreaterThan(175);
+  });
+
+  test('holds the white point still so the pass can only deepen shadows', () => {
+    for (const darkest of [0, 4, 12, 38, 120]) {
+      const gain = coverBlackPointGain(darkest);
+      expect(255 * gain + 255 * (1 - gain)).toBeCloseTo(255);
+    }
+  });
+
+  /**
+   * A greyscale or palette source decodes to one band, where the Rec. 709 weights would read
+   * across into the next pixel instead of into this one's green and blue.
+   */
+  test('reads the black point of a single-band frame from that band', () => {
+    const grey = Uint8Array.from([10, 20, 30, 40, 200, 200, 200, 200, 200, 200]);
+
+    expect(luminancePercentile(grey, 10, 1, 1, 0.05)).toBe(10);
+    expect(luminancePercentile(grey, 10, 1, 1, 0.35)).toBe(40);
+    // Three RGB pixels, of which the darkest is the middle one.
+    const colour = Uint8Array.from([255, 255, 255, 0, 0, 0, 128, 128, 128]);
+    expect(luminancePercentile(colour, 3, 1, 3, 0.01)).toBe(0);
+  });
+
+  test('scales the pull to how lifted the black point is, and no further', () => {
+    expect(coverBlackPointGain(0)).toBe(1);
+    expect(coverBlackPointGain(4)).toBe(1);
+    expect(coverBlackPointGain(38)).toBeCloseTo(1.157, 3);
+    expect(coverBlackPointGain(200)).toBe(1.25);
+  });
+
+  /**
+   * The tone pass reconstructs the frame from a raw buffer, so a source with transparency has
+   * to survive both that and the WebP encode with its alpha band intact and unramped: a ramped
+   * alpha would show as transparency punched through the middle of a 3:4 cover.
+   */
+  test('carries an alpha band through the pass without ramping it', async () => {
+    const width = 720;
+    const height = 960;
+    const pixels = Buffer.alloc(width * height * 4);
+    for (let pixel = 0; pixel < width * height; pixel += 1) {
+      const offset = pixel * 4;
+      // A black left half holds the black point at zero, so the gain here is exactly 1.
+      const opaque = pixel % width < width / 2;
+      pixels[offset] = opaque ? 0 : 200;
+      pixels[offset + 3] = opaque ? 255 : 128;
+    }
+    const source = await sharp(pixels, { raw: { width, height, channels: 4 } }).png().toBuffer();
+
+    const finished = await optimizeCover(source, WHOLE_FRAME);
+
+    expect((await sharp(finished).metadata()).hasAlpha).toBe(true);
+    const { data, info } = await sharp(finished)
+      .extract({ left: 500, top: 400, width: 40, height: 40 })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    let lowest = 255;
+    let highest = 0;
+    for (let pixel = 0; pixel < info.width * info.height; pixel += 1) {
+      const alpha = data[pixel * info.channels + 3]!;
+      lowest = Math.min(lowest, alpha);
+      highest = Math.max(highest, alpha);
+    }
+
+    // Still half transparent across the whole patch rather than pulled toward either end.
+    expect(lowest).toBeGreaterThan(118);
+    expect(highest).toBeLessThan(138);
+  });
+
+  test('adds acutance to an edge the downscale softened', async () => {
+    const source = await edgeAndGrainImage();
+    const finished = await optimizeCover(source, WHOLE_FRAME);
+
+    // The source is built from two flat levels, so it sits exactly on them.
+    expect(await edgeOvershoot(source)).toEqual({ under: 40, over: 210 });
+
+    const { under, over } = await edgeOvershoot(finished);
+    expect(under).toBeLessThan(38);
+    expect(over).toBeGreaterThan(212);
+  });
+
+  /**
+   * m1: 0 is what keeps the dust specks and grain of a scan out of the sharpen. The same
+   * probe run with sharp's default m1: 1 takes this field from 3.7 to 6.5, so the margin
+   * below separates a finishing pass from a filter rather than merely passing.
+   */
+  test('does not amplify grain in a flat field', async () => {
+    const grain = { left: 480, top: 300, width: 200, height: 200 };
+    const source = await edgeAndGrainImage();
+    const finished = await optimizeCover(source, WHOLE_FRAME);
+
+    const before = (await regionRange(source, grain)).stdev;
+    expect((await regionRange(finished, grain)).stdev).toBeLessThan(before * 1.2);
   });
 });
 

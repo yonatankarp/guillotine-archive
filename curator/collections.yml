@@ -88,7 +88,10 @@ collections:
     type: game
     summaryHe: קראנו לו ווג׳ימון. כן, זה השם. לא, לא נתנצל — ואם משהו נשמע לכם מוכר, זו ממש לא אשמתנו.
     coverFileId: 0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ
-    coverCrop: { left: 0, top: 0, width: 359, height: 479 }
+    # left: 2 skips a 2px pale platen sliver down the left edge of the scan. The finishing
+    # pass deepens shadows, which made that hairline MORE prominent rather than less, and no
+    # safe detector catches it — it measures stdev 46, so a flatness rule misses it.
+    coverCrop: { left: 2, top: 0, width: 357, height: 479 }
     aliasesHe: [ווגימון, ווג_ימון]
     tagsHe: [ווגימון, קומדיה, גיליוטין]
     rules:

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { htmlToText } from 'html-to-text';
 import mammoth from 'mammoth';
-import sharp from 'sharp';
+import sharp, { type Sharp } from 'sharp';
 import yauzl from 'yauzl';
 
 const MAX_TEXT_BYTES = 10 * 1024 * 1024;
@@ -255,6 +255,33 @@ const COVER_HEIGHT = 960;
 const COVER_QUALITY = 82;
 const LOGO_QUALITY = 90;
 
+/**
+ * What separates these from product artwork is haze, and haze is a lifted black point. The
+ * darkest half percent of חלום שהתגשם measures 38 and of ווג׳ימון 37 on a 0-255 luminance
+ * scale, so neither reaches black anywhere and both read grey. פיפוש measures 11 and needs
+ * nothing. The pull is therefore MEASURED per cover rather than fixed: a cover that already
+ * reaches black computes a gain of 1.0 and passes through untouched, which is what makes the
+ * step safe to apply to every cover instead of to a hand-picked list.
+ *
+ * Half a percent is the whole conservatism argument. It is by construction the most pixels
+ * this can clip, which is what the warning about normalise() on artwork with a dark border
+ * is about; the gain cap bounds a pathological source on top of that.
+ */
+const BLACK_POINT_TARGET = 4;
+const BLACK_POINT_PERCENTILE = 0.005;
+const BLACK_POINT_MAX_GAIN = 1.25;
+
+/**
+ * The resize had no sharpening pass after it, which is what left the line art soft. m1: 0 is
+ * the load-bearing setting: it sharpens edges and leaves flat areas alone, so the dust specks
+ * and scan grain in the darker boxes are not amplified along with the lettering. sigma is in
+ * OUTPUT pixels because this runs after the resize, so it does not have to be retuned for how
+ * far a given original was scaled down. Measured against the committed 1600px renditions,
+ * sigma 1.0 put a visible dark overshoot inside the yellow lettering of בתככי הרייטינג and
+ * 0.4 was indistinguishable from no pass at all.
+ */
+const COVER_SHARPEN = { sigma: 0.7, m1: 0, m2: 2 } as const;
+
 export const IMAGE_TIERS: readonly ImageDerivativeTier[] = [
   { name: 'thumb', edge: 400 },
   { name: 'view', edge: 1600 },
@@ -364,21 +391,95 @@ export function cropInSource(
  */
 export async function optimizeCover(data: Buffer, crop?: CropRegion): Promise<Buffer> {
   if (!crop) {
-    return sharp(data)
-      .rotate()
-      .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: COVER_QUALITY })
-      .toBuffer();
+    return finishCover(
+      sharp(data)
+        .rotate()
+        .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'inside', withoutEnlargement: true }),
+    );
   }
 
   const source = await orientedSize(data);
   const fitted = fittedCoverSize(source.width, source.height);
   assertCropWithin(crop, fitted.width, fitted.height);
 
-  return sharp(data)
-    .rotate()
-    .extract(cropInSource(crop, fitted, source))
-    .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'cover' })
+  return finishCover(
+    sharp(data)
+      .rotate()
+      .extract(cropInSource(crop, fitted, source))
+      .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'cover' }),
+  );
+}
+
+/**
+ * Luminance below which `fraction` of the frame sits. Greyscale and palette sources decode to
+ * one or two bands, where band 0 already IS the luminance and the Rec. 709 weights would read
+ * across into the next pixel.
+ */
+export function luminancePercentile(
+  pixels: Buffer | Uint8Array,
+  width: number,
+  height: number,
+  channels: number,
+  fraction: number,
+): number {
+  const histogram = new Uint32Array(256);
+  const colour = channels >= 3;
+  for (let pixel = 0, offset = 0; pixel < width * height; pixel += 1, offset += channels) {
+    const level = colour
+      ? Math.round(
+          0.2126 * pixels[offset]! + 0.7152 * pixels[offset + 1]! + 0.0722 * pixels[offset + 2]!,
+        )
+      : pixels[offset]!;
+    histogram[level] = histogram[level]! + 1;
+  }
+
+  const wanted = width * height * fraction;
+  let seen = 0;
+  for (let level = 0; level < 256; level += 1) {
+    seen += histogram[level]!;
+    if (seen >= wanted) return level;
+  }
+
+  return 255;
+}
+
+/**
+ * The gain that lands `darkest` on BLACK_POINT_TARGET. Returns exactly 1 for a cover that
+ * already reaches black, so the tone pass is a no-op there rather than a filter applied for
+ * its own sake.
+ */
+export function coverBlackPointGain(darkest: number): number {
+  if (darkest <= BLACK_POINT_TARGET) return 1;
+  return Math.min((255 - BLACK_POINT_TARGET) / (255 - darkest), BLACK_POINT_MAX_GAIN);
+}
+
+/**
+ * Tone and acutance, applied to what the resize produced rather than to the source, so the
+ * black point is measured on exactly the pixels that ship and the sharpen radius is in output
+ * pixels rather than in however many source pixels this particular original happened to have.
+ *
+ * The offset holds the white point still: 255 * gain + 255 * (1 - gain) is 255 for any gain,
+ * so the pass can only deepen shadows and can never blow out the lettering or the highlights.
+ * `linear` leaves an alpha band alone, so an RGBA source keeps its transparency intact.
+ */
+async function finishCover(resized: Sharp): Promise<Buffer> {
+  const { data, info } = await resized
+    .raw({ depth: 'uchar' })
+    .toBuffer({ resolveWithObject: true });
+  const darkest = luminancePercentile(
+    data,
+    info.width,
+    info.height,
+    info.channels,
+    BLACK_POINT_PERCENTILE,
+  );
+  const gain = coverBlackPointGain(darkest);
+
+  return sharp(data, {
+    raw: { width: info.width, height: info.height, channels: info.channels },
+  })
+    .linear(gain, 255 * (1 - gain))
+    .sharpen(COVER_SHARPEN)
     .webp({ quality: COVER_QUALITY })
     .toBuffer();
 }

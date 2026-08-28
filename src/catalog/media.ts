@@ -302,10 +302,13 @@ function assertCropWithin(crop: CropRegion, width: number, height: number): void
 }
 
 /**
- * Crop rectangles are hand-measured against the 720x960-fitted frame, not the
- * Drive original, which runs to 20 MiB and several thousand pixels. Fitting
- * first puts those numbers back in the space they were taken in; skipping it
- * silently crops a corner of the source instead of the front panel.
+ * The frame every hand-measured rectangle was taken in. Crop numbers are read off a
+ * 720x960-fitted view, not off the Drive original, which runs to 20 MiB and several thousand
+ * pixels; a rectangle applied straight to the original lands in a corner of the source
+ * instead of on the front panel.
+ *
+ * Only the logo path extracts out of this frame. A cover measures against it and then
+ * extracts out of the original, which is the difference between the two crops below.
  */
 async function fittedCoverFrame(data: Buffer): Promise<Buffer> {
   return sharp(data)
@@ -315,6 +318,50 @@ async function fittedCoverFrame(data: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
+/** Size after .rotate() has applied EXIF orientation, which is the space every crop below is in. */
+async function orientedSize(data: Buffer): Promise<{ width: number; height: number }> {
+  const { autoOrient, width = 0, height = 0 } = await sharp(data).metadata();
+  return { width: autoOrient?.width ?? width, height: autoOrient?.height ?? height };
+}
+
+/** What `fit: 'inside'` with `withoutEnlargement` resolves to, without decoding the source. */
+function fittedCoverSize(width: number, height: number): { width: number; height: number } {
+  const scale = Math.min(COVER_WIDTH / width, COVER_HEIGHT / height, 1);
+  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+}
+
+/**
+ * The same rectangle in full-resolution source pixels. Clamped rather than rounded freely: a
+ * rectangle flush against the edge of the fitted frame has to stay inside the source, and one
+ * pixel over is a decoder error rather than a slightly wrong crop.
+ */
+export function cropInSource(
+  crop: CropRegion,
+  fitted: { width: number; height: number },
+  source: { width: number; height: number },
+): CropRegion {
+  const horizontal = source.width / fitted.width;
+  const vertical = source.height / fitted.height;
+  const left = Math.round(crop.left * horizontal);
+  const top = Math.round(crop.top * vertical);
+
+  return {
+    left,
+    top,
+    width: Math.min(Math.round(crop.width * horizontal), source.width - left),
+    height: Math.min(Math.round(crop.height * vertical), source.height - top),
+  };
+}
+
+/**
+ * The frame is always 720x960, so the page can reserve that shape for every cover.
+ *
+ * The curated rectangle is MEASURED against the fitted frame and then EXTRACTED from the
+ * original: the two are different jobs and doing both in the fitted frame is what made the
+ * covers soft. ווג׳ימון is half of a 1600px-wide box wrap, so its front panel is 359 fitted
+ * pixels and around 800 real ones — cropping the fitted thumbnail threw the rest away and
+ * then enlarged 2x to fill the frame, which adds no detail and blurs what was there.
+ */
 export async function optimizeCover(data: Buffer, crop?: CropRegion): Promise<Buffer> {
   if (!crop) {
     return sharp(data)
@@ -324,12 +371,13 @@ export async function optimizeCover(data: Buffer, crop?: CropRegion): Promise<Bu
       .toBuffer();
   }
 
-  const fitted = await fittedCoverFrame(data);
-  const { width = 0, height = 0 } = await sharp(fitted).metadata();
-  assertCropWithin(crop, width, height);
+  const source = await orientedSize(data);
+  const fitted = fittedCoverSize(source.width, source.height);
+  assertCropWithin(crop, fitted.width, fitted.height);
 
-  return sharp(fitted)
-    .extract(crop)
+  return sharp(data)
+    .rotate()
+    .extract(cropInSource(crop, fitted, source))
     .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'cover' })
     .webp({ quality: COVER_QUALITY })
     .toBuffer();

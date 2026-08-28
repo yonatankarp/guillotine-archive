@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
 import {
+  cropInSource,
   decodeWithImageMagick,
   imageTiersFor,
   isStreamableVideoContainer,
@@ -41,6 +42,33 @@ async function quadrantImage(width: number, height: number): Promise<Buffer> {
     ])
     .png()
     .toBuffer();
+}
+
+/**
+ * One-pixel vertical stripes. A frequency this fine exists only at full resolution: any
+ * downsample averages neighbouring stripes into flat grey, and enlarging afterwards cannot
+ * bring them back, so the pattern's survival is proof of where the crop was taken from.
+ */
+async function stripedImage(width: number, height: number): Promise<Buffer> {
+  const row = Buffer.alloc(width * 3);
+  for (let x = 0; x < width; x += 1) row.fill(x % 2 === 0 ? 0 : 255, x * 3, x * 3 + 3);
+
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) row.copy(pixels, y * width * 3);
+
+  return sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer();
+}
+
+/** Darkest and lightest sample on the output's middle row, away from its edges. */
+async function middleRowContrast(image: Buffer): Promise<number> {
+  const { data, info } = await sharp(image).raw().toBuffer({ resolveWithObject: true });
+  const row = Math.floor(info.height / 2);
+  const samples: number[] = [];
+  for (let x = 40; x < info.width - 40; x += 1) {
+    samples.push(data[(row * info.width + x) * info.channels]!);
+  }
+
+  return Math.max(...samples) - Math.min(...samples);
 }
 
 async function centrePixel(data: Buffer): Promise<[number, number, number]> {
@@ -102,6 +130,59 @@ describe('cover and logo crops', () => {
     const cropped = await optimizeCover(original, { left: 360, top: 0, width: 360, height: 480 });
 
     expect(await centrePixel(cropped)).toEqual([0, 255, 0]);
+  });
+
+  /**
+   * The rectangle is measured in the fitted frame and extracted from the original, which
+   * are two different spaces. ווג׳ימון is the case that made this visible: a 1600x1064 box
+   * wrap fits to 720x479, so its front panel is 359 fitted pixels wide and 798 real ones.
+   */
+  test('scales the curated rectangle into full-resolution source pixels', () => {
+    expect(
+      cropInSource(
+        { left: 0, top: 0, width: 359, height: 479 },
+        { width: 720, height: 479 },
+        { width: 1600, height: 1064 },
+      ),
+    ).toEqual({ left: 0, top: 0, width: 798, height: 1064 });
+
+    // A source that already fits needs no scaling, so the rectangle is passed through.
+    expect(
+      cropInSource(
+        { left: 15, top: 0, width: 689, height: 919 },
+        { width: 720, height: 919 },
+        { width: 720, height: 919 },
+      ),
+    ).toEqual({ left: 15, top: 0, width: 689, height: 919 });
+
+    // Scaling up a rectangle flush against the frame edge must not round past the source.
+    expect(
+      cropInSource(
+        { left: 0, top: 0, width: 719, height: 960 },
+        { width: 719, height: 960 },
+        { width: 1199, height: 1600 },
+      ),
+    ).toEqual({ left: 0, top: 0, width: 1199, height: 1600 });
+  });
+
+  /**
+   * The frame is 720x960 whatever happens, so the only question is whether it is filled with
+   * real pixels or with an enlargement of a thumbnail. Here the rectangle is a quarter of the
+   * fitted frame and exactly 720x960 pixels of the original: extracted from the original it
+   * fills the frame at 1:1, and extracted from the fitted frame it would be enlarged 2x.
+   */
+  test('fills the frame from the original rather than enlarging the fitted frame', async () => {
+    const cover = await optimizeCover(await stripedImage(1440, 1920), {
+      left: 0,
+      top: 0,
+      width: 360,
+      height: 480,
+    });
+    const metadata = await sharp(cover).metadata();
+
+    expect([metadata.width, metadata.height]).toEqual([720, 960]);
+    // Enlarging the fitted frame instead measures 0 here: the stripes are averaged away.
+    expect(await middleRowContrast(cover)).toBeGreaterThan(200);
   });
 
   test('keeps a logo at its native crop size', async () => {

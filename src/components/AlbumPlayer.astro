@@ -148,8 +148,11 @@ const { labelHe, titleHe, coverPath = null, firstTrackNameHe, trackCount } = Ast
     background: color-mix(in oklab, var(--accent) 8%, var(--raise));
   }
 
+  /* 3:4, matching the tile and the room hero. A curated cover IS 3:4, so a 4:5 frame matted
+     the same artwork with two side bars nobody chose — piposh-1 is the case that exposes it,
+     being the one game whose page and whose album both show a cover. */
   .player-art {
-    aspect-ratio: 4 / 5;
+    aspect-ratio: 3 / 4;
     display: grid;
     overflow: hidden;
     border-radius: var(--radius-s);

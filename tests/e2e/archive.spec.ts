@@ -155,8 +155,10 @@ test('homepage is a Hebrew RTL, cover-first grid of the six games only', async (
         'src',
         site.route(`generated/covers/${release.coverFileId}.webp`),
       );
-      // The grid is image-led: art fills the frame and is never matted.
-      await expect(image).toHaveCSS('object-fit', 'cover');
+      /* Matted, not filled. Covers are not all 3:4 — פיפוש 2's scan is a near-square front
+         panel — and filling the frame meant cropping, which cut its title off both sides.
+         Showing the whole artwork beats a uniform edge-to-edge grid. */
+      await expect(image).toHaveCSS('object-fit', 'contain');
       await expect(placeholder, `${release.slug} has no placeholder with a cover`).toHaveCount(0);
     } else {
       await expect(image, `${release.slug} has no image without a cover`).toHaveCount(0);

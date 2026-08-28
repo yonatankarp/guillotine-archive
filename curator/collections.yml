@@ -30,7 +30,9 @@ collections:
     type: game
     summaryHe: אז עשינו עוד אחד. מה, חשבתם שנעצור? קיבינימאט, פיפוש לא יודע מתי לרדת מהבמה.
     coverFileId: 0Bwqx7RiWdM3YcnVNS09PUGR4aFk
-    coverCrop: { left: 85, top: 0, width: 533, height: 711 }
+    # The whole panel. This scan is the front and nothing else, so any inset here slices
+    # artwork — the old 533-wide rectangle cut through the פיפוש lettering.
+    coverCrop: { left: 0, top: 0, width: 720, height: 711 }
     aliasesHe: [פיפוש שתיים]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
     rules:
@@ -48,7 +50,9 @@ collections:
     type: game
     summaryHe: קראו לזה חלום שהתגשם, ומי אנחנו שנתווכח עם הכותרת? נו, אז זה התגשם. תשחקו ותשפטו לבד.
     coverFileId: 0B2YRfkQTdJ96MnFNUnlRdlhkdjQ
-    coverCrop: { left: 0, top: 40, width: 400, height: 533 }
+    # Front panel only: the scan is a flattened wrap, so this clears the box's top flap
+    # (which repeats the title) and stops before the credits spine on the right.
+    coverCrop: { left: 0, top: 78, width: 612, height: 882 }
     logoCrop: { left: 22, top: 92, width: 255, height: 125 }
     aliasesHe: [פיפוש חלום שהתגשם]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
@@ -66,7 +70,10 @@ collections:
     type: game
     summaryHe: הכול על רייטינג, תככים ומי מקבל את הפריים־טיים. שום דבר מזה לא התיישן, וזה החלק המדאיג.
     coverFileId: 0Bwqx7RiWdM3YVEVKUEFweVo0ZW8
-    coverCrop: { left: 0, top: 0, width: 559, height: 745 }
+    # Front panel only. The old rectangle started at 0 and swallowed the box's top flap,
+    # which carries the title a second time — that is the doubled title on the tile — and
+    # this stops above the MAC/PC spec band and barcode at the foot of the wrap.
+    coverCrop: { left: 0, top: 141, width: 559, height: 651 }
     logoCrop: { left: 45, top: 28, width: 470, height: 78 }
     aliasesHe: [תככי הרייטינג]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]

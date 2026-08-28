@@ -406,7 +406,13 @@ export async function optimizeCover(data: Buffer, crop?: CropRegion): Promise<Bu
     sharp(data)
       .rotate()
       .extract(cropInSource(crop, fitted, source))
-      .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'cover' }),
+      /*
+       * 'inside', not 'cover'. The rectangle above IS the front panel, so a further crop here
+       * cuts artwork — and it did: פיפוש 2's scan is a near-square 1600x1580 front with no
+       * wrap, and squaring it to 3:4 sliced the פיפוש lettering off both sides. A cover matted
+       * in its frame is right; a cover with its title cut off is not.
+       */
+      .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'inside', withoutEnlargement: false }),
   );
 }
 

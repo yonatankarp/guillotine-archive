@@ -588,10 +588,10 @@ main {
   width: 100%;
   height: 100%;
   display: block;
-  /* The tile is image-led: art fills the frame. A curated cover is already 3:4 so nothing is
-     cropped here any more, and this only still has work to do for a cover selected without a
-     crop rectangle, which the pipeline fits rather than squares. */
-  object-fit: cover;
+  /* Contain, not cover. The covers are NOT all 3:4 — the pipeline used to MAKE them 3:4 by
+     cropping, and that is what cut פיפוש 2's title off. Each cover keeps its own shape now and
+     the mat carries the difference, which is what a mat is for. */
+  object-fit: contain;
 }
 
 /* The spine of the cardboard box these were sold in, on the leading edge in RTL. */

@@ -157,17 +157,33 @@ describe('cover and logo crops', () => {
     expect(metadata.height).toBe(960);
   });
 
-  test('crops into one fixed 3:4 frame regardless of the source ratio', async () => {
+  /*
+   * The old version of this test only ever fed rectangles that were ALREADY 3:4, so despite its
+   * name it never tested a non-3:4 source — and that is precisely how פיפוש 2 shipped with its
+   * title sliced off. Its scan is a near-square front panel with no wrap, and squaring it to the
+   * frame cut the lettering off both sides. The contract is now: the rectangle is the artwork,
+   * so its shape is PRESERVED and the frame mats the difference.
+   */
+  test('a crop keeps its own shape rather than being squared to the frame', async () => {
     for (const [width, height] of [
-      [720, 919],
+      [689, 919],
       [720, 711],
-      [720, 479],
+      [357, 479],
+      [612, 882],
     ] as const) {
-      const crop: CropRegion = { left: 0, top: 0, width: Math.floor(height * 0.75), height };
+      const crop: CropRegion = { left: 0, top: 0, width, height };
       const cropped = await optimizeCover(await solidImage(width, height, '#123456'), crop);
-      const metadata = await sharp(cropped).metadata();
+      const { width: outWidth = 0, height: outHeight = 0 } = await sharp(cropped).metadata();
 
-      expect([metadata.width, metadata.height]).toEqual([720, 960]);
+      expect(outWidth, `${width}x${height} fits the frame`).toBeLessThanOrEqual(720);
+      expect(outHeight, `${width}x${height} fits the frame`).toBeLessThanOrEqual(960);
+      /* One dimension reaches the frame, so nothing is left needlessly small. */
+      expect(outWidth === 720 || outHeight === 960, `${width}x${height} fills one axis`).toBe(true);
+      /* And the shape survives: no slicing. */
+      expect(
+        Math.abs(outWidth / outHeight - width / height),
+        `${width}x${height} keeps its aspect`,
+      ).toBeLessThan(0.01);
     }
   });
 

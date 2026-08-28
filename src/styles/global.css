@@ -193,10 +193,18 @@ video {
 
 /* Wrapper for anything wider than the column — a long path, a table. Scrolls itself so the
    page body never does. */
+/*
+ * contain: paint is load-bearing, not decoration. In RTL a nested horizontal scroller leaks
+ * its scrollable overflow into the document: /missing/ measured window.scrollX reaching -932
+ * at a 320px viewport while no element outside the scroller crossed the viewport edge, so the
+ * page scrolled sideways with nothing visibly out of place. Painting containment stops the
+ * descendants counting toward an ancestor's scroll area, and internal scrolling still works.
+ */
 .scroll-x {
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  contain: paint;
 }
 
 /* Small structural label above a heading. No text-transform: Hebrew has no uppercase. */

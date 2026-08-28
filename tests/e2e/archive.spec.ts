@@ -7,6 +7,7 @@ import type { CatalogItem } from '../../src/catalog/types';
 import { formatFileCount } from '../../src/lib/archive';
 import { releaseItems, releaseSections } from '../../src/components/release-view';
 import { itemById, loadCatalog } from '../../src/lib/catalog';
+import { hasHorizontalOverflow } from '../support/horizontal-overflow';
 import { playwrightRuntime } from '../support/playwright-runtime';
 
 const expectedCatalog = loadCatalog('src/generated/catalog.json', false);
@@ -215,10 +216,7 @@ test('homepage is a Hebrew RTL, cover-first grid of the six games only', async (
   await expect(page.getByRole('contentinfo')).toContainText('נפתחים בלשונית חדשה');
   await expect(page.getByRole('contentinfo').getByText(/Drive/u)).toHaveCount(0);
 
-  const hasHorizontalOverflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  );
-  expect(hasHorizontalOverflow).toBe(false);
+  expect(await hasHorizontalOverflow(page), 'the page never scrolls sideways').toBe(false);
   await expectWithinViewport(page, page.locator('.site-header'));
   await expectWithinViewport(page, character);
   for (const tile of await tiles.all()) await expectWithinViewport(page, tile);

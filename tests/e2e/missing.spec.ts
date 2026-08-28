@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { loadMissingList } from '../../src/lib/catalog';
+import { hasHorizontalOverflow } from '../support/horizontal-overflow';
 import { playwrightRuntime } from '../support/playwright-runtime';
 
 /*
@@ -11,12 +12,6 @@ import { playwrightRuntime } from '../support/playwright-runtime';
  */
 const expectedList = loadMissingList('src/generated/missing-list.json');
 const { site } = playwrightRuntime;
-
-async function hasHorizontalOverflow(page: import('@playwright/test').Page): Promise<boolean> {
-  return page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  );
-}
 
 test('the missing list is a page to read, not a trip to a spreadsheet', async ({ page }) => {
   await page.goto(site.route('missing/'));

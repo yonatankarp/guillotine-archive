@@ -143,7 +143,21 @@ export function releaseAccent(release: Release): string {
   return release.accent ?? ACCENTS[hashOf(release.slug) % ACCENTS.length]!;
 }
 
+/*
+ * Covers that exist on the SITE but not in the archive. פיפוש המהפכה has no cover art in Drive
+ * at all — only map scans — and the only image of its box anywhere is a 118x158 one. It lives
+ * under public/assets/, which the sync does not manage, so a sync can neither overwrite it nor
+ * delete it, and nothing about it enters the catalog. Recorded rather than silent because this
+ * is the one image on the site that is not the owner's own material.
+ */
+const SITE_ONLY_COVERS: Readonly<Record<string, string>> = {
+  'piposh-revolution': 'assets/covers/piposh-revolution.webp',
+};
+
 export function releaseCoverPath(release: Release): string | null {
+  const siteOnly = SITE_ONLY_COVERS[release.slug];
+  if (siteOnly) return siteOnly;
+
   return release.coverFileId ? `generated/covers/${release.coverFileId}.webp` : null;
 }
 

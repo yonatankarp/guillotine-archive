@@ -3,6 +3,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import { deriveKind } from '../../src/catalog/kind';
 import {
   creditedWorks,
+  releaseCoverPath,
   galleryGroups,
   releaseItems,
   releaseSections,
@@ -499,10 +500,13 @@ test('extracted Hebrew document text is rendered on the page, not only indexed',
 });
 
 test('a release without a cover gets a designed placeholder, not a broken frame', async ({ page }) => {
-  const revolution = release('piposh-revolution');
-  expect(revolution.coverFileId).toBeUndefined();
+  /* Whichever release actually lacks a cover, rather than a slug written in by hand: פיפוש
+     המהפכה was that release until it gained a site-only cover, and naming it here meant this
+     test failed for a reason that had nothing to do with placeholders. 37 of 42 still qualify. */
+  const uncovered = expectedCatalog.releases.find((candidate) => !releaseCoverPath(candidate));
+  expect(uncovered, 'a release with no cover to place').toBeDefined();
 
-  await page.goto(site.route(`release/${revolution.slug}/`));
+  await page.goto(site.route(`release/${uncovered!.slug}/`));
 
   const placeholder = page.locator('.room-cover > .release-placeholder');
   await expect(placeholder).toHaveCount(1);

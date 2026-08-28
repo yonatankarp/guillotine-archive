@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { loadCatalog } from '../../src/lib/catalog';
+import { releaseCoverPath } from '../../src/components/release-view';
 import { playwrightRuntime } from '../support/playwright-runtime';
 
 const expectedCatalog = loadCatalog('src/generated/catalog.json', false);
@@ -37,7 +38,7 @@ const biggestPlaylist = tracksByRelease.get(biggestSlug)!;
 /* Five of the 42 releases were ever scanned, so the panel meets a release with no cover far
    more often than one with a cover, and both have to be on the page to be checked. */
 const coveredSlugs = new Set(
-  expectedCatalog.releases.filter((release) => release.coverFileId).map((release) => release.slug),
+  expectedCatalog.releases.filter(releaseCoverPath).map((release) => release.slug),
 );
 
 function album(page: Page, index = 0) {

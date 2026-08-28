@@ -5,7 +5,7 @@ import MiniSearch from 'minisearch';
 import { getSearchOptions, type SearchDocument } from '../../src/catalog/search';
 import type { CatalogItem } from '../../src/catalog/types';
 import { formatFileCount } from '../../src/lib/archive';
-import { releaseItems, releaseSections } from '../../src/components/release-view';
+import { releaseCoverPath, releaseItems, releaseSections } from '../../src/components/release-view';
 import { itemById, loadCatalog } from '../../src/lib/catalog';
 import { hasHorizontalOverflow } from '../support/horizontal-overflow';
 import { playwrightRuntime } from '../support/playwright-runtime';
@@ -149,11 +149,12 @@ test('homepage is a Hebrew RTL, cover-first grid of the six games only', async (
     await expect(tile).toHaveAttribute('href', site.route(`release/${release.slug}/`));
     const image = tile.locator('.release-cover > img');
     const placeholder = tile.locator('.release-cover > .release-placeholder');
-    if (release.coverFileId) {
+    const coverPath = releaseCoverPath(release);
+    if (coverPath) {
       await expect(image, `${release.slug} cover`).toHaveCount(1);
       await expect(image).toHaveAttribute(
         'src',
-        site.route(`generated/covers/${release.coverFileId}.webp`),
+        site.route(coverPath),
       );
       /* Matted, not filled. Covers are not all 3:4 — פיפוש 2's scan is a near-square front
          panel — and filling the frame meant cropping, which cut its title off both sides.
@@ -166,9 +167,12 @@ test('homepage is a Hebrew RTL, cover-first grid of the six games only', async (
     }
   }
 
-  // The five committed cover derivatives are real files, not broken links.
-  const coveredSlugs = expectedReleases.filter(({ coverFileId }) => coverFileId).map(({ slug }) => slug);
-  expect(coveredSlugs).toHaveLength(5);
+  /* Every cover the page claims is a real file, not a broken link. Derived through
+     releaseCoverPath rather than off coverFileId, because a release can carry a site-only
+     cover that never entered the catalog — פיפוש המהפכה has one, since no image of its box
+     exists in the archive at all. */
+  const coveredSlugs = expectedReleases.filter(releaseCoverPath).map(({ slug }) => slug);
+  expect(coveredSlugs.length, 'the grid shows covers').toBeGreaterThan(0);
   for (const slug of coveredSlugs) {
     const image = page.locator(`[data-release="${slug}"] .release-cover > img`);
     // Covers are lazy, so a tile below the fold has not fetched yet on a phone viewport.

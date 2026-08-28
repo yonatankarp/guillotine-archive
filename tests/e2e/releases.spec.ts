@@ -73,12 +73,12 @@ test('a room caps each section and sends the rest to the paginated Drive mirror'
   await page.goto(site.route(`release/${congress.slug}/`));
 
   for (const section of sections) {
-    /* A section shows artwork tiles once its items have thumbnails and plain rows
+    /* A section shows artwork slides once its items have thumbnails and plain rows
        before that, so the selector follows the derivatives rather than assuming
-       either state. Both render one element per item — the gallery splits its tiles
-       across one carousel per scanned object, and the count is over all of them. */
+       either state. Both render one element per item — the gallery splits its slides
+       across one viewer per scanned object, and the count is over all of them. */
     const container = hasThumbs(section.items) && section.id === 'gallery'
-      ? '.carousel-track > li'
+      ? '.carousel-track > .viewer-slide'
       : '.item-rows > li';
     const entries = page.locator(
       `section:has(h2:text-is("${section.headingHe}")) ${container}`,
@@ -103,7 +103,7 @@ test('a room caps each section and sends the rest to the paginated Drive mirror'
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
-/** The carousels a release's scanned section is split into, in render order. */
+/** The viewers a release's scanned section is split into, in render order. */
 function galleryOf(current: Release) {
   const section = releaseSections(releaseItems(current, itemById)).find(
     ({ id }) => id === 'gallery',
@@ -111,7 +111,7 @@ function galleryOf(current: Release) {
   return section ? galleryGroups(section.items, current.titleHe) : [];
 }
 
-test('a release splits its scans into one carousel per object that was scanned', async ({
+test('a release splits its scans into one viewer per object that was scanned', async ({
   page,
 }) => {
   const piposh = release('piposh-1');
@@ -134,28 +134,73 @@ test('a release splits its scans into one carousel per object that was scanned',
     const shelf = gallery.locator(`.gallery-group:has(h3[id="${group.id}"])`);
     await expect(
       shelf.locator('.carousel-track'),
-      `${group.headingHe} is one carousel of its own`,
+      `${group.headingHe} is one viewer of its own`,
     ).toHaveCount(1);
-    await expect(shelf.locator('.carousel-track > li')).toHaveCount(group.items.length);
+    await expect(shelf.locator('.carousel-track > .viewer-slide')).toHaveCount(
+      group.items.length,
+    );
     await expect(page.getByRole('heading', { level: 3, name: group.headingHe })).toBeVisible();
     // A heading sitting under the title פיפוש 1 does not say פיפוש 1 again.
     expect(group.headingHe, 'the heading drops the release name').not.toContain(piposh.titleHe);
+
+    /* One scan at a time: a slide is the whole track, not a tile in a row of them. */
+    expect(
+      await shelf.locator('.carousel-track').evaluate((element) => {
+        const width = element.getBoundingClientRect().width;
+        return [...element.children].filter(
+          (slide) => Math.abs(slide.getBoundingClientRect().width - width) >= 2,
+        ).length;
+      }),
+      `every scan in ${group.headingHe} fills the viewer`,
+    ).toBe(0);
   }
 
   /* A booklet spread is about twice as wide as it is tall and a box front is taller than
-     it is wide. The tiles are sized from those numbers, so they cannot all be one ratio —
-     which is exactly what made the old covers read as broken. */
+     it is wide. The frames are sized from those numbers, so they cannot all be one ratio —
+     which is exactly what made the old covers read as broken. The slides are all one width
+     now, so this measures the frame inside the slide, which is where the scan lives. */
   const box = groups.find(({ items }) => items.every(({ kind }) => kind === 'cover'));
-  expect(box, 'the box is its own carousel').toBeDefined();
-  const tileWidth = async (id: string) => {
-    const tile = gallery
-      .locator(`.gallery-group:has(h3[id="${id}"]) .carousel-track > li`)
+  expect(box, 'the box is its own viewer').toBeDefined();
+  const frameWidth = async (id: string) => {
+    const frame = gallery
+      .locator(`.gallery-group:has(h3[id="${id}"]) .viewer-slide .gallery-frame`)
       .first();
-    return (await tile.boundingBox())!.width;
+    return (await frame.boundingBox())!.width;
   };
-  expect(await tileWidth(booklets[0]!.id)).toBeGreaterThan(await tileWidth(box!.id));
+  expect(await frameWidth(booklets[0]!.id)).toBeGreaterThan(await frameWidth(box!.id));
 
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('every scan on show links to the bigger rendition of itself', async ({ page }) => {
+  const piposh = release('piposh-1');
+  const groups = galleryOf(piposh);
+
+  await page.goto(site.route(`release/${piposh.slug}/`));
+
+  for (const group of groups) {
+    const slides = page.locator(
+      `.gallery-group:has(h3[id="${group.id}"]) .carousel-track > .viewer-slide`,
+    );
+    for (const [index, item] of group.items.entries()) {
+      /* The displayed picture is the grid-sized rendition and the link under it is the
+         full-view one. Pressing the scan has to reach something the page is not already
+         showing, so the two must not be the same file. */
+      const bigger = item.derivatives?.reader?.path ?? item.derivatives?.view?.path;
+      const shown = item.derivatives?.thumb?.path;
+      expect(bigger, `${item.name} has a full-view rendition`).toBeDefined();
+      expect(shown, `${item.name} has a grid-sized rendition`).toBeDefined();
+      expect(bigger, 'the two renditions are different files').not.toBe(shown);
+
+      const shot = slides.nth(index).locator('a.viewer-shot');
+      const [href, source] = await Promise.all([
+        shot.getAttribute('href'),
+        shot.locator('img').getAttribute('src'),
+      ]);
+      expect(href, `${item.name} opens its full-view rendition`).toContain(bigger!);
+      expect(source, `${item.name} is shown at grid size`).toContain(shown!);
+    }
+  }
 });
 
 test('a release filed in one directory gets no heading it does not need', async ({ page }) => {
@@ -167,19 +212,25 @@ test('a release filed in one directory gets no heading it does not need', async 
 
   const gallery = page.locator('section:has(h2:text-is("תמונות שסרקנו")) .media-gallery');
   await expect(gallery.locator('.carousel-track')).toHaveCount(1);
-  await expect(gallery.locator('.carousel-track > li')).toHaveCount(only!.items.length);
+  await expect(gallery.locator('.carousel-track > .viewer-slide')).toHaveCount(
+    only!.items.length,
+  );
   /* One object needs no name of its own: the section heading above already named it. */
   await expect(gallery.locator('h3')).toHaveCount(0);
   await expect(gallery.locator('.carousel-track')).toHaveAttribute('aria-label', /תמונות שסרקנו/u);
 });
 
-test('a scan carousel scrolls itself, rightwards first, with JavaScript off', async ({
+test('a scan viewer opens on page one and steps with JavaScript off', async ({
   browser,
 }, testInfo) => {
   const piposh = release('piposh-1');
-  const widest = galleryOf(piposh).reduce((most, group) =>
+  const groups = galleryOf(piposh);
+  const widest = groups.reduce((most, group) =>
     group.items.length > most.items.length ? group : most,
   );
+  /* A second object on the same page, to prove the two viewers stay two. */
+  const other = groups.find(({ id }) => id !== widest.id);
+  expect(other, 'a second scanned object in the same room').toBeDefined();
 
   const context = await browser.newContext({
     javaScriptEnabled: false,
@@ -191,12 +242,13 @@ test('a scan carousel scrolls itself, rightwards first, with JavaScript off', as
     const track = page.locator(
       `.gallery-group:has(h3[id="${widest.id}"]) .carousel-track`,
     );
-    await expect(track.locator('> li')).toHaveCount(widest.items.length);
+    await expect(track.locator('> .viewer-slide')).toHaveCount(widest.items.length);
 
     const resting = await track.evaluate((element) => {
       const style = getComputedStyle(element);
       const box = element.getBoundingClientRect();
       const first = element.firstElementChild!.getBoundingClientRect();
+      const second = element.children[1]!.getBoundingClientRect();
 
       return {
         direction: style.direction,
@@ -206,6 +258,9 @@ test('a scan carousel scrolls itself, rightwards first, with JavaScript off', as
         scrolls: element.scrollWidth > element.clientWidth,
         /* RTL rests at the right edge, where page one of the booklet is. */
         opensOnPageOne: Math.abs(box.right - first.right) < 8,
+        /* And page two is to its left, which is where a Hebrew reader turns. */
+        pageTwoIsLeftwards: second.right < first.right,
+        firstFillsTheTrack: Math.abs(first.width - box.width) < 2,
         pageScrollsSideways:
           document.documentElement.scrollWidth > document.documentElement.clientWidth,
       };
@@ -214,31 +269,88 @@ test('a scan carousel scrolls itself, rightwards first, with JavaScript off', as
     expect(resting.direction).toBe('rtl');
     expect(resting.overflowX).toBe('auto');
     expect(resting.snaps).toContain('mandatory');
-    expect(resting.scrolls, 'more tiles than fit').toBe(true);
+    expect(resting.scrolls, 'more scans than fit').toBe(true);
     expect(resting.opensOnPageOne, 'RTL opens at the right edge').toBe(true);
+    expect(resting.pageTwoIsLeftwards, 'the next scan is to the left in RTL').toBe(true);
+    expect(resting.firstFillsTheTrack, 'one scan on screen, at full width').toBe(true);
     expect(resting.pageScrollsSideways, 'the page itself never scrolls sideways').toBe(false);
 
-    /* No control to click and no script to run one: moving the keyboard onto a later tile
-       is what scrolls the track, because the browser brings a focused link into view. */
-    const last = track.locator('> li:last-child a');
+    /* אחורה is on the right and קדימה on the left, the way a Hebrew reader turns a page. */
+    const bar = track.locator('> .viewer-slide').first().locator('.viewer-bar');
+    const forward = bar.getByRole('link', { name: /^קדימה/u });
+    await expect(forward, 'the first scan has nothing behind it').toHaveCount(1);
+    await expect(bar.getByRole('link', { name: /^אחורה/u })).toHaveCount(0);
+    const secondBar = track.locator('> .viewer-slide').nth(1).locator('.viewer-bar');
+    const back = secondBar.getByRole('link', { name: /^אחורה/u });
+    const sides = {
+      back: (await back.boundingBox())!.x,
+      forward: (await secondBar.getByRole('link', { name: /^קדימה/u }).boundingBox())!.x,
+    };
+    expect(sides.back, 'אחורה sits to the right of קדימה').toBeGreaterThan(sides.forward);
+
+    /* No script to run a control: קדימה is a link to the next slide, and following it is
+       what moves the track. This is the whole no-JS story. */
+    await forward.click();
+    await expect
+      .poll(async () =>
+        track.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const first = element.firstElementChild!.getBoundingClientRect();
+          const second = element.children[1]!.getBoundingClientRect();
+
+          return {
+            moved: Math.abs(element.scrollLeft) > 1,
+            secondInView: Math.abs(box.right - second.right) < 8,
+            firstGone: first.right > box.right - 1,
+          };
+        }),
+      )
+      .toEqual({ moved: true, secondInView: true, firstGone: true });
+
+    /* Nothing touched the other object: two carousels, not one merged strip. */
+    const otherTrack = page.locator(`.gallery-group:has(h3[id="${other!.id}"]) .carousel-track`);
+    expect(
+      await otherTrack.evaluate((element) => element.scrollLeft),
+      'the other viewer stayed on its own page one',
+    ).toBe(0);
+
+    // And back the way we came.
+    await back.click();
+    await expect
+      .poll(async () =>
+        track.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const first = element.firstElementChild!.getBoundingClientRect();
+
+          return {
+            returned: Math.abs(element.scrollLeft) < 2,
+            firstInView: Math.abs(box.right - first.right) < 8,
+            pageScrollsSideways:
+              document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          };
+        }),
+      )
+      .toEqual({ returned: true, firstInView: true, pageScrollsSideways: false });
+
+    /* Tabbing still works for the same reason it always did: a focused link is a link the
+       browser scrolls into view, and the last scan has its own controls to reach. */
+    const last = track.locator('> .viewer-slide:last-child a.viewer-shot');
     await last.focus();
     await expect(last).toBeFocused();
+    await expect
+      .poll(async () =>
+        track.evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const slide = element.lastElementChild!.getBoundingClientRect();
 
-    const scrolled = await track.evaluate((element) => {
-      const box = element.getBoundingClientRect();
-      const tile = element.lastElementChild!.getBoundingClientRect();
-
-      return {
-        moved: Math.abs(element.scrollLeft) > 0,
-        lastTileInView: tile.left < box.right && tile.right > box.left,
-        pageScrollsSideways:
-          document.documentElement.scrollWidth > document.documentElement.clientWidth,
-      };
-    });
-
-    expect(scrolled.moved, 'focusing a later tile scrolled the track').toBe(true);
-    expect(scrolled.lastTileInView, 'the focused tile is on screen').toBe(true);
-    expect(scrolled.pageScrollsSideways, 'and the page still does not').toBe(false);
+          return {
+            lastInView: slide.left < box.right && slide.right > box.left,
+            pageScrollsSideways:
+              document.documentElement.scrollWidth > document.documentElement.clientWidth,
+          };
+        }),
+      )
+      .toEqual({ lastInView: true, pageScrollsSideways: false });
   } finally {
     await context.close();
   }
@@ -347,7 +459,11 @@ test('listen and watch list the real material and say what cannot play', async (
   await page.goto(site.route('listen/'));
   await expect(page.getByRole('heading', { level: 1, name: 'מוזיקה' })).toBeVisible();
   await expect(page.locator('.item-rows > li')).toHaveCount(tracks.length);
-  await expect(page.locator('audio')).toHaveCount(playableTracks.length);
+  /* One player per album now, not one per row: the script folds each release's rows into a
+     single player with a playlist, and a release holding one track keeps its row player.
+     Either way that is exactly one <audio> per release that has something to play. */
+  const albums = new Set(playableTracks.map(({ releaseSlug }) => releaseSlug));
+  await expect(page.locator('audio')).toHaveCount(albums.size);
   for (const source of await page.locator('audio').evaluateAll((nodes) =>
     nodes.map((node) => (node as HTMLAudioElement).getAttribute('src') ?? ''),
   )) {
@@ -422,48 +538,42 @@ test('the browser derives the same item kind the catalog stored', async () => {
 test('one track plays at a time and an album plays through', async ({ page }) => {
   await page.goto(site.route('listen/'));
 
-  const albums = page.locator('.item-rows');
-  expect(await albums.count()).toBeGreaterThan(1);
+  /* One player per album now, and the rows are its playlist: a row's button hands its track
+     to the album's single player. */
+  const players = page.locator('[data-album-audio]');
+  expect(await players.count()).toBeGreaterThan(1);
+  const paused = (index: number) =>
+    players.nth(index).evaluate((node: HTMLAudioElement) => node.paused);
 
-  /* Two players in the same album, started one after the other. The second must
-     silence the first: nothing on the site should ever overlap audio. */
-  const playing = await page.evaluate(async () => {
-    const album = document.querySelector('.item-rows')!;
-    const [first, second] = [...album.querySelectorAll('audio')].slice(0, 2);
-    await first!.play().catch(() => undefined);
-    await second!.play().catch(() => undefined);
+  /* Two albums, started one after the other. The second must silence the first: nothing on
+     the site should ever overlap audio. */
+  await page.locator('.album').nth(0).locator('.track-play').first().click();
+  await expect.poll(() => paused(0), { message: 'the first album started' }).toBe(false);
 
-    return {
-      firstPaused: first!.paused,
-      secondPaused: second!.paused,
-      totalPlaying: [...document.querySelectorAll('audio')].filter((a) => !a.paused).length,
-    };
-  });
+  await page.locator('.album').nth(1).locator('.track-play').first().click();
+  await expect.poll(() => paused(1), { message: 'the later album kept playing' }).toBe(false);
+  await expect.poll(() => paused(0), { message: 'the earlier album stopped' }).toBe(true);
 
-  expect(playing.firstPaused, 'the earlier track stopped').toBe(true);
-  expect(playing.secondPaused, 'the later track kept playing').toBe(false);
-  expect(playing.totalPlaying, 'exactly one player is active').toBe(1);
+  expect(
+    await page.evaluate(
+      () => [...document.querySelectorAll('audio')].filter((node) => !node.paused).length,
+    ),
+    'exactly one player is active',
+  ).toBe(1);
 
-  /* When a track ends, the next in the SAME album takes over, and nothing in a
-     different album is touched. */
-  const advanced = await page.evaluate(async () => {
-    const albums = [...document.querySelectorAll('.item-rows')];
-    const own = [...albums[0]!.querySelectorAll('audio')];
-    const other = [...albums[1]!.querySelectorAll('audio')];
-    for (const player of [...own, ...other]) player.pause();
+  /* When a track ends, the next in the SAME album takes over in that album's own player, the
+     playlist says which one, and nothing in a different album is touched. */
+  const album = page.locator('.album').nth(0);
+  const buttons = album.locator('.track-play');
+  await buttons.first().click();
+  const started = await players.nth(0).getAttribute('src');
 
-    await own[0]!.play().catch(() => undefined);
-    own[0]!.dispatchEvent(new Event('ended'));
-    await new Promise((resolve) => setTimeout(resolve, 250));
+  await players.nth(0).evaluate((node) => node.dispatchEvent(new Event('ended')));
 
-    return {
-      finishedPaused: own[0]!.paused,
-      nextPlaying: !own[1]!.paused,
-      otherAlbumUntouched: other.every((player) => player.paused),
-    };
-  });
-
-  expect(advanced.finishedPaused, 'the finished track is not replayed').toBe(true);
-  expect(advanced.nextPlaying, 'the next track in the album started').toBe(true);
-  expect(advanced.otherAlbumUntouched, 'a different album stayed silent').toBe(true);
+  await expect(players.nth(0), 'the next track took over').not.toHaveAttribute(
+    'src',
+    started ?? '',
+  );
+  await expect(buttons.nth(1), 'the playlist marks it').toHaveAttribute('aria-current', 'true');
+  await expect.poll(() => paused(1), { message: 'a different album stayed silent' }).toBe(true);
 });

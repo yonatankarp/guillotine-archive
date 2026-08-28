@@ -150,6 +150,17 @@ video {
   max-width: 100%;
 }
 
+/* Astro compiles a component's scoped styles to :where(.astro-hash), which has ZERO
+   specificity, so a scoped `.thing { display: flex }` ties with the UA sheet's
+   `[hidden] { display: none }` at (0,1,0) and wins on source order. Any component that
+   ships a progressive-enhancement layer hidden until its script runs would therefore
+   reveal it to visitors with JavaScript off. !important is load-bearing here: this file
+   is imported by BaseLayout and lands ahead of component styles, so without it the rule
+   loses the same tie it exists to win. */
+[hidden] {
+  display: none !important;
+}
+
 :focus-visible {
   outline: 4px solid var(--text);
   outline-offset: 3px;
@@ -1334,19 +1345,22 @@ main {
   font-size: 0.78rem;
 }
 
-/* Scans shown as artwork, one carousel per object that was scanned. A box, an instruction
+/* Scans shown as artwork, one viewer per object that was scanned. A box, an instruction
    book and a lyrics book are three things, so they are three tracks: dropping them into one
    grid made a booklet read as a pile of loose pages.
 
-   No script anywhere in here. The track is a scroll container, the tiles inside it are
-   links, and tabbing to a link is what scrolls the track — which is also why the direction
-   is right in RTL without a single rule about it: the browser owns the direction. */
+   One scan at a time, as big as the column allows. No script anywhere in here: the track is
+   a scroll container, each slide is one page of the object, and קדימה/אחורה are links to the
+   slide beside it — so the browser does the moving, with JavaScript off as well as on, and
+   the direction comes out right in RTL without a single rule about it. Tabbing works for the
+   same reason: a focused link is a link the browser scrolls into view. */
 .media-gallery {
-  /* One height for every tile in every track, so a row of scans reads as a shelf. Width is
-     what varies, per scan, from the dimensions the sync measured. */
-  --tile-height: clamp(8.5rem, 30vw, 11.5rem);
+  /* One height for every slide in every track, so moving through a booklet never resizes the
+     page under the controls. Width is what varies, per scan, from the dimensions the sync
+     measured. */
+  --viewer-height: clamp(13rem, 62vw, 27rem);
   display: grid;
-  gap: clamp(1.3rem, 4vw, 2rem);
+  gap: clamp(1.6rem, 4vw, 2.4rem);
   margin: 0.9rem 0 0;
   min-width: 0;
 }
@@ -1363,51 +1377,74 @@ main {
 /* Same idiom as .scroll-x: the track scrolls so the page body never does. */
 .carousel-track {
   display: flex;
-  gap: 0.9rem;
+  gap: 1rem;
   margin: 0;
-  padding: 0 0 0.75rem;
+  padding: 0 0 0.5rem;
   list-style: none;
   min-width: 0;
   max-width: 100%;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
-  /* A tile scrolled to by the keyboard clears the edge instead of touching it. */
-  scroll-padding-inline: 0.25rem;
+  /* The vertical page scroll is smooth, and a jump sideways next to it would read as a
+     glitch rather than as a page turn. Reset with the rest of the motion below. */
+  scroll-behavior: smooth;
   /* Asking for a colour is what keeps the bar visible on an overlay-scrollbar platform,
      and the bar is the whole "there is more sideways" affordance. */
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklab, var(--accent) 60%, var(--stroke)) var(--stroke-soft);
 }
 
-/* A tile is as wide as its scan is: the aspect comes from the file, not from a guess, so a
-   booklet spread is a wide tile and a box front is a narrow one and neither is cropped. The
-   clamp is only for the ends of the range — the archive holds an 11:1 strip and a 0.14
-   sliver, and neither gets to be the width of the room. */
-.carousel-track > li {
-  flex: 0 0 auto;
+/* One slide is the whole track: this is a viewer, not a shelf of thumbnails. */
+.viewer-slide {
+  /* The width of the picture, which the controls under it borrow so that אחורה and קדימה sit
+     on the two edges of the scan rather than floating somewhere beside it. */
+  --frame-width: min(100%, var(--tile-cap, 100%), calc(var(--viewer-height, 27rem) * var(--tile-aspect, 0.75)));
+  flex: 0 0 100%;
   min-width: 0;
-  width: clamp(6rem, calc(var(--tile-height) * var(--tile-aspect, 0.75)), min(23rem, 86vw));
+  display: grid;
+  gap: 0.55rem;
   scroll-snap-align: start;
+  /* Following an anchor also brings the slide into view vertically. Without this the page
+     lands with the picture jammed against the top of the window. */
+  scroll-margin-block: 2rem;
 }
 
-.media-gallery a {
-  display: grid;
-  gap: 0.45rem;
+/* The slide is focusable so the browser can land on it, but landing is not a click and it
+   never draws the ring around a whole page of the booklet. */
+.viewer-slide:focus {
+  outline: none;
+}
+
+/* Positioned so the hidden "בגדול" inside it is laid out against the link. Absolute with no
+   positioned ancestor escapes the track to the page, and a 1px span parked past the last
+   slide is enough to make the whole document scroll sideways. */
+.viewer-shot {
+  position: relative;
+  display: block;
   color: inherit;
   text-decoration: none;
 }
 
-/* The frame takes the tile's own width and the shelf's height, so it fits its scan. Only the
-   two ends of the range are contained on the mat, the way the release cover is; nothing is
-   ever cropped, and no scan is stretched to a ratio that is not its own. */
+/* The frame IS the scan's shape: the aspect comes from the file, not from a guess, so a
+   booklet spread is a wide panel and a box front a tall one, and neither is cropped or
+   stretched to a ratio that is not its own. Three things bound it, and whichever is smallest
+   wins: the column, a height that keeps the tallest scan on one screen, and --tile-cap, the
+   size the picture actually is. The grid rendition tops out at 400px, and blowing that up to
+   fill a desktop column is how a sharp scan turns to mush — the picture is the link to the
+   big one, so it does not have to pretend to be it here.
+   Only the ends of the range — the archive holds an 11:1 strip and a 0.14 sliver — hit the
+   floor and are contained on the mat, the way the release cover is. */
 .gallery-frame {
   display: grid;
   place-items: center;
   overflow: hidden;
   border-radius: 2px;
-  width: 100%;
-  height: var(--tile-height, 11.5rem);
+  margin-inline: auto;
+  width: var(--frame-width, 100%);
+  min-width: 7rem;
+  aspect-ratio: var(--tile-aspect, 0.75);
+  max-height: var(--viewer-height, 27rem);
 }
 
 .gallery-frame img {
@@ -1418,24 +1455,69 @@ main {
   transition: opacity 160ms ease;
 }
 
-.media-gallery a:hover .gallery-frame img,
-.media-gallery a:focus-visible .gallery-frame img {
+.viewer-shot:hover .gallery-frame img,
+.viewer-shot:focus-visible .gallery-frame img {
   opacity: 0.82;
 }
 
+/* The frame already carries the shape, so this only has to fill it. */
 .gallery-missing {
+  width: 100%;
   height: 100%;
-  aspect-ratio: 3 / 4;
   color: var(--accent);
   opacity: 0.25;
+}
+
+/* The controls ride inside the slide, so the pair on screen always belongs to the scan on
+   screen. In an RTL row the first child sits on the right, which is where אחורה belongs. */
+.viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 auto;
+  /* The picture's own width, but never so narrow that the two controls collide. */
+  width: min(100%, max(13rem, var(--frame-width, 100%)));
+}
+
+.viewer-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.35rem 1.1rem;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  background: var(--raise);
+  color: inherit;
+  font-size: var(--t-s);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.viewer-step:hover {
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--stroke));
+}
+
+/* The first slide has nothing behind it and the last nothing ahead. The dead control keeps
+   its space so the live one does not move between slides, and says nothing to anyone. */
+.viewer-step.is-off {
+  visibility: hidden;
+}
+
+.viewer-count {
+  color: var(--dim);
+  font-size: var(--t-2xs);
 }
 
 .gallery-caption {
   display: grid;
   gap: 0.1rem;
+  margin: 0;
   font-size: 0.78rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .gallery-kind {
@@ -1472,6 +1554,11 @@ main {
 @media (prefers-reduced-motion: reduce) {
   .gallery-frame img {
     transition: none;
+  }
+
+  /* The page turn arrives instead of travelling. Same rule the document scroll follows. */
+  .carousel-track {
+    scroll-behavior: auto;
   }
 }
 

@@ -25,68 +25,99 @@ const {
   showText = false,
   showMediaNote = true,
 } = Astro.props;
+
+/**
+ * The one predicate for "this row gets an <audio>". The album player above the list and the
+ * rows below it both read it, so the playlist can never disagree with what actually plays.
+ */
+const audioSrc = (item: CatalogItem): string | null =>
+  item.kind === 'track' || item.kind === 'sound' ? mediaSrc(item) : null;
+
+/* The playlist is the audio rows in the order they are rendered. Two or more of them earn one
+   player for the lot; a single track is already a player for the whole album, so it is left
+   as the plain row it has always been. */
+const playlist = items.filter((item) => audioSrc(item) !== null);
+const hasAlbumPlayer = playlist.length > 1;
 ---
 
-<ul class="item-rows" aria-label={labelHe}>
+<div class="album">
   {
-    items.map((item) => {
-      const actions = driveActions(item);
-      const author = creditedAuthor(item);
-      const source = mediaSrc(item);
-      const poster = posterUrl(item);
-      const duration = formatDuration(item.derivatives?.durationMillis);
-      const isMedia = item.kind === 'track' || item.kind === 'sound' || item.kind === 'video';
-      const rawText = showText ? item.extractedTextHe?.trim() : undefined;
-      const text = rawText ? textExcerpt(rawText) : undefined;
-      /* The curator's own grouping of a release is the only editorial label on an item, so it
-         travels with the row rather than disappearing into the kind sections. */
-      const group = officialCollectionLinks(item).find((link) => link.groupHe !== undefined)?.groupHe;
+    hasAlbumPlayer && (
+      /* Rendered hidden and revealed by src/scripts/audio-queue.ts. Without that script this
+         whole block stays out of the page and out of the accessibility tree, and every row
+         below keeps its own working player. */
+      <div class="album-player" data-album-player hidden>
+        <p class="album-now" role="status">
+          {/* Cued, not playing: the script swaps this the first time the album actually
+              starts, so the line never claims a track is running before one is. */}
+          <span data-album-now-label>מוכן לנגן:</span>{' '}
+          <bdi dir="auto" data-album-now-name>{playlist[0]!.name}</bdi>
+        </p>
+        <audio class="album-audio" data-album-audio controls preload="none" aria-label={labelHe}></audio>
+      </div>
+    )
+  }
 
-      return (
-        <li>
-          <div class="item-head">
-            <div class="item-identity">
-              <strong><bdi dir="auto">{item.name}</bdi></strong>
-              <p class="item-meta">
-                <span>{itemKindLabel(item.kind)}</span>
-                <span class="mono">{formatFileSize(item.size)}</span>
-                {duration && <span class="mono">{duration}</span>}
-                {group && <span class="item-group">{group}</span>}
-                {author && (
-                  <span>
-                    <span class="visually-hidden">קרדיט: </span>{author}
-                  </span>
-                )}
-              </p>
+  <ul class="item-rows" aria-label={labelHe}>
+    {
+      items.map((item) => {
+        const actions = driveActions(item);
+        const author = creditedAuthor(item);
+        const source = mediaSrc(item);
+        const audio = audioSrc(item);
+        const poster = posterUrl(item);
+        const duration = formatDuration(item.derivatives?.durationMillis);
+        const isMedia = item.kind === 'track' || item.kind === 'sound' || item.kind === 'video';
+        const rawText = showText ? item.extractedTextHe?.trim() : undefined;
+        const text = rawText ? textExcerpt(rawText) : undefined;
+        /* The curator's own grouping of a release is the only editorial label on an item, so it
+           travels with the row rather than disappearing into the kind sections. */
+        const group = officialCollectionLinks(item).find((link) => link.groupHe !== undefined)?.groupHe;
+
+        return (
+          <li>
+            <div class="item-head">
+              <div class="item-identity">
+                <strong><bdi dir="auto">{item.name}</bdi></strong>
+                <p class="item-meta">
+                  <span>{itemKindLabel(item.kind)}</span>
+                  <span class="mono">{formatFileSize(item.size)}</span>
+                  {duration && <span class="mono">{duration}</span>}
+                  {group && <span class="item-group">{group}</span>}
+                  {author && (
+                    <span>
+                      <span class="visually-hidden">קרדיט: </span>{author}
+                    </span>
+                  )}
+                </p>
+              </div>
+              {actions.length > 0 && (
+                <div class="file-actions">
+                  {actions.map((action) => (
+                    <a
+                      class:list={['file-action', action.kind]}
+                      href={action.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={action.label}
+                    >
+                      {action.kind === 'view' ? 'צפייה' : 'הורדה'}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
-            {actions.length > 0 && (
-              <div class="file-actions">
-                {actions.map((action) => (
-                  <a
-                    class:list={['file-action', action.kind]}
-                    href={action.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={action.label}
-                  >
-                    {action.kind === 'view' ? 'צפייה' : 'הורדה'}
-                  </a>
-                ))}
+
+            {/* Only where no player carries the still itself. A poster derivative is built for
+                videos and nothing else, so this is the posterless-player fallback. */}
+            {poster !== null && source === null && (
+              <div class="item-poster mat">
+                <img src={poster} alt={`תמונה מתוך ${item.name}`} loading="lazy" decoding="async" />
+                {duration && <span class="item-duration mono">{duration}</span>}
               </div>
             )}
-          </div>
 
-          {/* Only where no player carries the still itself. A poster derivative is built for
-              videos and nothing else, so this is the posterless-player fallback. */}
-          {poster !== null && source === null && (
-            <div class="item-poster mat">
-              <img src={poster} alt={`תמונה מתוך ${item.name}`} loading="lazy" decoding="async" />
-              {duration && <span class="item-duration mono">{duration}</span>}
-            </div>
-          )}
-
-          {isMedia && source !== null && (
-            item.kind === 'video' ? (
+            {item.kind === 'video' && source !== null && (
               /* preload="none" paints nothing until play, so without the poster the row is a
                  blank rectangle for a video that is ready to play. */
               <video
@@ -96,30 +127,104 @@ const {
                 poster={poster ?? undefined}
                 src={source}
               ></video>
-            ) : (
-              <audio class="item-player" controls preload="none" src={source}></audio>
-            )
-          )}
+            )}
 
-          {isMedia && source === null && showMediaNote && (
-            <p class:list={['item-player-note', { unplayable: neverPlayable(item) }]}>
-              {neverPlayable(item)
-                ? `${item.mimeType} לא מתנגן בדפדפן כמו שהוא, ועוד אין פה גרסה מומרת. כי ככה. הקובץ עצמו נפתח בלשונית חדשה.`
-                : 'עוד אין פה גרסה שמתנגנת. בינתיים הקובץ עצמו מחכה בלשונית חדשה.'}
-            </p>
-          )}
+            {audio !== null && (
+              <Fragment>
+                <audio class="item-player" controls preload="none" src={audio}></audio>
+                {hasAlbumPlayer && (
+                  /* The row's handle on the album player. Hidden until the script takes the
+                     per-row players away and has somewhere else to send the track. */
+                  <button class="track-play" type="button" data-track-play data-track={item.name} hidden>
+                    נגן<span class="visually-hidden"> את {item.name}</span>
+                  </button>
+                )}
+              </Fragment>
+            )}
 
-          {text && (
-            <div class="item-text">
-              <p>{text.textHe}</p>
-              {text.truncated && (
-                <p class="item-excerpt-note">זו רק ההתחלה של המסמך. השאר בקובץ עצמו — לא הצלחנו לדחוס עשרים אלף תווים לעמוד אחד.</p>
-              )}
-              <p class="item-source mono"><bdi dir="auto">{item.path}</bdi></p>
-            </div>
-          )}
-        </li>
-      );
-    })
+            {isMedia && source === null && showMediaNote && (
+              <p class:list={['item-player-note', { unplayable: neverPlayable(item) }]}>
+                {neverPlayable(item)
+                  ? `${item.mimeType} לא מתנגן בדפדפן כמו שהוא, ועוד אין פה גרסה מומרת. כי ככה. הקובץ עצמו נפתח בלשונית חדשה.`
+                  : 'עוד אין פה גרסה שמתנגנת. בינתיים הקובץ עצמו מחכה בלשונית חדשה.'}
+              </p>
+            )}
+
+            {text && (
+              <div class="item-text">
+                <p>{text.textHe}</p>
+                {text.truncated && (
+                  <p class="item-excerpt-note">זו רק ההתחלה של המסמך. השאר בקובץ עצמו — לא הצלחנו לדחוס עשרים אלף תווים לעמוד אחד.</p>
+                )}
+                <p class="item-source mono"><bdi dir="auto">{item.path}</bdi></p>
+              </div>
+            )}
+          </li>
+        );
+      })
+    }
+  </ul>
+</div>
+
+<style>
+  .album {
+    min-width: 0;
   }
-</ul>
+
+  .album-player {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 0.9rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-s);
+    background: var(--raise);
+  }
+
+  .album-now {
+    margin: 0;
+    color: var(--dim);
+    font-size: var(--t-2xs);
+    line-height: 1.5;
+    /* Track names are long, unbroken and Latin inside a Hebrew line. */
+    overflow-wrap: anywhere;
+  }
+
+  .album-now bdi {
+    unicode-bidi: isolate;
+    color: var(--text);
+  }
+
+  .album-audio {
+    width: 100%;
+  }
+
+  .track-play {
+    display: inline-flex;
+    min-height: 2.4rem;
+    align-items: center;
+    margin-top: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-s);
+    background: var(--sunk);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--t-xs);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .track-play:hover {
+    border-color: var(--dim);
+  }
+
+  /* The row the player is cued to. Weight carries it as well as colour does, so the state
+     survives a visitor who cannot tell the border apart. */
+  .track-play[aria-current='true'] {
+    border-color: var(--accent, var(--text));
+    background: var(--raise);
+    font-weight: 700;
+  }
+</style>

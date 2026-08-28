@@ -5,19 +5,25 @@ import { thumbUrl, viewUrl } from './derivative';
 import { galleryGroups, itemKindLabel } from './release-view';
 
 /**
- * Scans shown as artwork rather than as filenames. A tile links to the largest
- * rendition that exists, and falls back to the original on Drive for an item the
+ * Scans shown as artwork rather than as filenames. One scan is on screen at a time,
+ * as large as the column allows, and the picture itself is the link to the largest
+ * rendition that exists — falling back to the original on Drive for an item the
  * pipeline could not decode, which is mostly PCX and BMP.
  *
- * Tiles keep their natural aspect: these are box wraps, booklet spreads and
- * magazine pages, and forcing one ratio is what made the old covers look broken.
- * A tile is sized from the dimensions the sync measured, so a 1.99 spread is a
- * wide tile and a 0.75 box front is a narrow one; only the extremes the archive
- * also holds — an 11:1 strip, a 0.14 sliver — are contained on the mat instead.
+ * A scan keeps its natural aspect: these are box wraps, booklet spreads and magazine
+ * pages, and forcing one ratio is what made the old covers look broken. The frame is
+ * sized from the dimensions the sync measured, so a 1.99 spread fills the width and a
+ * 0.75 box front is a tall panel in the middle; only the extremes the archive also
+ * holds — an 11:1 strip, a 0.14 sliver — are contained on the mat instead.
  *
- * One carousel per physical object, not one grid for the lot: a box, an
- * instruction book and a lyrics book are three things, and the archive already
- * filed them as three directories. Everything scrolls sideways inside its own
+ * One viewer per physical object, not one for the lot: a box, an instruction book and
+ * a lyrics book are three things, and the archive already filed them as three
+ * directories.
+ *
+ * Nothing here runs a script. The slides sit in a scroll-snap track and קדימה/אחורה
+ * are ordinary in-page links to the neighbouring slide, so the browser does the
+ * moving — which is also why the direction is right in RTL without a rule about it,
+ * and why the whole thing works with JavaScript off. Everything scrolls inside its own
  * track, so nothing here can widen the page.
  */
 interface Props {
@@ -44,28 +50,40 @@ const named = groups.length > 1;
             <bdi>{group.headingHe}</bdi>
           </h3>
         )}
-        {/* The tiles are the controls. Tab walks them and the browser scrolls each into
-            view, which is how this works with JavaScript off and in either direction. */}
         <ul
           class="carousel-track"
           aria-labelledby={named ? group.id : undefined}
           aria-label={named ? undefined : labelHe}
         >
-          {group.items.map((item) => {
+          {group.items.map((item, index) => {
             const thumb = thumbUrl(item);
             const full = viewUrl(item);
             const fallback = driveActions(item).find((action) => action.kind === 'view')?.href;
             const href = full ?? fallback;
-            /* The sync measured every thumbnail, so a tile can be exactly as wide as its
-               scan is, and the frame holds the picture instead of a band of black. The
-               same numbers keep the row from reflowing as the lazy images arrive. */
+            const position = index + 1;
+            const total = group.items.length;
+            /* The neighbours by name, not by offset at read time: an anchor is the only
+               thing moving this track, so each slide has to know what it is next to. */
+            const previous = index > 0 ? `${group.id}-${index}` : null;
+            const next = position < total ? `${group.id}-${position + 1}` : null;
+            /* The sync measured every thumbnail, so the frame can be exactly the shape its
+               scan is, and it holds the picture instead of a band of black. The same numbers
+               keep the slide from resizing as the lazy images arrive, and they cap the frame
+               at the size the rendition really is: a 400px scan stretched across a desktop
+               column is mush, and the picture links to the big one anyway. */
             const scan = item.derivatives?.thumb;
-            const aspect =
-              scan?.width && scan.height ? scan.width / scan.height : null;
+            const aspect = scan?.width && scan.height ? scan.width / scan.height : null;
+            const cap = scan?.width ? `--tile-cap: ${Math.round(scan.width * 1.6)}px;` : '';
 
             return (
-              <li style={aspect === null ? undefined : `--tile-aspect: ${aspect.toFixed(3)};`}>
+              <li
+                class="viewer-slide"
+                id={`${group.id}-${position}`}
+                tabindex="-1"
+                style={aspect === null ? cap || undefined : `--tile-aspect: ${aspect.toFixed(3)}; ${cap}`}
+              >
                 <a
+                  class="viewer-shot"
                   href={href}
                   target={full === null ? '_blank' : undefined}
                   rel={full === null ? 'noopener noreferrer' : undefined}
@@ -79,16 +97,50 @@ const named = groups.length > 1;
                         alt={item.name}
                         width={scan?.width}
                         height={scan?.height}
-                        loading="lazy"
+                        loading={index === 0 ? 'eager' : 'lazy'}
                         decoding="async"
                       />
                     )}
                   </span>
-                  <span class="gallery-caption">
-                    <bdi dir="auto">{item.name}</bdi>
-                    <span class="gallery-kind">{itemKindLabel(item.kind)}</span>
-                  </span>
+                  <span class="visually-hidden">בגדול</span>
                 </a>
+                {/* The bar sits inside the slide, so the controls of the scan you are
+                    looking at are the ones on screen. אחורה comes first and lands on the
+                    right, where the page you came from is in Hebrew. An object scanned once
+                    has nowhere to step and nothing to count, so it gets no bar at all. */}
+                {total > 1 && (
+                <p class="viewer-bar">
+                  {previous === null ? (
+                    <span class="viewer-step is-off" aria-hidden="true">
+                      אחורה
+                    </span>
+                  ) : (
+                    <a class="viewer-step" href={`#${previous}`} aria-label={`אחורה — תמונה ${index}`}>
+                      אחורה
+                    </a>
+                  )}
+                  <span class="viewer-count mono">
+                    {position}/{total}
+                  </span>
+                  {next === null ? (
+                    <span class="viewer-step is-off" aria-hidden="true">
+                      קדימה
+                    </span>
+                  ) : (
+                    <a
+                      class="viewer-step"
+                      href={`#${next}`}
+                      aria-label={`קדימה — תמונה ${position + 1}`}
+                    >
+                      קדימה
+                    </a>
+                  )}
+                </p>
+                )}
+                <p class="gallery-caption">
+                  <bdi dir="auto">{item.name}</bdi>
+                  <span class="gallery-kind">{itemKindLabel(item.kind)}</span>
+                </p>
               </li>
             );
           })}

@@ -2,7 +2,7 @@
 import type { CatalogItem } from '../catalog/types';
 import { driveActions } from '../lib/archive';
 import { thumbUrl, viewUrl } from './derivative';
-import { itemKindLabel } from './release-view';
+import { galleryGroups, itemKindLabel } from './release-view';
 
 /**
  * Scans shown as artwork rather than as filenames. A tile links to the largest
@@ -10,42 +10,90 @@ import { itemKindLabel } from './release-view';
  * pipeline could not decode, which is mostly PCX and BMP.
  *
  * Tiles keep their natural aspect: these are box wraps, booklet spreads and
- * magazine pages running from 0.58 to 1.50, and forcing one ratio is what made
- * the old covers look broken.
+ * magazine pages, and forcing one ratio is what made the old covers look broken.
+ * A tile is sized from the dimensions the sync measured, so a 1.99 spread is a
+ * wide tile and a 0.75 box front is a narrow one; only the extremes the archive
+ * also holds — an 11:1 strip, a 0.14 sliver — are contained on the mat instead.
+ *
+ * One carousel per physical object, not one grid for the lot: a box, an
+ * instruction book and a lyrics book are three things, and the archive already
+ * filed them as three directories. Everything scrolls sideways inside its own
+ * track, so nothing here can widen the page.
  */
 interface Props {
   items: CatalogItem[];
   labelHe: string;
+  releaseTitleHe: string;
 }
 
-const { items, labelHe } = Astro.props;
+const { items, labelHe, releaseTitleHe } = Astro.props;
+const groups = galleryGroups(items, releaseTitleHe);
+/* A single object needs no heading of its own: the section heading above already named it. */
+const named = groups.length > 1;
 ---
 
-<ul class="media-gallery" aria-label={labelHe}>
+<div class="media-gallery">
   {
-    items.map((item) => {
-      const thumb = thumbUrl(item);
-      const full = viewUrl(item);
-      const fallback = driveActions(item).find((action) => action.kind === 'view')?.href;
-      const href = full ?? fallback;
+    groups.map((group) => (
+      <div class="gallery-group">
+        {/* Some objects were filed under a Latin directory name, so the heading is isolated
+            the way a filename is. No dir="auto": that would left-align one heading in a
+            column of right-aligned ones. */}
+        {named && (
+          <h3 id={group.id}>
+            <bdi>{group.headingHe}</bdi>
+          </h3>
+        )}
+        {/* The tiles are the controls. Tab walks them and the browser scrolls each into
+            view, which is how this works with JavaScript off and in either direction. */}
+        <ul
+          class="carousel-track"
+          aria-labelledby={named ? group.id : undefined}
+          aria-label={named ? undefined : labelHe}
+        >
+          {group.items.map((item) => {
+            const thumb = thumbUrl(item);
+            const full = viewUrl(item);
+            const fallback = driveActions(item).find((action) => action.kind === 'view')?.href;
+            const href = full ?? fallback;
+            /* The sync measured every thumbnail, so a tile can be exactly as wide as its
+               scan is, and the frame holds the picture instead of a band of black. The
+               same numbers keep the row from reflowing as the lazy images arrive. */
+            const scan = item.derivatives?.thumb;
+            const aspect =
+              scan?.width && scan.height ? scan.width / scan.height : null;
 
-      return (
-        <li>
-          <a href={href} target={full === null ? '_blank' : undefined} rel={full === null ? 'noopener noreferrer' : undefined}>
-            <span class="gallery-frame mat">
-              {thumb === null ? (
-                <span class="gallery-missing dither" aria-hidden="true"></span>
-              ) : (
-                <img src={thumb} alt={item.name} loading="lazy" decoding="async" />
-              )}
-            </span>
-            <span class="gallery-caption">
-              <bdi dir="auto">{item.name}</bdi>
-              <span class="gallery-kind">{itemKindLabel(item.kind)}</span>
-            </span>
-          </a>
-        </li>
-      );
-    })
+            return (
+              <li style={aspect === null ? undefined : `--tile-aspect: ${aspect.toFixed(3)};`}>
+                <a
+                  href={href}
+                  target={full === null ? '_blank' : undefined}
+                  rel={full === null ? 'noopener noreferrer' : undefined}
+                >
+                  <span class="gallery-frame mat">
+                    {thumb === null ? (
+                      <span class="gallery-missing dither" aria-hidden="true" />
+                    ) : (
+                      <img
+                        src={thumb}
+                        alt={item.name}
+                        width={scan?.width}
+                        height={scan?.height}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    )}
+                  </span>
+                  <span class="gallery-caption">
+                    <bdi dir="auto">{item.name}</bdi>
+                    <span class="gallery-kind">{itemKindLabel(item.kind)}</span>
+                  </span>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    ))
   }
-</ul>
+</div>

@@ -1,5 +1,6 @@
 ---
 import ItemRows from '../components/ItemRows.astro';
+import { hasVideo, videoUrl } from '../components/derivative';
 import { neverPlayable, releaseAccent } from '../components/release-view';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { catalog } from '../lib/catalog';
@@ -8,6 +9,9 @@ import { sitePath } from '../lib/url';
 
 const videos = catalog.items.filter((item) => item.kind === 'video');
 const unplayable = videos.filter(neverPlayable);
+
+/* The page says what it can actually do, and a sync is what changes the answer. */
+const playsHere = hasVideo(videos);
 
 const byRelease = new Map<string, typeof videos>();
 for (const video of videos) {
@@ -26,14 +30,23 @@ const groups = [...byRelease]
   <header class="page-intro">
     <p class="eyebrow">אז יש גם סרטונים</p>
     <h1>סרטונים</h1>
-    <p class="lead">
-      יש פה סרטונים. מה יש מהם באתר? תמונה ואורך. זה הכול! נגן עוד לא הגיע לעמוד הזה, ואל
-      תשאלו מתי. הקובץ עצמו נפתח בלשונית חדשה.
-    </p>
+    {
+      playsHere ? (
+        <p class="lead">
+          אז נו, סוף סוף! חלק מהסרטונים פה מתנגנים ישר בעמוד, בלי להוריד כלום. מה שעוד לא
+          הגיע לנגן נשאר עם תמונה ואורך בלבד, והקובץ עצמו נפתח בלשונית חדשה.
+        </p>
+      ) : (
+        <p class="lead">
+          יש פה סרטונים. מה יש מהם באתר? תמונה ואורך. זה הכול! נגן עוד לא הגיע לעמוד הזה, ואל
+          תשאלו מתי. הקובץ עצמו נפתח בלשונית חדשה.
+        </p>
+      )
+    }
     <p class="warn-note">
       ועכשיו תשמעו טוב, כי זה חשוב: {unplayable.length} מתוך {videos.length} שמורים ב־WMV,
-      ב־AVI, ב־MPEG או ב־VOB. שום דפדפן בעולם לא נוגע בזה. קיבינימאט. וגם המרה לא תעזור, כי
-      ככה. מי שרוצה לראות — מוריד ופותח בנגן על המחשב, כמו בן אדם ב־2003.
+      ב־AVI, ב־MPEG או ב־VOB. שום דפדפן בעולם לא נוגע בקבצים האלה כמו שהם. קיבינימאט. מי
+      שרוצה את המקור — מוריד ופותח בנגן על המחשב, כמו בן אדם ב־2003.
     </p>
   </header>
 
@@ -43,7 +56,7 @@ const groups = [...byRelease]
         <h2 id={`watch-${slug}`}>
           <a href={sitePath(`release/${slug}/`)}>{release!.titleHe}</a>
         </h2>
-        <ItemRows items={items} labelHe={`סרטונים — ${release!.titleHe}`} showMediaNote={false} />
+        <ItemRows mediaSrc={videoUrl} items={items} labelHe={`סרטונים — ${release!.titleHe}`} showMediaNote={false} />
       </section>
     ))
   }

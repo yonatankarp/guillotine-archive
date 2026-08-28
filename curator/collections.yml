@@ -4,7 +4,7 @@ collections:
     titleHe: פיפוש 1
     type: game
     year: 1999
-    summaryHe: שלוש בעברית, ועוד באנגלית וברוסית — כן, תרגמו את זה. שתי חוברות, דיסק אודיו, ופתרון למי שנתקע.
+    summaryHe: פיפוש הגיע גם לאנגלית וגם לרוסית. תשמעו, אנחנו בעצמנו לא הבנו איך — אבל זה קרה, וזה מתויק.
     descriptionHe: שלוש גרסאות בעברית, מהדורות רשמיות בשפות זרות, החוברות, דיסק האודיו והפתרון — כולם באותו תיק חקירה.
     coverFileId: 1JoYCVI1nah80Px76RYT85YdQr9rIPxNG
     coverCrop: { left: 15, top: 0, width: 689, height: 919 }
@@ -28,7 +28,7 @@ collections:
   - slug: piposh-2
     titleHe: פיפוש 2
     type: game
-    summaryHe: שתי גרסאות, עטיפה, חוברת ומוזיקה. ופתרון, למי שנגמרה לו הסבלנות באמצע. לא נשפוט.
+    summaryHe: אז עשינו עוד אחד. מה, חשבתם שנעצור? קיבינימאט, פיפוש לא יודע מתי לרדת מהבמה.
     coverFileId: 0Bwqx7RiWdM3YcnVNS09PUGR4aFk
     coverCrop: { left: 85, top: 0, width: 533, height: 711 }
     aliasesHe: [פיפוש שתיים]
@@ -46,7 +46,7 @@ collections:
   - slug: halom-shehitgashem
     titleHe: חלום שהתגשם
     type: game
-    summaryHe: שתי גרסאות, חוברת ודיסק אודיו. וגם צ׳יטים, כי נו, לא כולם באים לפה לשחק ביושר.
+    summaryHe: קראו לזה חלום שהתגשם, ומי אנחנו שנתווכח עם הכותרת? נו, אז זה התגשם. תשחקו ותשפטו לבד.
     coverFileId: 0B2YRfkQTdJ96MnFNUnlRdlhkdjQ
     coverCrop: { left: 0, top: 40, width: 400, height: 533 }
     logoCrop: { left: 22, top: 92, width: 255, height: 125 }
@@ -64,7 +64,7 @@ collections:
   - slug: betochhei-harating
     titleHe: בתככי הרייטינג
     type: game
-    summaryHe: שלוש גרסאות, הוראות ופתרון. וגם תיקונים — לא טעות בקטלוג, הם באמת נדרשו.
+    summaryHe: הכול על רייטינג, תככים ומי מקבל את הפריים־טיים. שום דבר מזה לא התיישן, וזה החלק המדאיג.
     coverFileId: 0Bwqx7RiWdM3YVEVKUEFweVo0ZW8
     coverCrop: { left: 0, top: 0, width: 559, height: 745 }
     logoCrop: { left: 45, top: 28, width: 470, height: 78 }
@@ -86,7 +86,7 @@ collections:
   - slug: vogimon
     titleHe: ווג׳ימון
     type: game
-    summaryHe: המשחק המלא, הבטא, החוברת והעטיפה. כן, זה השם. לא, לא נתנצל עליו.
+    summaryHe: קראנו לו ווג׳ימון. כן, זה השם. לא, לא נתנצל — ואם משהו נשמע לכם מוכר, זו ממש לא אשמתנו.
     coverFileId: 0Bwqx7RiWdM3YY2tvazVOaDF4ZjQ
     coverCrop: { left: 0, top: 0, width: 359, height: 479 }
     aliasesHe: [ווגימון, ווג_ימון]
@@ -102,7 +102,7 @@ collections:
   - slug: piposh-revolution
     titleHe: פיפוש המהפכה
     type: game
-    summaryHe: שלוש גרסאות, מפה, מוזיקה ופתרון. מהפכה קטנה, אבל מתויקת לפי הספר.
+    summaryHe: מהפכה, הוא אומר. פיפוש לא הפיל שום שלטון, אבל הכותרת נשמעה טוב ואף אחד לא עצר אותנו.
     aliasesHe: [פיפוש שלוש, המהפכה]
     tagsHe: [פיפוש, הרפתקה, קומדיה, גיליוטין]
     rules:

@@ -9,8 +9,8 @@ interface Props {
   labelHe: string;
   /**
    * Resolves a playable derivative for an item, or null where the pipeline has not produced
-   * one. Audio resolves for every track; video never does, so a video row falls back to its
-   * poster and a link to the original.
+   * one. Audio resolves for every track; video resolves once the transcode has run, and a
+   * video still waiting on one falls back to its poster and a link to the original.
    */
   mediaSrc?: (item: CatalogItem) => string | null;
   showText?: boolean;
@@ -60,7 +60,7 @@ const {
               </p>
             </div>
             {actions.length > 0 && (
-              <div class="file-actions" aria-label={`פעולות עבור ${item.name}`}>
+              <div class="file-actions">
                 {actions.map((action) => (
                   <a
                     class:list={['file-action', action.kind]}
@@ -76,6 +76,8 @@ const {
             )}
           </div>
 
+          {/* Only where no player carries the still itself. A poster derivative is built for
+              videos and nothing else, so this is the posterless-player fallback. */}
           {poster !== null && source === null && (
             <div class="item-poster mat">
               <img src={poster} alt={`תמונה מתוך ${item.name}`} loading="lazy" decoding="async" />
@@ -85,7 +87,15 @@ const {
 
           {isMedia && source !== null && (
             item.kind === 'video' ? (
-              <video class="item-player" controls preload="none" src={source}></video>
+              /* preload="none" paints nothing until play, so without the poster the row is a
+                 blank rectangle for a video that is ready to play. */
+              <video
+                class="item-player"
+                controls
+                preload="none"
+                poster={poster ?? undefined}
+                src={source}
+              ></video>
             ) : (
               <audio class="item-player" controls preload="none" src={source}></audio>
             )
@@ -94,7 +104,7 @@ const {
           {isMedia && source === null && showMediaNote && (
             <p class:list={['item-player-note', { unplayable: neverPlayable(item) }]}>
               {neverPlayable(item)
-                ? `${item.mimeType} לא מתנגן בדפדפן, וגם המרה לא תעזור. כי ככה. הקובץ עצמו נפתח בלשונית חדשה.`
+                ? `${item.mimeType} לא מתנגן בדפדפן כמו שהוא, ועוד אין פה גרסה מומרת. כי ככה. הקובץ עצמו נפתח בלשונית חדשה.`
                 : 'עוד אין פה גרסה שמתנגנת. בינתיים הקובץ עצמו מחכה בלשונית חדשה.'}
             </p>
           )}

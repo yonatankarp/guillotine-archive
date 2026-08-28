@@ -10,7 +10,13 @@ import {
   type ArchiveSearchResult,
   type SearchDocument,
 } from '../../src/catalog/search';
-import type { Catalog, CatalogCollection, CatalogItem } from '../../src/catalog/types';
+import type {
+  Catalog,
+  CatalogCollection,
+  CatalogItem,
+  Release,
+  ReleaseType,
+} from '../../src/catalog/types';
 
 type IsAny<Value> = 0 extends 1 & Value ? true : false;
 const archiveSearchResultIdIsNotAny: IsAny<ArchiveSearchResult['id']> = false;
@@ -59,8 +65,28 @@ function item(overrides: Partial<CatalogItem> = {}): CatalogItem {
   };
 }
 
-function catalog(overrides: Partial<Catalog> = {}): Catalog {
+/* Mirrors TYPE_BY_COLLECTION_TYPE in src/catalog/releases.ts. */
+const RELEASE_TYPE_BY_COLLECTION_TYPE: Readonly<Record<CatalogCollection['type'], ReleaseType>> = {
+  game: 'game',
+  music: 'audio-cd',
+  press: 'press',
+  fan: 'fan-disc',
+  archive: 'other',
+};
+
+function releaseOf(source: CatalogCollection): Release {
   return {
+    slug: source.slug,
+    titleHe: source.titleHe,
+    type: RELEASE_TYPE_BY_COLLECTION_TYPE[source.type],
+    subjectSlug: source.type === 'game' ? source.slug : null,
+    itemIds: [...source.itemIds],
+    sourcePaths: [],
+  };
+}
+
+function catalog(overrides: Partial<Catalog> = {}): Catalog {
+  const base: Catalog = {
     generatedAt: '2026-08-26T00:00:00.000Z',
     categories: ['משחקים מלאים'],
     collections: [collection()],
@@ -69,6 +95,10 @@ function catalog(overrides: Partial<Catalog> = {}): Catalog {
     releaseFacets: { types: [], subjectSlugs: [], years: [] },
     ...overrides,
   };
+
+  /* Every curated collection becomes a release under the same slug, so a fixture that leaves
+     releases empty would hide the collectionType the index stores. */
+  return overrides.releases ? base : { ...base, releases: base.collections.map(releaseOf) };
 }
 
 function loadCatalogIndex(source: Catalog) {
@@ -679,7 +709,7 @@ describe('Hebrew search index', () => {
     ]);
   });
 
-  test('uses game routes for games and the archive route for other collection types', () => {
+  test('routes every collection at its release room and names the release type', () => {
     const source = catalog({
       collections: [
         collection(),
@@ -695,15 +725,46 @@ describe('Hebrew search index', () => {
     const { search } = loadCatalogIndex(source);
 
     expect(search.search('פיפוש').find(({ id }) => id === 'collection:piposh-1')).toMatchObject({
-      href: '/games/piposh-1/',
+      href: '/release/piposh-1/',
+      collectionType: 'game',
       viewUrl: null,
       downloadUrl: null,
     });
     expect(search.search('עיתונות').find(({ id }) => id === 'collection:press')).toMatchObject({
-      href: '/archive/',
+      href: '/release/press/',
+      collectionType: 'press',
       category: '',
       categories: [],
     });
+  });
+
+  test('takes a collection type from the release, which a curator override may have retyped', () => {
+    const source = catalog({
+      items: [],
+      releases: [{ ...releaseOf(collection()), type: 'demo' }],
+    });
+    const { search } = loadCatalogIndex(source);
+
+    expect(search.search('פיפוש').find(({ id }) => id === 'collection:piposh-1')).toMatchObject({
+      collectionType: 'demo',
+    });
+  });
+
+  test('omits the collection type rather than guessing when no release carries the slug', () => {
+    const source = catalog({ items: [], releases: [] });
+    const { search } = loadCatalogIndex(source);
+    const result = search.search('פיפוש').find(({ id }) => id === 'collection:piposh-1');
+
+    expect(result).toBeDefined();
+    expect(result).not.toHaveProperty('collectionType');
+  });
+
+  test('never stores a collection type on a file result', () => {
+    const { search } = loadCatalogIndex(catalog());
+
+    expect(search.search('פיפוש').find(({ id }) => id === 'file:english')).not.toHaveProperty(
+      'collectionType',
+    );
   });
 
   test('handles absent optional item fields and empty catalogs or queries', () => {

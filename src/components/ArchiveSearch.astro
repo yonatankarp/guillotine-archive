@@ -41,7 +41,7 @@ const kindFilters: ItemKind[] = [
   >
     <div class="query-field">
       <label for="archive-search">נו, מה מחפשים?</label>
-      <p id="archive-search-help">החיפוש מבין עברית. שמות הקבצים מוצגים בדיוק כמו שנשמרו, גם כשזה לא עוזר לאף אחד.</p>
+      <p id="archive-search-help">החיפוש מבין עברית בלבד! הרבה שמות קבצים פה באנגלית, מוצגים בדיוק כמו שנשמרו, אבל אל תנסו להקליד אותם. זה לא יעבוד.</p>
       <div class="query-controls">
         <input
           id="archive-search"
@@ -71,7 +71,9 @@ const kindFilters: ItemKind[] = [
     </div>
   </form>
 
-  <p class="search-status" role="status" aria-live="polite" data-search-status>
+  {/* tabindex="-1" so the loading state can park focus here when it disables the control the
+      user was in. Not reachable by tab; only script moves focus to it. */}
+  <p class="search-status" role="status" aria-live="polite" tabindex="-1" data-search-status>
     נו? כתבו משהו בעברית. אנחנו לא הולכים לנחש בשבילכם.
   </p>
   <p class="search-fallback" data-search-fallback hidden>

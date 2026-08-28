@@ -8,15 +8,23 @@ import { releaseTypeLabel } from './release-view';
 
 interface Props {
   releases: readonly Release[];
-  /** The facet this grid is already narrowed by, or null on the unfiltered grid. */
+  /** The facet this grid is already narrowed by, or null on the every-release grid. */
   active?: { facet: string; value: string } | null;
   /** The home page shows two grids, so only one of them carries the filters. */
   showFacets?: boolean;
+  /** A page carrying the tab strip already lists every type, so the type chips would repeat it. */
+  showTypeChips?: boolean;
   /** Curated releases have a one-line summary worth showing; auto-releases do not. */
   showSummary?: boolean;
 }
 
-const { releases, active = null, showFacets = true, showSummary = false } = Astro.props;
+const {
+  releases,
+  active = null,
+  showFacets = true,
+  showTypeChips = true,
+  showSummary = false,
+} = Astro.props;
 
 const itemCountBySlug = new Map<string, number>();
 for (const item of catalog.items) {
@@ -46,12 +54,14 @@ function chipsFor(facet: string, values: readonly string[], label: (value: strin
 }
 
 const chips: Chip[] = [
-  ...chipsFor(
-    'type',
-    releaseFacets.types,
-    (value) => releaseTypeLabel(value as Release['type']),
-    (release, value) => release.type === value,
-  ),
+  ...(showTypeChips
+    ? chipsFor(
+        'type',
+        releaseFacets.types,
+        (value) => releaseTypeLabel(value as Release['type']),
+        (release, value) => release.type === value,
+      )
+    : []),
   ...chipsFor(
     'subject',
     releaseFacets.subjectSlugs,
@@ -71,9 +81,10 @@ const chips: Chip[] = [
 
 {showFacets && (
 <nav class="facets" aria-label="סינון מהדורות">
+  {/* Not the home page: that is the six games, and a chip counting 42 that lands on 6 is a lie. */}
   <a
     class="facet-chip"
-    href={sitePath()}
+    href={sitePath('games/')}
     aria-current={active === null ? 'page' : undefined}
   >
     הכול <span class="mono">{allReleases.length}</span>

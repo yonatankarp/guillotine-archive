@@ -632,7 +632,9 @@ main {
   padding-top: 0.8rem;
 }
 
-.release-copy h2 {
+/* A tile title sits under whatever section heading the page put above the grid, so its
+   level belongs to the page, not to this rule. The size does not move with the level. */
+.release-copy :is(h2, h3) {
   margin: 0;
   font-size: var(--t-l);
 }
@@ -1315,7 +1317,7 @@ main {
   margin: 0.9rem 0 0;
   padding: 0;
   list-style: none;
-  background: var(--line-soft);
+  background: var(--stroke-soft);
 }
 
 .bundle-list li {
@@ -1332,15 +1334,61 @@ main {
   font-size: 0.78rem;
 }
 
-/* Scans shown as artwork. Tiles keep their natural aspect: these run from 0.58 to
-   1.50 and forcing one ratio is what made the old covers read as broken. */
+/* Scans shown as artwork, one carousel per object that was scanned. A box, an instruction
+   book and a lyrics book are three things, so they are three tracks: dropping them into one
+   grid made a booklet read as a pile of loose pages.
+
+   No script anywhere in here. The track is a scroll container, the tiles inside it are
+   links, and tabbing to a link is what scrolls the track — which is also why the direction
+   is right in RTL without a single rule about it: the browser owns the direction. */
 .media-gallery {
+  /* One height for every tile in every track, so a row of scans reads as a shelf. Width is
+     what varies, per scan, from the dimensions the sync measured. */
+  --tile-height: clamp(8.5rem, 30vw, 11.5rem);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
-  gap: 0.9rem;
+  gap: clamp(1.3rem, 4vw, 2rem);
   margin: 0.9rem 0 0;
-  padding: 0;
+  min-width: 0;
+}
+
+.gallery-group {
+  min-width: 0;
+}
+
+.gallery-group h3 {
+  margin: 0 0 0.6rem;
+  font-size: var(--t-l);
+}
+
+/* Same idiom as .scroll-x: the track scrolls so the page body never does. */
+.carousel-track {
+  display: flex;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0 0 0.75rem;
   list-style: none;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  /* A tile scrolled to by the keyboard clears the edge instead of touching it. */
+  scroll-padding-inline: 0.25rem;
+  /* Asking for a colour is what keeps the bar visible on an overlay-scrollbar platform,
+     and the bar is the whole "there is more sideways" affordance. */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--accent) 60%, var(--stroke)) var(--stroke-soft);
+}
+
+/* A tile is as wide as its scan is: the aspect comes from the file, not from a guess, so a
+   booklet spread is a wide tile and a box front is a narrow one and neither is cropped. The
+   clamp is only for the ends of the range — the archive holds an 11:1 strip and a 0.14
+   sliver, and neither gets to be the width of the room. */
+.carousel-track > li {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: clamp(6rem, calc(var(--tile-height) * var(--tile-aspect, 0.75)), min(23rem, 86vw));
+  scroll-snap-align: start;
 }
 
 .media-gallery a {
@@ -1350,18 +1398,23 @@ main {
   text-decoration: none;
 }
 
+/* The frame takes the tile's own width and the shelf's height, so it fits its scan. Only the
+   two ends of the range are contained on the mat, the way the release cover is; nothing is
+   ever cropped, and no scan is stretched to a ratio that is not its own. */
 .gallery-frame {
   display: grid;
   place-items: center;
   overflow: hidden;
   border-radius: 2px;
-  min-height: 6rem;
+  width: 100%;
+  height: var(--tile-height, 11.5rem);
 }
 
 .gallery-frame img {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
+  object-fit: contain;
   transition: opacity 160ms ease;
 }
 
@@ -1371,7 +1424,7 @@ main {
 }
 
 .gallery-missing {
-  width: 100%;
+  height: 100%;
   aspect-ratio: 3 / 4;
   color: var(--accent);
   opacity: 0.25;

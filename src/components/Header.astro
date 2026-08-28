@@ -8,7 +8,9 @@ import { sitePath } from '../lib/url';
     <strong>ארכיון גיליוטין</strong>
   </a>
   <nav aria-label="ניווט ראשי">
-    <a href={sitePath()}>מהדורות</a>
+    {/* The label was never the lie, the target was: "/" is the six games. The brand link
+        beside this one still goes home, so nothing is lost by pointing this at all 42. */}
+    <a href={sitePath('games/')}>מהדורות</a>
     <a href={sitePath('listen/')}>מוזיקה</a>
     <a href={sitePath('watch/')}>סרטונים</a>
     <a href={sitePath('search/')}>חיפוש</a>

@@ -28,6 +28,14 @@ export function audioUrl(item: CatalogItem): string | null {
   return url(item.derivatives?.audio?.path);
 }
 
+/**
+ * Never gated on the source mime type. The pipeline transcodes WMV, AVI, MPEG and
+ * VOB to MP4 too, so a file the browser refuses can still have a rendition it plays.
+ */
+export function videoUrl(item: CatalogItem): string | null {
+  return url(item.derivatives?.video?.path);
+}
+
 export function posterUrl(item: CatalogItem): string | null {
   return url(item.derivatives?.poster?.path);
 }
@@ -40,9 +48,14 @@ export function hasAudio(items: readonly CatalogItem[]): boolean {
   return items.some((item) => item.derivatives?.audio !== undefined);
 }
 
+export function hasVideo(items: readonly CatalogItem[]): boolean {
+  return items.some((item) => item.derivatives?.video !== undefined);
+}
+
 /**
- * Only these play from a hosted derivative or directly. Everything else in the
- * archive is WMV, AVI, MPEG or VOB, which no browser decodes whatever we host.
+ * Only these play as they are. Everything else in the archive is WMV, AVI, MPEG or
+ * VOB, which no browser decodes — those reach a visitor through a transcoded
+ * derivative or not at all, so this describes the original file and nothing else.
  */
 const BROWSER_VIDEO = new Set(['video/mp4', 'video/webm']);
 

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, test } from '@playwright/test';
 import MiniSearch from 'minisearch';
@@ -28,6 +29,25 @@ function expectedRelease(slug: string) {
   const release = expectedReleases.find((candidate) => candidate.slug === slug);
   if (!release) throw new Error(`generated catalog is missing release ${slug}`);
   return release;
+}
+
+/**
+ * The href a search result renders comes from the committed index, not from a page render.
+ * That artifact is only rewritten by a real Drive sync, so it lags `collectionHref` in
+ * src/catalog/search.ts: it still stores /games/<slug>/ while the generator emits
+ * /release/<slug>/. Reading the expectation out of the artifact keeps this correct both
+ * before and after the sync that regenerates it, instead of being wrong on one side.
+ */
+function storedCollectionHref(titleHe: string): string {
+  const index = JSON.parse(readFileSync('public/data/search-index.json', 'utf8')) as {
+    storedFields: Record<string, { kind?: string; titleHe?: string; href?: string }>;
+  };
+  const document = Object.values(index.storedFields).find(
+    (stored) => stored?.kind === 'collection' && stored.titleHe === titleHe,
+  );
+  if (!document?.href) throw new Error(`search index has no collection document ${titleHe}`);
+
+  return site.route(document.href.replace(/^\//u, ''));
 }
 
 function searchFileDocument(
@@ -246,9 +266,11 @@ test('complete archive browsing remains available without search', async ({ page
   await expect(page).toHaveURL(site.url('archive/games/'));
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toBeVisible();
+  /* /release/<slug>/ is generated for all 42 releases; /games/<slug>/ only for the six
+     games, so a collection link built on it 404s for the other 36. */
   await expect(
     page.getByRole('link', { name: 'שייך למהדורה הרשמית: פיפוש 1' }).first(),
-  ).toHaveAttribute('href', site.route('games/piposh-1/'));
+  ).toHaveAttribute('href', site.route('release/piposh-1/'));
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
   await page.goto(site.route('archive/solutions/'));
@@ -258,14 +280,165 @@ test('complete archive browsing remains available without search', async ({ page
   await expect(page.locator('.file-list > li')).toHaveCount(solutionItems.length);
 });
 
-test('the /games/ route the search index points at renders the release room', async ({ page }) => {
+test('the legacy /games/<slug>/ alias still renders the release room', async ({ page }) => {
+  /* The catalog renders collection links as /release/<slug>/, generated for all 42. The
+     committed search index still stores /games/<slug>/ and is only rewritten by a Drive
+     sync, and a deployed site keeps serving that index until the sync merges, so this
+     alias has to go on resolving. It covers the six games and nothing else. */
   const release = expectedRelease('piposh-2');
   await page.goto(site.route(`games/${release.slug}/`));
 
   await expect(page.getByRole('heading', { level: 1, name: release.titleHe })).toBeVisible();
   await expect(page.locator('.release-room')).toHaveCount(1);
-  await expect(page.getByRole('heading', { name: 'הכול, בלי סינון' })).toBeVisible();
+  /* Anchored on the section id, not its wording: this test cares that the alias renders a
+     complete room, and the heading copy belongs to whoever owns ReleaseRoom. */
+  await expect(page.locator('#section-all')).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('/games/ is the one page holding every release, and the widening chip lands on it', async ({
+  page,
+}) => {
+  /* The chip promised the full count and pointed at the home page, which is the six
+     games. Nothing linked to /games/ at all, so the archive had no all-releases page. */
+  const games = expectedReleases.filter(({ type }) => type === 'game');
+  await page.goto(site.route('games/'));
+
+  await expect(page.getByRole('heading', { level: 1, name: 'כל מה שיש לנו' })).toHaveCount(1);
+  const cells = page.locator('.release-grid > li');
+  await expect(cells).toHaveCount(expectedReleases.length);
+  for (const release of expectedReleases) {
+    await expect(
+      page.locator(`[data-release="${release.slug}"]`),
+      `${release.slug} is on the all-releases page`,
+    ).toHaveCount(1);
+  }
+
+  // Games lead here exactly as they do on the home page.
+  for (let index = 0; index < games.length; index += 1) {
+    await expect(cells.nth(index), `tile ${index} is a game`).toHaveAttribute(
+      'data-release-type',
+      'game',
+    );
+  }
+  await expect(cells.nth(games.length)).not.toHaveAttribute('data-release-type', 'game');
+
+  const widening = page.locator('.facet-chip').first();
+  await expect(widening).toContainText('הכול');
+  await expect(widening).toContainText(String(expectedReleases.length));
+  await expect(widening).toHaveAttribute('href', site.route('games/'));
+  await expect(widening).toHaveAttribute('aria-current', 'page');
+
+  /* The tab strip already lists every type, so repeating them as chips shipped each
+     type twice to the same URL. */
+  const tabs = page.getByRole('navigation', { name: 'מדורי הארכיון' });
+  await expect(tabs).toBeVisible();
+  await expect(page.locator('.facets a[href*="/browse/type/"]')).toHaveCount(0);
+
+  // This page is not one type, so no tab may claim to be the current page.
+  await expect(tabs.locator('[aria-current="page"]')).toHaveCount(0);
+
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
+test('subject and year pages mark no tab current and never repeat the types as chips', async ({
+  page,
+}) => {
+  /* Every non-type facet page passed 'other' as the active tab, so a screen reader
+     announced the visitor was inside לא ברור מה זה on all seven of them. */
+  const subjectSlug = expectedCatalog.releaseFacets.subjectSlugs.find((slug) =>
+    expectedReleases.some((release) => release.subjectSlug === slug),
+  );
+  expect(subjectSlug, 'the catalog has at least one subject facet page').toBeDefined();
+  const year = expectedCatalog.releaseFacets.years[0];
+  expect(year, 'the catalog has at least one year facet page').toBeDefined();
+
+  for (const path of [`browse/subject/${subjectSlug!}/`, `browse/year/${year!}/`]) {
+    await page.goto(site.route(path));
+
+    const tabs = page.getByRole('navigation', { name: 'מדורי הארכיון' });
+    await expect(tabs, `${path} shows the tab strip`).toBeVisible();
+    await expect(
+      tabs.locator('[aria-current="page"]'),
+      `${path} marks no tab as the current page`,
+    ).toHaveCount(0);
+    await expect(
+      tabs.getByRole('link', { name: /לא ברור מה זה/u }),
+      `${path} keeps the other tab, unmarked`,
+    ).toHaveCount(1);
+
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  }
+});
+
+test('every filtered page keeps a route back to the all-releases page', async ({ page }) => {
+  /* The widening control is the only way out of a filter without the back button, so a
+     type page that drops the whole chip bar is the same dead end in a new place. */
+  const subjectSlug = expectedCatalog.releaseFacets.subjectSlugs[0];
+  const year = expectedCatalog.releaseFacets.years[0];
+
+  for (const path of [
+    'browse/type/game/',
+    `browse/subject/${subjectSlug!}/`,
+    `browse/year/${year!}/`,
+  ]) {
+    await page.goto(site.route(path));
+
+    const widening = page.locator('.facet-chip').first();
+    await expect(widening, `${path} offers the widening chip`).toContainText('הכול');
+    await expect(widening, `${path} widening chip target`).toHaveAttribute(
+      'href',
+      site.route('games/'),
+    );
+    // It widens, so it must not claim the visitor is already there.
+    await expect(widening).not.toHaveAttribute('aria-current', 'page');
+
+    await expect(
+      page.locator('.facets a[href*="/browse/type/"]'),
+      `${path} does not repeat the tab strip as chips`,
+    ).toHaveCount(0);
+  }
+});
+
+test('the header sends every page to the all-releases list, and the brand still goes home', async ({
+  page,
+}) => {
+  await page.goto(site.route('release/piposh-1/'));
+
+  const nav = page.getByRole('navigation', { name: 'ניווט ראשי' });
+  await expect(nav.getByRole('link', { name: 'מהדורות' })).toHaveAttribute(
+    'href',
+    site.route('games/'),
+  );
+  await expect(
+    page.getByRole('link', { name: 'ארכיון גיליוטין — דף הבית' }),
+  ).toHaveAttribute('href', site.route());
+});
+
+test('release tiles sit a heading level below the section that contains them', async ({ page }) => {
+  /* Tiles emitted h2, so each title read as a peer of the h2 introducing the grid.
+     axe cannot see this: no level is skipped, the outline is simply wrong. */
+  for (const [path, expectedTiles] of [
+    ['', expectedReleases.filter(({ type }) => type === 'game').length],
+    ['games/', expectedReleases.length],
+    ['browse/type/game/', expectedReleases.filter(({ type }) => type === 'game').length],
+  ] as const) {
+    await page.goto(site.route(path));
+
+    await expect(
+      page.locator('.release-copy h3'),
+      `${path || 'home'} tile titles are h3`,
+    ).toHaveCount(expectedTiles);
+    await expect(
+      page.locator('.release-copy h2'),
+      `${path || 'home'} has no tile title left at h2`,
+    ).toHaveCount(0);
+    // A tile is only correctly nested if a real h2 introduces the grid above it.
+    expect(
+      await page.getByRole('heading', { level: 2 }).count(),
+      `${path || 'home'} has a section heading above the grid`,
+    ).toBeGreaterThan(0);
+  }
 });
 
 test('Drive actions and back links have a high-contrast visible focus indicator', async ({ page }) => {
@@ -289,7 +462,9 @@ test('new archive pages remain within a 320px viewport', async ({ page }, testIn
   for (const path of [
     'release/piposh-1/',
     'release/fan-disc-69541b3e/',
+    'games/',
     'browse/type/game/',
+    'browse/year/1999/',
     'listen/',
     'watch/',
     'archive/',
@@ -473,7 +648,7 @@ for (const corruption of ['file without view URL', 'file disguised as collection
         : searchFileDocument('malformed-result', 'בדיקת תקלה', {
             kind: 'collection',
             titleHe: 'בדיקת תקלה',
-            href: '/games/piposh-1/',
+            href: '/release/piposh-1/',
           });
     await useSearchIndex(page, [
       searchFileDocument('safe-result', 'בדיקת תקלה'),
@@ -510,7 +685,7 @@ test('search result actions expose exact metadata and safe Drive links', async (
   }
   await expect(
     page.getByRole('link', { name: 'פתיחת אוסף — פיפוש 1' }),
-  ).toHaveAttribute('href', site.route('games/piposh-1/'));
+  ).toHaveAttribute('href', storedCollectionHref('פיפוש 1'));
 });
 
 test('search has honest empty, singular, and plural count wording', async ({ page }) => {

@@ -1,24 +1,37 @@
 ---
+import MediaTabs from '../../components/MediaTabs.astro';
 import ReleaseGrid from '../../components/ReleaseGrid.astro';
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { releasesOfType } from '../../lib/releases';
+import { featuredReleases, supportingReleases } from '../../lib/releases';
 import { sitePath } from '../../lib/url';
 
-const gameReleases = releasesOfType('game');
+/**
+ * The one page that holds every release. The home page is the six games, each tab is a
+ * single type, and each chip is a single facet, so until this page existed the widening
+ * control at the top of the filter bar had nowhere honest to point.
+ *
+ * Games lead, exactly as they do on the home page; everything else follows in the
+ * editorial type order.
+ */
+const allReleases = [...featuredReleases, ...supportingReleases];
 ---
 
-<BaseLayout title="המשחקים — ארכיון גיליוטין">
-  <header class="page-intro">
-    <p class="eyebrow">סוג של דבר</p>
-    <h1>המשחקים</h1>
+<BaseLayout title="כל המהדורות — ארכיון גיליוטין">
+  {/* No tab is current here: this page is not one type, it is all of them at once. */}
+  <MediaTabs active={null} />
+
+  <header class="page-intro compact-intro">
+    <p class="eyebrow">בלי לסדר, בלי לבחור</p>
+    <h1>כל מה שיש לנו</h1>
     <p class="lead">
-      אלה המשחקים שבאמת יצאו. כל השאר — דמואים, דיסקים של מעריצים וכל הבלגן — מחכה
-      <a href={sitePath()}>ברשימת המהדורות</a>.
+      נו, ביקשתם הכול? קיבינימאט, הנה הכול, בערימה אחת. גם הדברים שאנחנו גאים בהם וגם
+      הדברים שאין לנו מושג איך הגיעו אלינו. תסננו למעלה, או פשוט תגללו עד הסוף, גם זה
+      כיף. ומי שכבר יודע בדיוק מה הוא רוצה, <a href={sitePath('search/')}>שיחפש</a>, זה יותר מהיר.
     </p>
   </header>
 
-  <section aria-labelledby="games-heading">
-    <h2 class="visually-hidden" id="games-heading">מהדורות המשחקים</h2>
-    <ReleaseGrid releases={gameReleases} />
+  <section aria-labelledby="all-releases-heading">
+    <h2 class="visually-hidden" id="all-releases-heading">כל המהדורות</h2>
+    <ReleaseGrid releases={allReleases} showTypeChips={false} />
   </section>
 </BaseLayout>

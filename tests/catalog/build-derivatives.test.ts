@@ -1,7 +1,9 @@
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { afterEach, describe, expect, test } from 'vitest';
 import { buildCatalog } from '../../src/catalog/build';
@@ -51,6 +53,25 @@ function stubBinary(script: string): string {
   writeFileSync(path, script, 'utf8');
   chmodSync(path, 0o755);
   return path;
+}
+
+/** ffmpeg is the only practical way to author a valid video fixture. */
+async function syntheticVideo(binary: string, container: 'avi' | 'mp4'): Promise<Buffer> {
+  const directory = await mkdtemp(join(tmpdir(), 'guillotine-video-fixture-'));
+  const path = join(directory, `clip.${container}`);
+  const codecs =
+    container === 'mp4' ? ['-c:v', 'libx264', '-c:a', 'aac'] : ['-c:v', 'mpeg4', '-c:a', 'mp3'];
+
+  await promisify(execFile)(binary, [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-f', 'lavfi', '-i', 'testsrc=size=320x240:rate=10:duration=1',
+    '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1',
+    ...codecs,
+    '-y', path,
+  ]);
+
+  return readFile(path);
 }
 
 async function derivativeNames(root: string): Promise<string[]> {
@@ -336,6 +357,192 @@ describe('video posters', () => {
   });
 });
 
+describe('video derivatives', () => {
+  const video = (id: string, overrides: Partial<DriveFile> = {}): DriveFile =>
+    driveFile(id, {
+      name: `${id}.wmv`,
+      mimeType: 'video/x-ms-wmv',
+      path: `סרטונים/טלוויזיה/${id}.wmv`,
+      size: 4 * 1024 * 1024,
+      ...overrides,
+    });
+
+  /**
+   * Records the arguments it was handed and writes the requested number of
+   * bytes to the target path, which is always the last argument. That is enough
+   * to prove which branch ran and to drive the size guards without waiting on a
+   * real encode.
+   */
+  function stubFfmpeg(root: string, outputBytes: number): { path: string; args: () => string[] } {
+    const argsPath = join(root, 'ffmpeg-args.txt');
+    const path = stubBinary(
+      `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsPath}'\nfor target; do :; done\nhead -c ${String(outputBytes)} /dev/zero > "$target"\n`,
+    );
+    return {
+      path,
+      args: () => readFileSync(argsPath, 'utf8').trim().split('\n'),
+    };
+  }
+
+  test('remuxes an MP4 instead of re-encoding it, and transcodes everything else', async () => {
+    for (const [mimeType, name, expected, rejected] of [
+      ['video/mp4', 'clip.mp4', '-c', 'libx264'],
+      ['video/x-ms-wmv', 'clip.wmv', 'libx264', '-c'],
+    ] as const) {
+      const root = await temporaryRoot();
+      const ffmpeg = stubFfmpeg(root, 1024);
+
+      const catalog = await buildCatalog({
+        files: [video('clip', { name, mimeType, path: `סרטונים/טלוויזיה/${name}` })],
+        curator,
+        root,
+        generatedAt: '2026-08-26T12:00:00.000Z',
+        buildDerivatives: true,
+        externalTools: { imageMagick: null, ffmpeg: ffmpeg.path },
+        download: async () => Buffer.from('video bytes'),
+      });
+
+      const args = ffmpeg.args();
+      expect(args).toContain(expected);
+      expect(args).not.toContain(rejected);
+      // Both branches must produce a progressively streamable file.
+      expect(args).toContain('+faststart');
+      expect(catalog.items[0]?.derivatives?.video).toMatchObject({
+        path: '/generated/derivatives/clip.mp4',
+        bytes: 1024,
+      });
+      expect(await derivativeNames(root)).toContain('clip.mp4');
+    }
+  });
+
+  test('keeps the poster and duration alongside the playable derivative', async () => {
+    const root = await temporaryRoot();
+    const ffmpeg = stubFfmpeg(root, 512);
+
+    const catalog = await buildCatalog({
+      files: [
+        video('clip', {
+          thumbnailUrl: 'https://lh3.googleusercontent.com/thumb',
+          durationMillis: 42_000,
+        }),
+      ],
+      curator,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      buildDerivatives: true,
+      externalTools: { imageMagick: null, ffmpeg: ffmpeg.path },
+      download: async () => Buffer.from('video bytes'),
+      fetchThumbnail: async () => solidJpeg(1280, 720),
+    });
+
+    expect(Object.keys(catalog.items[0]?.derivatives ?? {}).sort()).toEqual([
+      'durationMillis',
+      'poster',
+      'video',
+    ]);
+  });
+
+  test('skips video with a warning when no ffmpeg exists', async () => {
+    const root = await temporaryRoot();
+    const downloaded: string[] = [];
+
+    const catalog = await buildCatalog({
+      files: [video('clip')],
+      curator,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      buildDerivatives: true,
+      externalTools: { imageMagick: null, ffmpeg: null },
+      download: async (id) => {
+        downloaded.push(id);
+        return Buffer.from('video bytes');
+      },
+    });
+
+    expect(downloaded).toEqual([]);
+    expect(catalog.items[0]?.derivatives?.video).toBeUndefined();
+    expect((await report(root)).warnings).toContain(
+      '1 videos have no playable derivative because no ffmpeg binary was available',
+    );
+    expect((await report(root)).errors).toEqual([]);
+  });
+
+  /** The Drive gateway refuses a response this large, so the download is never attempted. */
+  test('skips a video past the Drive download ceiling without downloading it', async () => {
+    const root = await temporaryRoot();
+    const ffmpeg = stubFfmpeg(root, 1024);
+    const downloaded: string[] = [];
+
+    const catalog = await buildCatalog({
+      files: [
+        video('huge', { size: 40 * 1024 * 1024 }),
+        video('small', { size: 4 * 1024 * 1024 }),
+      ],
+      curator,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      buildDerivatives: true,
+      externalTools: { imageMagick: null, ffmpeg: ffmpeg.path },
+      download: async (id) => {
+        downloaded.push(id);
+        return Buffer.from('video bytes');
+      },
+    });
+
+    expect(downloaded).toEqual(['small']);
+    const byId = new Map(catalog.items.map((item) => [item.id, item]));
+    expect(byId.get('huge')?.derivatives?.video).toBeUndefined();
+    expect(byId.get('small')?.derivatives?.video).toBeDefined();
+    expect((await report(root)).warnings).toContain(
+      '1 videos skipped because they exceed the 32 MiB Drive download ceiling',
+    );
+  });
+
+  test('discards a derivative that would overrun the video budget and says so', async () => {
+    const root = await temporaryRoot();
+    const ffmpeg = stubFfmpeg(root, 200_000);
+
+    const catalog = await buildCatalog({
+      files: [video('first'), video('second')],
+      curator,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      buildDerivatives: true,
+      maxVideoDerivativeBytes: 250_000,
+      externalTools: { imageMagick: null, ffmpeg: ffmpeg.path },
+      download: async () => Buffer.from('video bytes'),
+    });
+
+    const withVideo = catalog.items.filter((item) => item.derivatives?.video !== undefined);
+    expect(withVideo).toHaveLength(1);
+    // The rejected encode must leave nothing behind on disk either.
+    expect(await derivativeNames(root)).toEqual(['first.mp4']);
+    expect((await report(root)).warnings).toContain(
+      '1 videos skipped because the video derivative budget was exceeded',
+    );
+    expect((await report(root)).errors).toEqual([]);
+  });
+
+  test('records a failed encode as a warning and leaves the item usable', async () => {
+    const root = await temporaryRoot();
+    const failing = stubBinary('#!/bin/sh\nexit 3\n');
+
+    const catalog = await buildCatalog({
+      files: [video('clip')],
+      curator,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      buildDerivatives: true,
+      externalTools: { imageMagick: null, ffmpeg: failing },
+      download: async () => Buffer.from('video bytes'),
+    });
+
+    expect(catalog.items[0]?.derivatives?.video).toBeUndefined();
+    expect((await report(root)).warnings).toContain('failed to build derivatives for 1 files');
+    expect((await report(root)).errors).toEqual([]);
+  });
+});
+
 describe('real ffmpeg transcoding', () => {
   const ffmpeg = resolveFfmpeg();
 
@@ -380,5 +587,33 @@ describe('real ffmpeg transcoding', () => {
     const written = await readFile(join(root, 'public/generated/derivatives/effect.opus'));
     expect(written.subarray(0, 4).toString('latin1')).toBe('OggS');
     expect(written.length).toBeLessThan(wav.length / 2);
+  });
+
+  test.skipIf(ffmpeg === null)('writes a genuinely streamable MP4 for an AVI', async () => {
+    const root = await temporaryRoot();
+    const avi = await syntheticVideo(ffmpeg!, 'avi');
+
+    const catalog = await buildCatalog({
+      files: [
+        driveFile('clip', {
+          name: 'clip.avi',
+          mimeType: 'video/x-msvideo',
+          path: 'סרטונים/טלוויזיה/clip.avi',
+          size: avi.length,
+        }),
+      ],
+      curator,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      buildDerivatives: true,
+      download: async () => avi,
+    });
+
+    expect(catalog.items[0]?.derivatives?.video?.path).toBe('/generated/derivatives/clip.mp4');
+    const written = await readFile(join(root, 'public/generated/derivatives/clip.mp4'));
+    expect(written.subarray(4, 8).toString('latin1')).toBe('ftyp');
+    // The whole point of faststart: the index precedes the frames, so playback
+    // can start on the first bytes instead of after the last one.
+    expect(written.indexOf(Buffer.from('moov'))).toBeLessThan(written.indexOf(Buffer.from('mdat')));
   });
 });

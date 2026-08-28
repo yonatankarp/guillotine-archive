@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { htmlToText } from 'html-to-text';
@@ -468,4 +470,141 @@ export async function transcodeToOpus(
     ],
     data,
   );
+}
+
+/**
+ * Video is the one encoder here that goes through real files at both ends, and
+ * that is an ffmpeg constraint rather than a preference. `+faststart` is what
+ * makes an MP4 stream instead of download: it moves the index in front of the
+ * frames so a browser can start playing on the first bytes. Writing it means
+ * seeking backwards over the finished file, which ffmpeg refuses on a pipe with
+ * "muxer does not support non seekable output". The input is a file for the
+ * mirror-image reason: this archive is WMV, AVI and VOB, whose demuxers seek to
+ * indexes that are not at the front of the stream.
+ */
+const VIDEO_TOOL_TIMEOUT_MS = 30 * 60 * 1000;
+
+function spawnVideoTool(binary: string, args: readonly string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binary, [...args], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let settled = false;
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGKILL');
+      reject(error);
+    };
+    const timer = setTimeout(() => fail(new Error(`${binary} timed out`)), VIDEO_TOOL_TIMEOUT_MS);
+
+    // Draining stderr prevents a chatty encoder from blocking on a full pipe.
+    child.stderr.resume();
+    child.on('error', fail);
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (settled) return;
+      settled = true;
+      if (code !== 0) {
+        reject(new Error(`${binary} exited with code ${String(code)}`));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function encodeVideo(
+  data: Buffer,
+  binary: string,
+  buildArgs: (source: string, target: string) => readonly string[],
+): Promise<Buffer> {
+  const directory = await mkdtemp(join(tmpdir(), 'guillotine-video-'));
+  const source = join(directory, 'source');
+  const target = join(directory, 'derivative.mp4');
+
+  try {
+    await writeFile(source, data);
+    await spawnVideoTool(binary, buildArgs(source, target));
+    const output = await readFile(target);
+    if (output.length === 0) throw new Error(`${binary} produced no output`);
+    return output;
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+/**
+ * 854 is 480p at 16:9. The archive is VHS-era television capture and phone
+ * clips, so this downscales the phone footage and leaves every genuinely small
+ * source at its native size rather than upscaling grain.
+ */
+export const VIDEO_MAX_DISPLAY_WIDTH = 854;
+export const VIDEO_CRF = '26';
+export const VIDEO_MAX_BITRATE = '1200k';
+export const VIDEO_BUFFER_SIZE = '2400k';
+export const VIDEO_AUDIO_BITRATE = '96k';
+
+/**
+ * Scaling by `iw*sar` converts to square pixels first. A PAL VOB is 720x576
+ * stored with a 16:15 sample ratio, so scaling its raw width would squash the
+ * picture; this yields the 768-wide frame the disc actually displays. Both
+ * dimensions are forced even because H.264 4:2:0 cannot encode odd ones.
+ */
+const VIDEO_SCALE_FILTER = `scale=w=trunc(min(${String(VIDEO_MAX_DISPLAY_WIDTH)}\\,iw*sar)/2)*2:h=-2,setsar=1`;
+
+/** An MP4 source needs no re-encode, only an index moved to the front. */
+export function isStreamableVideoContainer(mimeType: string): boolean {
+  return mimeType.toLowerCase().split(';', 1)[0]?.trim() === 'video/mp4';
+}
+
+/**
+ * The cheap case: copy the existing streams into a new MP4 with the index at
+ * the front. No re-encode, so it costs a file copy rather than minutes of CPU.
+ * It trusts the source codecs to be browser-playable, which holds for the
+ * phone-recorded MP4s here; a copy of something exotic would still fail the
+ * caller's playback expectation rather than the build.
+ */
+export async function remuxToStreamableMp4(data: Buffer, binary: string): Promise<Buffer> {
+  return encodeVideo(data, binary, (source, target) => [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-i', source,
+    '-map', '0:v:0',
+    '-map', '0:a:0?',
+    '-c', 'copy',
+    '-movflags', '+faststart',
+    '-f', 'mp4',
+    '-y', target,
+  ]);
+}
+
+/**
+ * H.264 Main in MP4, with AAC stereo. WebM would encode smaller, but this has to
+ * play on the oldest thing a visitor might bring, and `yuv420p` at Main profile
+ * is the combination every browser decodes. It is also not optional: the ancient
+ * sources here carry pixel formats such as yuv411p that x264 would otherwise
+ * promote to a High 4:4:4 stream no browser will touch. Audio is downmixed to
+ * stereo because the VOBs carry multichannel AC-3.
+ */
+export async function transcodeToMp4(data: Buffer, binary: string): Promise<Buffer> {
+  return encodeVideo(data, binary, (source, target) => [
+    '-hide_banner',
+    '-loglevel', 'error',
+    '-i', source,
+    '-map', '0:v:0',
+    '-map', '0:a:0?',
+    '-vf', VIDEO_SCALE_FILTER,
+    '-c:v', 'libx264',
+    '-profile:v', 'main',
+    '-pix_fmt', 'yuv420p',
+    '-preset', 'medium',
+    '-crf', VIDEO_CRF,
+    '-maxrate', VIDEO_MAX_BITRATE,
+    '-bufsize', VIDEO_BUFFER_SIZE,
+    '-c:a', 'aac',
+    '-b:a', VIDEO_AUDIO_BITRATE,
+    '-ac', '2',
+    '-movflags', '+faststart',
+    '-f', 'mp4',
+    '-y', target,
+  ]);
 }

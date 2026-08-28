@@ -5,9 +5,11 @@ import {
   formatDuration,
   hasAudio,
   hasThumbs,
+  hasVideo,
   playsInBrowser,
   posterUrl,
   thumbUrl,
+  videoUrl,
   viewUrl,
 } from '../../src/components/derivative';
 
@@ -38,9 +40,11 @@ describe('derivative resolution', () => {
     expect(thumbUrl(bare)).toBeNull();
     expect(viewUrl(bare)).toBeNull();
     expect(audioUrl(bare)).toBeNull();
+    expect(videoUrl(bare)).toBeNull();
     expect(posterUrl(bare)).toBeNull();
     expect(hasThumbs([bare])).toBe(false);
     expect(hasAudio([bare])).toBe(false);
+    expect(hasVideo([bare])).toBe(false);
   });
 
   test('resolves each tier to a site path', () => {
@@ -84,6 +88,28 @@ describe('derivative resolution', () => {
     expect(audioUrl(track)).toContain('file-1.opus');
     expect(hasAudio([track])).toBe(true);
     expect(posterUrl(video)).toContain('file-1-poster.webp');
+    expect(videoUrl(video)).toBeNull();
+    expect(hasVideo([video])).toBe(false);
+  });
+
+  /**
+   * The sources here are WMV, AVI, MPEG and VOB, and the pipeline transcodes them
+   * to MP4. Resolving the rendition off the source mime type would hide the very
+   * files the encode exists for, so a WMV with a derivative plays like anything else.
+   */
+  test('resolves a video rendition whatever the source format was', () => {
+    const transcoded = item({
+      kind: 'video',
+      mimeType: 'video/x-ms-wmv',
+      derivatives: {
+        poster: { path: 'generated/derivatives/file-1-poster.webp', bytes: 20_000 },
+        video: { path: 'generated/derivatives/file-1.mp4', bytes: 8_000_000 },
+        durationMillis: 252_000,
+      },
+    });
+
+    expect(videoUrl(transcoded)).toContain('generated/derivatives/file-1.mp4');
+    expect(hasVideo([item({ kind: 'video' }), transcoded])).toBe(true);
   });
 
   test('only MP4 and WebM are treated as playable, whatever we host', () => {

@@ -32,8 +32,8 @@ const { items, heading, showCollectionLinks = false } = Astro.props;
             <div class="file-copy">
               <strong><bdi dir="auto">{item.name}</bdi></strong>
               <p class="file-meta">
-                <span><span class="visually-hidden">סוג קובץ: </span>{fileTypeLabel(item)}</span>
-                <span><span class="visually-hidden">גודל קובץ: </span>{formatFileSize(item.size)}</span>
+                <span class="mono"><span class="visually-hidden">סוג קובץ: </span>{fileTypeLabel(item)}</span>
+                <span class="mono"><span class="visually-hidden">גודל קובץ: </span>{formatFileSize(item.size)}</span>
               </p>
               <p class="file-path">
                 <span class="visually-hidden">נתיב בארכיון: </span>
@@ -43,7 +43,7 @@ const { items, heading, showCollectionLinks = false } = Astro.props;
                 <ul class="collection-links" aria-label="שיוך למהדורות רשמיות">
                   {officialCollections.map((link) => (
                     <li>
-                      <a href={sitePath(`games/${link.slug}/`)}>
+                      <a href={sitePath(`release/${link.slug}/`)}>
                         שייך למהדורה הרשמית: {link.titleHe}
                       </a>
                     </li>
@@ -52,7 +52,7 @@ const { items, heading, showCollectionLinks = false } = Astro.props;
               )}
             </div>
             {actions.length > 0 && (
-              <div class="file-actions" aria-label={`פעולות עבור ${item.name}`}>
+              <div class="file-actions">
                 {actions.map((action) => (
                   <a
                     class:list={['file-action', action.kind]}

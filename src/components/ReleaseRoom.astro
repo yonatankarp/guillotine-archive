@@ -6,7 +6,7 @@ import { itemById } from '../lib/catalog';
 import { categorySlug, sitePath } from '../lib/url';
 import ItemRows from './ItemRows.astro';
 import MediaGallery from './MediaGallery.astro';
-import { audioUrl, hasThumbs } from './derivative';
+import { audioUrl, hasThumbs, videoUrl } from './derivative';
 import {
   creditedWorks,
   itemCountsByKind,
@@ -58,6 +58,9 @@ const facts = [
   <article class="release-room" style={`--accent: ${accent};`}>
     <header class="room-hero">
       <div class="room-hero-copy">
+        <a class="back-link" href={sitePath(`browse/type/${release.type}/`)}>
+          עוד מהסוג הזה — {releaseTypeLabel(release.type)}
+        </a>
         <p class="eyebrow">משהו שנשמר</p>
         <h1>{release.titleHe}</h1>
         <p class="room-facts">{facts.join(' · ')}</p>
@@ -95,6 +98,7 @@ const facts = [
             <MediaGallery
               items={section.items}
               labelHe={`${section.headingHe} — ${release.titleHe}`}
+              releaseTitleHe={release.titleHe}
             />
           ) : (
             <ItemRows
@@ -102,7 +106,9 @@ const facts = [
               labelHe={`${section.headingHe} — ${release.titleHe}`}
               showText={section.id === 'documents'}
               showMediaNote={section.id !== 'music'}
-              mediaSrc={section.id === 'music' ? audioUrl : undefined}
+              mediaSrc={
+                section.id === 'music' ? audioUrl : section.id === 'video' ? videoUrl : undefined
+              }
             />
           )}
           {section.hiddenCount > 0 && (
@@ -161,7 +167,7 @@ const facts = [
     }
 
     <section class="room-section" aria-labelledby="section-all">
-      <h2 id="section-all">הכול, בלי סינון</h2>
+      <h2 id="section-all">כמה יש מכל דבר</h2>
       <details class="all-files">
         <summary>מה יש כאן, לפי סוג</summary>
         <ul class="kind-counts">

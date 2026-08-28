@@ -13,8 +13,12 @@ import { releaseTypeLabel } from './release-view';
  * filter, so it is linkable and works without JavaScript.
  */
 interface Props {
-  /** The type this page is showing, or 'game' on the home page. */
-  active: ReleaseType;
+  /**
+   * The type this page is showing, or 'game' on the home page. Pages that are not a
+   * single type — a subject, a year, the whole list — pass null, because marking a tab
+   * current there told a screen reader the visitor was somewhere they are not.
+   */
+  active: ReleaseType | null;
 }
 
 const { active } = Astro.props;

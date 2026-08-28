@@ -1,18 +1,24 @@
+import { execFile } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import sharp from 'sharp';
 import { describe, expect, test } from 'vitest';
 import {
   decodeWithImageMagick,
   imageTiersFor,
+  isStreamableVideoContainer,
   needsExternalDecoder,
   opusBitrateFor,
   optimizeCover,
   optimizeLogo,
+  remuxToStreamableMp4,
   resizeImage,
   resolveFfmpeg,
   resolveImageMagick,
+  transcodeToMp4,
   transcodeToOpus,
   type CropRegion,
 } from '../../src/catalog/media';
@@ -278,5 +284,96 @@ describe('audio transcoding', () => {
     expect(opus.subarray(0, 4).toString('latin1')).toBe('OggS');
     expect(opus.subarray(0, 200).includes(Buffer.from('OpusHead'))).toBe(true);
     expect(opus.length).toBeLessThan(wav.length / 2);
+  });
+});
+
+describe('video transcoding', () => {
+  test('routes only an MP4 container down the no-re-encode path', () => {
+    expect(isStreamableVideoContainer('video/mp4')).toBe(true);
+    expect(isStreamableVideoContainer('VIDEO/MP4')).toBe(true);
+    expect(isStreamableVideoContainer('video/mp4; codecs=avc1')).toBe(true);
+    for (const mimeType of [
+      'video/x-ms-wmv',
+      'video/x-msvideo',
+      'video/mpeg',
+      'video/mp2p',
+      // WebM plays in a browser but its streams cannot be copied into MP4.
+      'video/webm',
+    ]) {
+      expect(isStreamableVideoContainer(mimeType)).toBe(false);
+    }
+  });
+
+  const ffmpeg = resolveFfmpeg();
+  const run = promisify(execFile);
+
+  async function sourceVideo(
+    binary: string,
+    size: string,
+    container: 'avi' | 'mp4',
+  ): Promise<Buffer> {
+    const path = join(await mkdtemp(join(tmpdir(), 'guillotine-source-')), `clip.${container}`);
+    const codecs =
+      container === 'mp4' ? ['-c:v', 'libx264', '-c:a', 'aac'] : ['-c:v', 'mpeg4', '-c:a', 'mp3'];
+    await run(binary, [
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-f', 'lavfi', '-i', `testsrc=size=${size}:rate=10:duration=1`,
+      '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1',
+      ...codecs,
+      '-y', path,
+    ]);
+    return readFile(path);
+  }
+
+  /** ffmpeg reports the decoded stream on stderr, which is the cheapest probe available. */
+  async function streamSummary(binary: string, data: Buffer): Promise<string> {
+    const path = join(await mkdtemp(join(tmpdir(), 'guillotine-probe-')), 'clip.mp4');
+    await writeFile(path, data);
+    const { stderr } = await run(binary, ['-hide_banner', '-i', path, '-f', 'null', '-']);
+    return stderr;
+  }
+
+  function indexPrecedesFrames(mp4: Buffer): boolean {
+    return mp4.indexOf(Buffer.from('moov')) < mp4.indexOf(Buffer.from('mdat'));
+  }
+
+  test.skipIf(ffmpeg === null)('transcodes an AVI to browser-safe H.264 and caps it at 480p', async () => {
+    const mp4 = await transcodeToMp4(await sourceVideo(ffmpeg!, '1920x1080', 'avi'), ffmpeg!);
+    const summary = await streamSummary(ffmpeg!, mp4);
+
+    expect(mp4.subarray(4, 8).toString('latin1')).toBe('ftyp');
+    expect(indexPrecedesFrames(mp4)).toBe(true);
+    expect(summary).toContain('854x480');
+    // yuv420p at Main is the combination every browser decodes.
+    expect(summary).toMatch(/h264 \(Main\)/u);
+    expect(summary).toContain('yuv420p');
+    expect(summary).toContain('aac');
+  });
+
+  test.skipIf(ffmpeg === null)('never enlarges a source that is already small', async () => {
+    const mp4 = await transcodeToMp4(await sourceVideo(ffmpeg!, '320x240', 'avi'), ffmpeg!);
+
+    expect(await streamSummary(ffmpeg!, mp4)).toContain('320x240');
+  });
+
+  /**
+   * The remux must not re-encode, and the visible proof is the frame size: a
+   * transcode of this same source would come back downscaled to 854x480.
+   */
+  test.skipIf(ffmpeg === null)('remuxes an MP4 for streaming without touching its frames', async () => {
+    const source = await sourceVideo(ffmpeg!, '1920x1080', 'mp4');
+    const mp4 = await remuxToStreamableMp4(source, ffmpeg!);
+
+    expect(await streamSummary(ffmpeg!, mp4)).toContain('1920x1080');
+    expect(indexPrecedesFrames(mp4)).toBe(true);
+  });
+
+  test('reports a failing encoder rather than returning a broken file', async () => {
+    const failing = stubBinary('#!/bin/sh\nexit 3\n');
+
+    await expect(transcodeToMp4(Buffer.from('not a video'), failing)).rejects.toThrow(
+      /exited with code 3/u,
+    );
   });
 });

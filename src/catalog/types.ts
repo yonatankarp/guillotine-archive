@@ -53,6 +53,8 @@ export interface ItemDerivatives {
   view?: Derivative;
   reader?: Derivative;
   audio?: Derivative;
+  /** Browser-playable MP4. A video without one still has its poster and link. */
+  video?: Derivative;
   poster?: Derivative;
   durationMillis?: number;
 }

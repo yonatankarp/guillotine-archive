@@ -49,7 +49,7 @@ const facetLabel =
 ---
 
 <BaseLayout title={`${headingHe} — ארכיון גיליוטין`}>
-  <MediaTabs active={facet === 'type' ? (value as ReleaseType) : 'other'} />
+  <MediaTabs active={facet === 'type' ? (value as ReleaseType) : null} />
 
   <header class="page-intro compact-intro">
     {facet !== 'type' && <p class="eyebrow">{facetLabel}</p>}
@@ -62,7 +62,7 @@ const facetLabel =
     <ReleaseGrid
       releases={matching}
       active={{ facet: facet!, value: value! }}
-      showFacets={facet !== 'type'}
+      showTypeChips={false}
     />
   </section>
 </BaseLayout>

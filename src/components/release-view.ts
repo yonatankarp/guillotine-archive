@@ -178,6 +178,101 @@ export function releaseSections(items: readonly CatalogItem[]): ReleaseSection[]
 }
 
 /**
+ * A booklet is not a box, and a lyrics book is not an instruction book. The catalog stores
+ * both booklets as booklet-page, so kind cannot tell them apart — but the archive already
+ * filed them apart, one directory per physical object, and that directory name is usually
+ * the object's own name. The folder above a file is therefore the grouping, and nothing here
+ * classifies anything the archive did not already decide.
+ */
+export interface MediaGroup {
+  /** Stable across catalog reorders: derived from the folder name, never from its position. */
+  id: string;
+  headingHe: string;
+  items: CatalogItem[];
+}
+
+/** Box before booklet before loose scan: the order you meet the thing in, not the filing order. */
+const GALLERY_KIND_ORDER: readonly ItemKind[] = [
+  'cover',
+  'booklet-page',
+  'comic-page',
+  'press-page',
+  'scan',
+];
+
+const TITLE_PREFIX_SEPARATOR = ' - ';
+
+/**
+ * Geresh, gershayim and the ASCII quotes stand in for each other across the archive: the
+ * catalog title is ווג׳ימון and its folder is ווג'ימון. Dropping them lets the two forms of
+ * one name compare equal without transliterating anything.
+ */
+function foldedName(value: string): string {
+  return value.replace(/[׳״'"]/gu, '').replace(/\s+/gu, ' ').trim();
+}
+
+/**
+ * A folder called "פיפוש 1 - חוברת שירים" sits under a heading that already says פיפוש 1, so
+ * the prefix is repeated furniture. It is stripped only when it really is the release's own
+ * name — the title carries a preposition the folder does not (בתככי הרייטינג over
+ * תככי הרייטינג - חוברת), so either one containing the other counts.
+ */
+export function galleryGroupHeading(folderHe: string, releaseTitleHe: string): string {
+  const separator = folderHe.indexOf(TITLE_PREFIX_SEPARATOR);
+  if (separator === -1) return folderHe;
+
+  const prefix = foldedName(folderHe.slice(0, separator));
+  const rest = folderHe.slice(separator + TITLE_PREFIX_SEPARATOR.length).trim();
+  const title = foldedName(releaseTitleHe);
+  if (prefix.length === 0 || rest.length === 0 || title.length === 0) return folderHe;
+
+  return title.includes(prefix) || prefix.includes(title) ? rest : folderHe;
+}
+
+/** The directory a file was filed in, which is the physical object it was scanned from. */
+function galleryFolder(item: Pick<CatalogItem, 'path' | 'name'>): string {
+  return item.path.split('/').slice(-2, -1)[0] ?? item.name;
+}
+
+/**
+ * Scans split into the objects they came from, in a fixed order. Groups sort by the earliest
+ * kind they hold and then by heading, never by catalog position: rebuilding the catalog
+ * reorders itemIds, and a gallery that reshuffles itself on an unrelated sync is not an
+ * exhibition. Items keep the order they arrive in, because that is the page order of a booklet.
+ */
+export function galleryGroups(
+  items: readonly CatalogItem[],
+  releaseTitleHe: string,
+): MediaGroup[] {
+  const byFolder = new Map<string, CatalogItem[]>();
+  for (const item of items) {
+    const folder = galleryFolder(item);
+    const existing = byFolder.get(folder);
+    if (existing) existing.push(item);
+    else byFolder.set(folder, [item]);
+  }
+
+  const rankOf = (group: readonly CatalogItem[]) =>
+    Math.min(
+      ...group.map((item) => {
+        const rank = GALLERY_KIND_ORDER.indexOf(item.kind);
+        return rank === -1 ? GALLERY_KIND_ORDER.length : rank;
+      }),
+    );
+
+  return [...byFolder]
+    .map(([folder, group]) => ({
+      id: `group-${hashOf(folder).toString(36)}`,
+      headingHe: galleryGroupHeading(folder, releaseTitleHe),
+      items: group,
+    }))
+    .sort((left, right) => {
+      const byKind = rankOf(left.items) - rankOf(right.items);
+      return byKind !== 0 ? byKind : left.headingHe.localeCompare(right.headingHe, 'he');
+    });
+}
+
+/**
  * The archive shelf that holds all of a set of items, or null when they are spread over more
  * than one. Six releases span two or three shelves — פיפוש 1 alone is filed under משחקים
  * מלאים, פתרונות and שירים — so a single "see the rest on its shelf" link derived from one
@@ -195,7 +290,11 @@ export function itemCountsByKind(items: readonly CatalogItem[]): Array<[ItemKind
   return [...counts].sort(([, left], [, right]) => right - left);
 }
 
-/** True when no browser can play the file even once derivatives exist. */
+/**
+ * True when the ORIGINAL file plays in no browser as it is. Not a claim about
+ * derivatives: the pipeline transcodes WMV, AVI, MPEG and VOB to MP4, so a file
+ * this returns true for can still reach a visitor through a rendition.
+ */
 export function neverPlayable(item: Pick<CatalogItem, 'mimeType'>): boolean {
   return NEVER_PLAYABLE.has(item.mimeType.toLowerCase());
 }

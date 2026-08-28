@@ -36,14 +36,35 @@ const TYPE_ORDER: readonly ReleaseType[] = [
   'other',
 ];
 
+/**
+ * The games in the order they were released, as the curator gave it. Only פיפוש 1
+ * carries a sourced year, so sorting by year listed one game and then guessed at
+ * the rest; a stated sequence orders them without inventing five release dates.
+ * A game absent from this list follows the named ones rather than disappearing.
+ */
+const GAME_ORDER: readonly string[] = [
+  'betochhei-harating',
+  'piposh-1',
+  'piposh-2',
+  'halom-shehitgashem',
+  'vogimon',
+  'piposh-revolution',
+];
+
 function byTitle(left: Release, right: Release): number {
   return left.titleHe.localeCompare(right.titleHe, 'he');
 }
 
-/** The six games, oldest first, undated last. */
+function releaseRank(release: Release): number {
+  const index = GAME_ORDER.indexOf(release.slug);
+
+  return index === -1 ? GAME_ORDER.length : index;
+}
+
+/** The six games, earliest release first. */
 export const featuredReleases: readonly Release[] = releases
   .filter((release) => release.type === 'game')
-  .sort((left, right) => (left.year ?? Number.MAX_SAFE_INTEGER) - (right.year ?? Number.MAX_SAFE_INTEGER) || byTitle(left, right));
+  .sort((left, right) => releaseRank(left) - releaseRank(right) || byTitle(left, right));
 
 /** Everything that is not a game, in editorial type order then by title. */
 export const supportingReleases: readonly Release[] = releases

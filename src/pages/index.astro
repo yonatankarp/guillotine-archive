@@ -7,6 +7,15 @@ import { featuredReleases } from '../lib/releases';
 import { sitePath } from '../lib/url';
 
 const quote = ARCHIVE_QUOTES[0]!;
+
+/*
+ * The stored path is six segments deep and unreadable in a caption. The file name is what
+ * carries the joke and the container is what makes it credible, so the middle is dropped
+ * rather than printed. Both are derived from the path, never written by hand.
+ */
+const quoteSegments = quote.sourcePath.split('/');
+const quoteFileName = quoteSegments[quoteSegments.length - 1] ?? quote.sourcePath;
+const quoteContainerHe = quoteSegments[1] ?? quoteSegments[0]!;
 ---
 
 <BaseLayout title="ארכיון גיליוטין">
@@ -21,11 +30,13 @@ const quote = ARCHIVE_QUOTES[0]!;
         מה שכתבו עלינו בעיתון. איך זה נשמר? אל תשאלו... פשוט לא זרקנו כלום, ואחרי עשרים שנה
         קוראים לזה ארכיון!
       </p>
+      <p>ורק שתבינו לאיזה מקום נכנסתם — ככה מישהו קרא פה לקובץ:</p>
       <figure class="found-string">
         <blockquote class="voice"><p>{quote.textHe}</p></blockquote>
         <figcaption>
-          <span class="visually-hidden">שם הקובץ שממנו נלקח המשפט: </span>
-          <bdi class="mono" dir="auto">{quote.sourcePath}</bdi>
+          לא המצאנו את זה. הקובץ יושב לו ב{quoteContainerHe} עד היום, וקוראים לו
+          <span class="visually-hidden">שם הקובץ: </span>
+          <bdi class="mono" dir="auto">{quoteFileName}</bdi>
         </figcaption>
       </figure>
     </div>
@@ -42,9 +53,8 @@ const quote = ARCHIVE_QUOTES[0]!;
     <div class="section-heading">
       <h2 id="games-heading">טוב! המשחקים!</h2>
       <p>
-        כולם פה, לפי הסדר, כמו אנשים. כל השאר — מוזיקה, סרטונים, עיתונים וכל מה שמעריצים שלחו
-        לנו — מחכה למעלה במדורים. ומי שיודע מה הוא מחפש שלא יתחיל לגלול כמו פראייר:
-        <a href={sitePath('search/')}>יש חיפוש</a>.
+        כולם פה. כל השאר — מוזיקה, סרטונים, עיתונים וכל מה שמעריצים שלחו לנו — מחכה למעלה
+        במדורים. ומי שבא בשביל דבר אחד ספציפי, שלא יתחיל לגלול: <a href={sitePath('search/')}>יש חיפוש</a>.
       </p>
     </div>
     <ReleaseGrid releases={featuredReleases} showSummary showFacets={false} />

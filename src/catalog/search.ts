@@ -1,8 +1,14 @@
 import MiniSearch, { type Options, type SearchResult } from 'minisearch';
-import type { Catalog, CollectionLink } from './types';
+import type { Catalog, CollectionLink, ReleaseType } from './types';
 
 export interface SearchResultMetadata {
   kind: 'collection' | 'file';
+  /**
+   * The type of the release a collection card opens, so the card can name what it is instead
+   * of calling everything a game. Absent on files, and absent on a collection indexed before
+   * this field existed.
+   */
+  collectionType?: ReleaseType;
   titleHe: string;
   href: string;
   category: string;
@@ -76,6 +82,23 @@ const SEARCH_FIELD_TIERS: Readonly<Record<string, number>> = {
 };
 const UNKNOWN_MATCH_TIER = 4;
 
+/* Keyed by ReleaseType so adding a release type fails the build here rather than silently
+   letting a stored collectionType through unvalidated. */
+const RELEASE_TYPES: Readonly<Record<ReleaseType, true>> = {
+  game: true,
+  demo: true,
+  'fan-disc': true,
+  'audio-cd': true,
+  video: true,
+  press: true,
+  'fan-game': true,
+  other: true,
+};
+
+export function isReleaseType(value: unknown): value is ReleaseType {
+  return typeof value === 'string' && value in RELEASE_TYPES;
+}
+
 export function normalizeHebrew(value: string): string {
   return value
     .normalize('NFKD')
@@ -123,6 +146,7 @@ export function getSearchOptions(): Options<SearchDocument> {
     ],
     storeFields: [
       'kind',
+      'collectionType',
       'titleHe',
       'href',
       'category',
@@ -253,8 +277,13 @@ export function createSearchEngine(existing?: MiniSearch<SearchDocument>): Searc
   };
 }
 
-function collectionHref(type: string, slug: string): string {
-  return type === 'game' ? `/games/${slug}/` : '/archive/';
+/**
+ * Every curated collection becomes a release under its own slug, so /release/<slug>/ is
+ * generated for all of them while /games/<slug>/ exists only for games. Routing through
+ * /release/ keeps a non-game collection from linking at a page that was never built.
+ */
+function collectionHref(slug: string): string {
+  return `/release/${slug}/`;
 }
 
 function uniqueStrings(values: Iterable<string | undefined>): string[] {
@@ -319,13 +348,20 @@ export function searchFilterValues(catalog: Readonly<Catalog>): string[] {
 
 export function buildSearchIndex(catalog: Readonly<Catalog>): string {
   const documents: SearchDocument[] = [];
+  /* A curated collection becomes a release under the same slug, and a curator override may
+     retype it, so the release is the authority on what the card opens. */
+  const releaseTypeBySlug = new Map(
+    catalog.releases.map((release) => [release.slug, release.type]),
+  );
 
   for (const collection of catalog.collections) {
     const categories = collectionCategories(catalog, collection.itemIds);
+    const collectionType = releaseTypeBySlug.get(collection.slug);
 
     documents.push({
       id: `collection:${collection.slug}`,
       kind: 'collection',
+      ...(collectionType === undefined ? {} : { collectionType }),
       titleHe: collection.titleHe,
       aliasesHe: collection.aliasesHe.join(' '),
       pathHe: '',
@@ -336,7 +372,7 @@ export function buildSearchIndex(catalog: Readonly<Catalog>): string {
         .filter(Boolean)
         .join(' '),
       textHe: '',
-      href: collectionHref(collection.type, collection.slug),
+      href: collectionHref(collection.slug),
       category: categories[0] ?? '',
       categories,
       filename: '',

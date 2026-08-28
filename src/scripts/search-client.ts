@@ -3,14 +3,17 @@ import {
   createSearchEngine,
   extractHebrewTokens,
   getSearchOptions,
+  isReleaseType,
   type ArchiveSearchResult,
   type SearchDocument,
 } from '../catalog/search';
 import { deriveKind } from '../catalog/kind';
+import { releaseTypeLabel } from '../components/release-view';
 import { externalHttpUrl, sitePathForBrowserBase } from '../lib/browser-url';
 
 const EMPTY_STATUS = 'נו? כתבו משהו בעברית. אנחנו לא הולכים לנחש בשבילכם.';
 const FAILURE_STATUS = 'לא הצלחנו לטעון את החיפוש. משהו נפל ואנחנו לא בטוחים מה. קיבינימאט.';
+const LOADING_STATUS = 'רגע! טוענים את המפתח של הארכיון…';
 const RESULT_LIMIT = 100;
 
 interface SearchElements {
@@ -98,6 +101,7 @@ function isSearchResult(value: unknown, baseUrl: string): value is ArchiveSearch
   if (value.kind === 'collection') {
     return (
       value.id.startsWith('collection:') &&
+      (value.collectionType === undefined || isReleaseType(value.collectionType)) &&
       value.titleHe.trim().length > 0 &&
       value.href.trim().length > 0 &&
       sitePathForBrowserBase(baseUrl, value.href) !== null &&
@@ -166,12 +170,21 @@ function formatSize(size: number | null): string {
   return `${(size / 1024 ** 3).toFixed(1)} GB`;
 }
 
+/**
+ * A collection card opens a release room, so it names the release. 'משחק שלם' rather than the
+ * plainer 'משחק' because it is the counterweight to 'קובץ בודד' on a file card. An index built
+ * before collectionType was stored holds games only, so an absent type reads as one.
+ */
+function collectionKindLabel(type: ArchiveSearchResult['collectionType']): string {
+  return type === undefined || type === 'game' ? 'משחק שלם' : releaseTypeLabel(type);
+}
+
 function renderCollection(result: ArchiveSearchResult, baseUrl: string): HTMLLIElement {
   const href = sitePathForBrowserBase(baseUrl, result.href);
   if (!href || !result.titleHe.trim()) throw new Error('invalid collection result');
 
   const item = document.createElement('li');
-  appendText(item, 'span', 'משחק שלם', 'result-kind');
+  appendText(item, 'span', collectionKindLabel(result.collectionType), 'result-kind');
   const heading = appendText(item, 'p', '', 'result-heading');
   const link = document.createElement('a');
   link.className = 'collection-result-link';
@@ -220,7 +233,7 @@ function renderFile(result: ArchiveSearchResult, baseUrl: string): HTMLLIElement
     if (relationship.relationship !== 'part-of-release') continue;
     const relationshipHref = sitePathForBrowserBase(
       baseUrl,
-      `/games/${relationship.slug}/`,
+      `/release/${relationship.slug}/`,
     );
     if (!relationshipHref) throw new Error('invalid relationship URL');
     const relationshipLine = appendText(item, 'p', '', 'result-meta');
@@ -232,7 +245,6 @@ function renderFile(result: ArchiveSearchResult, baseUrl: string): HTMLLIElement
 
   if (viewUrl || downloadUrl) {
     const actions = appendText(item, 'div', '', 'result-actions');
-    actions.ariaLabel = `פעולות עבור ${result.filename}`;
     if (viewUrl) {
       appendExternalAction(
         actions,
@@ -368,13 +380,38 @@ function showFailure(elements: SearchElements): void {
   elements.root.ariaBusy = 'false';
 }
 
-function setLoading(elements: SearchElements, loading: boolean): void {
-  elements.root.ariaBusy = String(loading);
-  elements.input.disabled = loading;
-  elements.category.disabled = loading;
-  elements.kind.disabled = loading;
-  elements.submit.disabled = loading;
-  if (loading) elements.status.textContent = 'רגע! טוענים את המפתח של הארכיון…';
+type SearchControl = HTMLInputElement | HTMLSelectElement | HTMLButtonElement;
+
+function loadingControls(elements: SearchElements): SearchControl[] {
+  return [elements.input, elements.category, elements.kind, elements.submit];
+}
+
+/**
+ * Locking the controls while the index downloads is deliberate, but disabling the one a user
+ * is standing in drops focus to <body> and ejects them to the top of the document mid-load
+ * with nothing said about why. So focus parks on the status line, which is already announcing
+ * the load, and beginLoading reports whether it landed there.
+ */
+function beginLoading(elements: SearchElements): boolean {
+  const controls = loadingControls(elements);
+  const heldFocus = controls.some((control) => control === document.activeElement);
+
+  elements.root.ariaBusy = 'true';
+  elements.status.textContent = LOADING_STATUS;
+  for (const control of controls) control.disabled = true;
+  if (!heldFocus) return false;
+
+  elements.status.focus();
+
+  return document.activeElement === elements.status;
+}
+
+function endLoading(elements: SearchElements, parkedFocus: boolean): void {
+  elements.root.ariaBusy = 'false';
+  for (const control of loadingControls(elements)) control.disabled = false;
+  /* Take focus back only from the status line we put it on. A user who tabbed away during the
+     load stays where they went. */
+  if (parkedFocus && document.activeElement === elements.status) elements.input.focus();
 }
 
 async function start(root: HTMLElement): Promise<void> {
@@ -384,7 +421,7 @@ async function start(root: HTMLElement): Promise<void> {
   if (!elements) return;
 
   initializeQuery(elements);
-  setLoading(elements, true);
+  const parkedFocus = beginLoading(elements);
   try {
     const response = await fetch(elements.indexUrl, { credentials: 'same-origin' });
     if (!response.ok) throw new Error('search index request failed');
@@ -431,10 +468,10 @@ async function start(root: HTMLElement): Promise<void> {
     });
     elements.category.addEventListener('change', () => run(true));
     elements.kind.addEventListener('change', () => run(true));
-    setLoading(elements, false);
+    endLoading(elements, parkedFocus);
     run(false);
   } catch {
-    setLoading(elements, false);
+    endLoading(elements, parkedFocus);
     showFailure(elements);
   }
 }

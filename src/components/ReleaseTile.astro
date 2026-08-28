@@ -43,7 +43,8 @@ const facts = [releaseTypeLabel(release.type), release.formatHe, release.year?.t
       }
     </div>
     <div class="release-copy">
-      <h2>{release.titleHe}</h2>
+      {/* A tile sits inside a section that already has its own h2, so it is a level below it. */}
+      <h3>{release.titleHe}</h3>
       <p class="release-facts">
         {facts.join(' · ')}
         <span>{formatFileCount(itemCount)}</span>

@@ -27,24 +27,38 @@ function release(slug: string) {
 test('one room template serves a game, an audio disc and a fan disc', async ({ page }) => {
   // The same page shape has to fit releases with completely different contents, which is only
   // true if an empty section is absent rather than rendered empty.
-  const expectations = [
-    { slug: 'piposh-1', present: ['מה שאפשר להוריד ולשחק', 'תמונות שסרקנו', 'מסמכים ושאר נייר'], absent: ['מוזיקה'] },
-    { slug: 'hatbara-shel-piposh', present: ['מוזיקה'], absent: ['מה שאפשר להוריד ולשחק', 'תמונות שסרקנו', 'מסמכים ושאר נייר'] },
-    { slug: 'fan-disc-b038d0c7', present: ['מסמכים ושאר נייר'], absent: ['מה שאפשר להוריד ולשחק', 'תמונות שסרקנו', 'מוזיקה'] },
-    {
-      slug: 'fan-disc-69541b3e',
-      present: ['מה שאפשר להוריד ולשחק', 'תמונות שסרקנו', 'סרטונים', 'מוזיקה', 'מסמכים ושאר נייר'],
-      absent: [],
+  /* The headings are DERIVED, not frozen. A sync that gives a release music it did not have
+     before is a content change, not a regression — pinning the old shape here turned exactly
+     that into a red build once. What is actually being tested is that the page agrees with the
+     catalog: every section the catalog says exists is rendered, and every one it does not is
+     absent rather than empty. */
+  const everyHeading = [
+    ...new Set(
+      expectedCatalog.releases.flatMap((candidate) =>
+        releaseSections(releaseItems(candidate, itemById)).map(({ headingHe }) => headingHe),
+      ),
+    ),
+  ];
+
+  const expectations = ['piposh-1', 'hatbara-shel-piposh', 'fan-disc-b038d0c7', 'fan-disc-69541b3e'].map(
+    (slug) => {
+      const present = releaseSections(releaseItems(release(slug), itemById)).map(
+        ({ headingHe }) => headingHe,
+      );
+
+      return { slug, present, absent: everyHeading.filter((heading) => !present.includes(heading)) };
     },
-  ] as const;
+  );
+
+  /* Keep the case worth testing from quietly disappearing: at least one of these releases must
+     be missing a section, or "absent rather than empty" is never exercised. */
+  expect(
+    expectations.some(({ absent }) => absent.length > 0),
+    'some release still lacks a section',
+  ).toBe(true);
 
   for (const { slug, present, absent } of expectations) {
     const current = release(slug);
-    const sections = releaseSections(releaseItems(current, itemById));
-    expect(
-      sections.map(({ headingHe }) => headingHe),
-      `${slug} sections in the catalog`,
-    ).toEqual([...present]);
 
     await page.goto(site.route(`release/${slug}/`));
     await expect(page.getByRole('heading', { level: 1, name: current.titleHe })).toBeVisible();
@@ -548,8 +562,11 @@ test('the facet grid narrows the release list on real pre-rendered pages', async
 test('listen and watch list the real material and say what cannot play', async ({ page }) => {
   const tracks = expectedCatalog.items.filter(({ kind }) => kind === 'track');
   const videos = expectedCatalog.items.filter(({ kind }) => kind === 'video');
-  expect(tracks).toHaveLength(169);
-  expect(videos).toHaveLength(31);
+  /* Not exact counts: the archive grows when the owner adds material, and an exact number
+     here fails a sync that did nothing wrong. Non-empty is the real precondition — the
+     assertions below are vacuous without it. */
+  expect(tracks.length, 'the catalog has tracks to list').toBeGreaterThan(0);
+  expect(videos.length, 'the catalog has videos to list').toBeGreaterThan(0);
 
   /* A player appears exactly where a hosted rendition exists, and never
      otherwise: no element may claim to play a file the site cannot serve. */

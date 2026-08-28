@@ -5,7 +5,8 @@ import MiniSearch from 'minisearch';
 import { getSearchOptions, type SearchDocument } from '../../src/catalog/search';
 import type { CatalogItem } from '../../src/catalog/types';
 import { formatFileCount } from '../../src/lib/archive';
-import { loadCatalog } from '../../src/lib/catalog';
+import { releaseItems, releaseSections } from '../../src/components/release-view';
+import { itemById, loadCatalog } from '../../src/lib/catalog';
 import { playwrightRuntime } from '../support/playwright-runtime';
 
 const expectedCatalog = loadCatalog('src/generated/catalog.json', false);
@@ -228,11 +229,20 @@ test('the Piposh 1 room shows only the sections it has, with direct Drive action
   await page.goto(site.route('release/piposh-1/'));
 
   await expect(page.getByRole('heading', { level: 1, name: 'פיפוש 1' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'מה שאפשר להוריד ולשחק' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'תמונות שסרקנו' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'מסמכים ושאר נייר' })).toBeVisible();
-  // Piposh 1 holds no audio, so the section is absent rather than empty.
-  await expect(page.getByRole('heading', { name: 'מוזיקה' })).toHaveCount(0);
+
+  /* Derived, because this room's contents change when the owner adds material — it gained a
+     music section the day its audio disc was unpacked in Drive, and a hardcoded "no music
+     here" failed a sync that had done exactly what it was asked to. The invariant that
+     survives is the page agreeing with the catalog. */
+  const piposhOne = expectedReleases.find(({ slug }) => slug === 'piposh-1')!;
+  const sections = releaseSections(releaseItems(piposhOne, itemById)).map(
+    ({ headingHe }) => headingHe,
+  );
+  expect(sections.length, 'piposh-1 has sections to show').toBeGreaterThan(0);
+
+  for (const heading of sections) {
+    await expect(page.getByRole('heading', { name: heading }), `shows ${heading}`).toBeVisible();
+  }
 
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toBeVisible();

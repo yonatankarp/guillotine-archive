@@ -5,11 +5,17 @@ import { sitePath } from '../lib/url';
  * The album's one player: cover, transport, a seek bar, the line that says what is on, and
  * the tracklist itself. One component, one border, the way an album player looks.
  *
+ * From the status line down this is the same panel ScreeningPlayer.astro wears, and the same
+ * engine drives both: the shared chrome is in global.css and the behaviour is in
+ * src/scripts/media-queue.ts, which src/scripts/audio-queue.ts hands eleven attribute names
+ * and four Hebrew lines. What is written here is what a record player has and a screening
+ * room does not — the cover, and the grid it sits at the head of.
+ *
  * The tracklist is not written here. ItemRows renders exactly one <ul class="item-rows">,
- * and src/scripts/audio-queue.ts moves that list into the empty [data-album-queue] slot
- * below once this panel is on screen and wired. That is deliberate: the rows carry the
- * per-track view and download links and the numbering, and a second copy written here would
- * either lose them or double a page of 169 tracks.
+ * and that script moves the list into the empty [data-album-queue] slot below once this
+ * panel is on screen and wired. That is deliberate: the rows carry the per-track view and
+ * download links and the numbering, and a second copy written here would either lose them or
+ * double a page of 169 tracks.
  *
  * Served hidden and revealed only by that script. Nothing in here works without it, which is
  * why the list keeps its own <audio controls> per row until the panel is live — with the
@@ -40,7 +46,7 @@ interface Props {
 const { labelHe, titleHe, coverPath = null, firstTrackNameHe, trackCount } = Astro.props;
 ---
 
-<div class="album-player" data-album-player hidden>
+<div class="album-player" data-media-panel data-album-player hidden>
   <div class="player-art mat">
     {
       coverPath ? (
@@ -93,7 +99,12 @@ const { labelHe, titleHe, coverPath = null, firstTrackNameHe, trackCount } = Ast
             <path fill="currentColor" d="M7 5h2.5v14H7zM19 5v14l-8.5-7z"></path>
           </svg>
         </button>
-        <button class="player-button player-toggle" type="button" aria-label="נגן" data-album-toggle>
+        <button
+          class="player-button player-toggle"
+          type="button"
+          aria-label="נגן"
+          data-album-toggle
+        >
           <svg class="icon-play" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" focusable="false">
             <path fill="currentColor" d="M8 5v14l11-7z"></path>
           </svg>
@@ -130,6 +141,13 @@ const { labelHe, titleHe, coverPath = null, firstTrackNameHe, trackCount } = Ast
 </div>
 
 <style>
+  /*
+   * Only what belongs to this player and to no other. The status line, the transport, the bar
+   * and the queue plate are the panel both players wear, and they are in global.css under
+   * that heading — this component and ScreeningPlayer.astro differ in the grid they lay out
+   * on and in the frame at the head of it, which is a cover here and a 320px stage there.
+   */
+
   /* The art grows with the panel: at a phone width it is a stamp beside the controls, and on
      a wide page it is the piece of art the album is, which is what the archive is for. */
   .album-player {
@@ -180,211 +198,11 @@ const { labelHe, titleHe, coverPath = null, firstTrackNameHe, trackCount } = Ast
     inset: 0.3rem;
   }
 
-  .player-body {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.55rem;
-  }
-
-  /* The track is the headline of this panel. At label size the whole thing read as a toolbar
-     with a caption; the name carries it, and the state word stays small beside it. */
-  .player-now {
-    margin: 0;
-    color: var(--dim);
-    font-size: var(--t-2xs);
-    line-height: 1.4;
-    /* Track names are long, unbroken and Latin inside a Hebrew line. */
-    overflow-wrap: anywhere;
-  }
-
-  .player-now bdi {
-    unicode-bidi: isolate;
-    color: var(--text);
-    font-size: var(--t-m);
-    font-weight: 500;
-  }
-
-  .player-controls {
-    direction: ltr;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .player-seek {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .player-clock {
-    flex: 0 0 auto;
-    /* Wide enough for the longest thing either clock ever says, so the bar keeps its length
-       while the seconds tick. --faint is below AA at this size in both themes; the tokens
-       file says so, which is why this is --dim. */
-    min-width: 2.75rem;
-    color: var(--dim);
-    font-size: var(--t-2xs);
-  }
-
-  /* A range input has an intrinsic minimum width of its own, which is what pushes a 320px
-     page sideways when it sits in a row between two clocks. The height comes from padding
-     rather than a fixed box: the track then centres itself in the hit area in both engines
-     instead of relying on where each one decides to put it. */
-  .player-range {
-    flex: 1 1 0;
-    min-width: 0;
-    margin: 0;
-    padding: 0.55rem 0;
-    background: none;
-    -webkit-appearance: none;
-    appearance: none;
-    cursor: pointer;
-  }
-
-  .player-range[aria-disabled='true'] {
-    cursor: default;
-    opacity: 0.55;
-  }
-
-  /* Chromium has one track and no notion of a played part, so the fill is a gradient the
-     script moves through --played. Firefox has ::-moz-range-progress and fills it itself,
-     which is why the two engines are styled apart rather than made to share a rule. */
-  .player-range::-webkit-slider-runnable-track {
-    height: 0.35rem;
-    border-radius: 999px;
-    background: linear-gradient(
-      to right,
-      var(--accent) 0 var(--played, 0%),
-      var(--sunk) var(--played, 0%)
-    );
-  }
-
-  .player-range::-moz-range-track {
-    height: 0.35rem;
-    border-radius: 999px;
-    background: var(--sunk);
-  }
-
-  .player-range::-moz-range-progress {
-    height: 0.35rem;
-    border-radius: 999px;
-    background: var(--accent);
-  }
-
-  .player-range::-webkit-slider-thumb {
-    width: 0.85rem;
-    height: 0.85rem;
-    /* Half the thumb above the 0.35rem track, so it rides the line instead of sitting on it. */
-    margin-top: -0.25rem;
-    border: 1px solid var(--stroke);
-    border-radius: 999px;
-    background: var(--text);
-    -webkit-appearance: none;
-    appearance: none;
-  }
-
-  .player-range::-moz-range-thumb {
-    width: 0.85rem;
-    height: 0.85rem;
-    border: 1px solid var(--stroke);
-    border-radius: 999px;
-    background: var(--text);
-  }
-
-  .player-transport {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .player-button {
-    min-width: 2.5rem;
-    min-height: 2.5rem;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    border: 1px solid var(--stroke);
-    border-radius: 999px;
-    background: var(--sunk);
-    color: var(--text);
-    font: inherit;
-    cursor: pointer;
-  }
-
-  .player-toggle {
-    min-width: 3rem;
-    min-height: 3rem;
-    background: color-mix(in oklab, var(--accent) 30%, var(--raise));
-    border-color: color-mix(in oklab, var(--accent) 60%, var(--stroke));
-  }
-
-  .player-button:hover {
-    border-color: var(--dim);
-  }
-
-  .player-button[aria-disabled='true'] {
-    cursor: default;
-    opacity: 0.4;
-  }
-
-  /* The panel carries the playing state, so the icon swap is a class away rather than an
-     attribute that has to win a fight with [hidden]. */
-  .icon-pause {
-    display: none;
-  }
-
-  .album-player[data-playing] .icon-play {
-    display: none;
-  }
-
-  .album-player[data-playing] .icon-pause {
-    display: block;
-  }
-
-  /* The playlist runs the full width of the panel, under both the art and the transport.
-     min-width: 0 because a grid item defaults to min-width: auto, and a 60-character Latin
-     filename would otherwise widen the whole card rather than wrap inside the row. */
-  .player-list {
-    grid-column: 1 / -1;
-    min-width: 0;
-    align-self: stretch;
-    padding-top: 0.7rem;
-    border-top: 1px solid var(--stroke);
-  }
-
-  .player-list-note {
-    margin: 0 0 0.4rem;
-    color: var(--dim);
-    font-size: var(--t-2xs);
-    line-height: 1.5;
-  }
-
-  /* The plate the tracks sit on. The panel around it carries the accent wash, so the list
-     drops back to the plain raised surface — which is also what lets a row's own accent wash
-     read as the track that is playing instead of vanishing into the panel. */
-  .player-queue {
-    min-width: 0;
-    /* 36 tracks is the longest album here and 169 the longest page. The list scrolls at about
-       five rows so the player stays a player; block padding leaves room for the 4px focus
-       outline and its 3px offset, which the scrollport would otherwise clip. */
-    max-height: min(60vh, 26rem);
-    overflow-y: auto;
-    padding: 0.5rem 0.4rem;
-    border-radius: var(--radius-s);
-    background: var(--raise);
-  }
-
   @media (max-width: 30rem) {
     .album-player {
       grid-template-columns: 4rem minmax(0, 1fr);
       gap: 0.7rem;
       padding: 0.7rem;
-    }
-
-    .player-queue {
-      padding-inline: 0.25rem;
     }
   }
 </style>

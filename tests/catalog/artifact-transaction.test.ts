@@ -1,10 +1,11 @@
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
 import {
   promoteArtifactTransaction,
   recoverArtifactTransaction,
+  type Artifact,
 } from '../../src/catalog/artifact-transaction';
 
 const MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
@@ -171,6 +172,70 @@ async function expectRelativeFiles(
     if (contents === undefined) await expectMissing(join(root, path));
     else expect(await readFile(join(root, path), 'utf8')).toBe(contents);
   }
+}
+
+const COVER_DIRECTORY = 'public/generated/covers';
+const LOGO_DIRECTORY = 'public/generated/logos';
+const DERIVATIVE_DIRECTORY = 'public/generated/derivatives';
+
+/**
+ * Every artifact family a real Drive sync promotes: the stale cover sweep, covers
+ * (including a case-only rename), logos, all three derivative encodings, a poster
+ * and the missing list, ahead of the fixed tail. The suite used to journal only
+ * covers and the fixed three, which is why recovery could reject four of the six
+ * families the build actually promotes without a single test going red.
+ */
+function fullSyncTargets(): string[] {
+  return [
+    `${COVER_DIRECTORY}/cover-2.webp`,
+    `${LOGO_DIRECTORY}/logo_1.webp`,
+    `${DERIVATIVE_DIRECTORY}/item-1-view.webp`,
+    `${DERIVATIVE_DIRECTORY}/item-1.opus`,
+    `${DERIVATIVE_DIRECTORY}/item-2.mp4`,
+    `${DERIVATIVE_DIRECTORY}/item-2-poster.webp`,
+    'src/generated/missing-list.json',
+  ];
+}
+
+function fullSyncEntries(): SavedEntry[] {
+  return [
+    deleteEntry(`${COVER_DIRECTORY}/stale.webp`, 0),
+    replaceCaseEntry(`${COVER_DIRECTORY}/COVER_1.webp`, `${COVER_DIRECTORY}/cover_1.webp`, 1),
+    ...fullSyncTargets().map((target, offset) =>
+      writeEntry(target, offset + 2, offset % 3 === 0 ? 'missing' : 'file'),
+    ),
+    ...fixedEntries(fullSyncTargets().length + 2),
+  ];
+}
+
+function originalOf(entry: SavedEntry): string {
+  return entry.kind === 'replace-case' ? entry.source : entry.target;
+}
+
+/**
+ * The assertion the seven leaked scratch files would have failed. Per-entry checks
+ * cannot catch them: `promoteArtifactTransaction` swallows a post-commit cleanup
+ * failure, so a promote whose journal recovery rejects still resolves, installs
+ * every artifact, and leaves its backups on disk for the next commit to pick up.
+ */
+async function transactionScratchFiles(root: string): Promise<string[]> {
+  const found: string[] = [];
+  const walk = async (directory: string): Promise<void> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await walk(path);
+      } else if (
+        entry.name.startsWith('.catalog-transaction-') ||
+        entry.name.startsWith('.transaction-manifest-') ||
+        entry.name === 'catalog-build-transaction.json'
+      ) {
+        found.push(relative(root, path));
+      }
+    }
+  };
+  await walk(root);
+  return found.sort();
 }
 
 function entryPaths(entries: readonly SavedEntry[]): string[] {
@@ -607,5 +672,122 @@ describe('artifact transaction recovery', () => {
     expect(
       await readFile(join(rejectedRoot, '.astro/catalog-build-transaction.json'), 'utf8'),
     ).toContain(`c${MANIFEST_MAX_ENTRIES - 3}.webp`);
+  });
+
+  /**
+   * Widening the allowlist from covers to every promoted family must not widen what
+   * a basename may be. A target is still one Drive file id and one extension the
+   * family emits, so no journal can name a `.catalog-transaction-*` scratch file as
+   * an artifact and steer rollback into renaming a backup over a live file. Deletes
+   * stay confined to the one family the build sweeps.
+   */
+  test.each([
+    [
+      'a delete outside the swept cover family',
+      (): SavedEntry[] => [
+        deleteEntry(`${DERIVATIVE_DIRECTORY}/item-1.opus`, 0),
+        ...fixedEntries(1),
+      ],
+    ],
+    [
+      'a delete after the write phase has started',
+      (): SavedEntry[] => [
+        writeEntry(`${COVER_DIRECTORY}/cover-1.webp`, 0),
+        deleteEntry(`${COVER_DIRECTORY}/stale.webp`, 1),
+        ...fixedEntries(2),
+      ],
+    ],
+    [
+      'a scratch file dressed as an artifact',
+      (): SavedEntry[] => [
+        writeEntry(`${DERIVATIVE_DIRECTORY}/.catalog-transaction-${TRANSACTION_ID}-9.backup`, 0),
+        ...fixedEntries(1),
+      ],
+    ],
+    [
+      'a basename outside the Drive file id charset',
+      (): SavedEntry[] => [writeEntry(`${LOGO_DIRECTORY}/bad name.webp`, 0), ...fixedEntries(1)],
+    ],
+    [
+      'an extension the family never emits',
+      (): SavedEntry[] => [
+        writeEntry(`${DERIVATIVE_DIRECTORY}/item-1.txt`, 0),
+        ...fixedEntries(1),
+      ],
+    ],
+  ])('rejects %s', async (_label, buildEntries) => {
+    const root = await temporaryRoot();
+    const entries = buildEntries();
+    await createOriginals(root, entries);
+    await writeManifest(root, entries);
+    const before = await snapshotRelativeFiles(root, entryPaths(entries));
+
+    await expect(recoverArtifactTransaction(root)).rejects.toThrow();
+
+    await expectRelativeFiles(root, before);
+    expect(
+      JSON.parse(await readFile(join(root, '.astro/catalog-build-transaction.json'), 'utf8')),
+    ).toMatchObject({ state: 'precommit' });
+  });
+
+  test('rolls back a partial promotion of every artifact family a sync promotes', async () => {
+    const root = await temporaryRoot();
+    const entries = fullSyncEntries();
+    const installed = 5;
+    await createOriginals(root, entries);
+    for (const entry of entries) {
+      if (entry.kind !== 'delete') await writeRelative(root, entry.stage, `NEW ${entry.target}`);
+    }
+    for (const entry of entries.slice(0, installed)) {
+      if (entry.original === 'file') {
+        await rename(join(root, originalOf(entry)), join(root, entry.backup));
+      }
+      if (entry.kind !== 'delete') {
+        await rename(join(root, entry.stage), join(root, entry.target));
+      }
+    }
+    await writeManifest(root, entries);
+
+    await expect(recoverArtifactTransaction(root)).resolves.toBeUndefined();
+
+    for (const entry of entries) {
+      const original = originalOf(entry);
+      if (entry.original === 'file') {
+        expect(await readFile(join(root, original), 'utf8')).toBe(`OLD ${original}`);
+      } else {
+        await expectMissing(join(root, original));
+      }
+      await expectMissing(join(root, entry.backup));
+      if (entry.kind !== 'delete') await expectMissing(join(root, entry.stage));
+    }
+    expect(await transactionScratchFiles(root)).toEqual([]);
+  });
+
+  test('promotes every artifact family and leaves no transaction scratch behind', async () => {
+    const root = await temporaryRoot();
+    const stale = `${COVER_DIRECTORY}/stale.webp`;
+    const targets = [...fullSyncTargets(), ...fixedEntries().map((entry) => entry.target)];
+    // Every target pre-exists so every entry journals `original: 'file'` and leaves
+    // a backup, which is what puts each family's directory through committed cleanup.
+    for (const target of [stale, ...targets]) {
+      await writeRelative(root, target, `OLD ${target}`);
+    }
+
+    const artifacts: Artifact[] = [
+      { kind: 'delete', target: join(root, stale) },
+      ...targets.map(
+        (target): Artifact => ({ kind: 'write', target: join(root, target), data: `NEW ${target}` }),
+      ),
+    ];
+
+    await expect(promoteArtifactTransaction(root, artifacts)).resolves.toBeUndefined();
+
+    await expectMissing(join(root, stale));
+    for (const artifact of artifacts.slice(1)) {
+      expect(await readFile(artifact.target, 'utf8')).toBe(
+        `NEW ${relative(root, artifact.target)}`,
+      );
+    }
+    expect(await transactionScratchFiles(root)).toEqual([]);
   });
 });

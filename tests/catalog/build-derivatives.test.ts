@@ -617,3 +617,87 @@ describe('real ffmpeg transcoding', () => {
     expect(written.indexOf(Buffer.from('moov'))).toBeLessThan(written.indexOf(Buffer.from('mdat')));
   });
 });
+
+describe('cover renditions', () => {
+  const withCover: CuratorConfig = {
+    minimumFileCount: 1,
+    collections: [
+      {
+        slug: 'piposh-1',
+        titleHe: 'פיפוש 1',
+        type: 'game',
+        summaryHe: 'המשחק המקורי',
+        coverFileId: 'cover',
+        aliasesHe: [],
+        tagsHe: [],
+        rules: [],
+        exclude: [],
+      },
+    ],
+  };
+
+  async function coverNames(root: string): Promise<string[]> {
+    return (await readdir(join(root, 'public/generated/covers'))).sort();
+  }
+
+  /*
+   * The sweep is the part most likely to be wrong, so it is asserted rather than reasoned
+   * about: `staleCoverArtifacts` deletes every .webp whose basename is not in the selected
+   * set, so a second build has to see `cover-480` as selected too. If the renditions were
+   * tracked anywhere other than the map that set is derived from, the tier would be written
+   * by one sync and deleted by the next, and nothing else in the suite would notice.
+   */
+  test('writes the narrower cover beside the base one and keeps it across builds', async () => {
+    const root = await temporaryRoot();
+    const png = await sharp({
+      create: { width: 1500, height: 2000, channels: 3, background: '#204060' },
+    })
+      .png()
+      .toBuffer();
+    const files = [driveFile('cover', { name: 'cover.png', mimeType: 'image/png' })];
+
+    await buildCatalog({
+      files,
+      curator: withCover,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      download: async () => png,
+    });
+
+    expect(await coverNames(root)).toEqual(['cover-480.webp', 'cover.webp']);
+    expect(
+      await sharp(join(root, 'public/generated/covers/cover-480.webp')).metadata(),
+    ).toMatchObject({ format: 'webp', width: 480 });
+
+    await buildCatalog({
+      files,
+      curator: withCover,
+      root,
+      generatedAt: '2026-08-27T12:00:00.000Z',
+      download: async () => png,
+    });
+
+    expect(await coverNames(root)).toEqual(['cover-480.webp', 'cover.webp']);
+  });
+
+  test('writes only the base cover when the source cannot fill the frame', async () => {
+    const root = await temporaryRoot();
+    const png = await sharp({
+      create: { width: 118, height: 158, channels: 3, background: '#204060' },
+    })
+      .png()
+      .toBuffer();
+
+    await buildCatalog({
+      files: [driveFile('cover', { name: 'cover.png', mimeType: 'image/png' })],
+      curator: withCover,
+      root,
+      generatedAt: '2026-08-26T12:00:00.000Z',
+      download: async () => png,
+    });
+
+    // No tier file means the components emit no srcset for it, which is what keeps a cover
+    // this small sitting at its true size on the mat instead of being stretched to fill sizes.
+    expect(await coverNames(root)).toEqual(['cover.webp']);
+  });
+});

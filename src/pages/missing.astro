@@ -10,7 +10,113 @@ const sourceItem =
   catalog.items.find(
     (item) => item.path === MISSING_LIST_SOURCE_PATH && item.mimeType === GOOGLE_SHEET_MIME,
   ) ?? null;
-const hasRows = missingList.headerHe.length > 0 && missingList.rows.length > 0;
+
+/**
+ * The export is one spreadsheet, and it was rendered here as one: eleven columns wide,
+ * three of them empty gutters that the sheet used as visual spacing and the page turned
+ * into real cells headed "עמודה 3" for a screen reader to announce over nothing. Eleven
+ * columns do not fit a phone, and at 1440px the last one was already cut off.
+ *
+ * What the sheet actually holds is lists, side by side: each pair of columns is a status
+ * and a name, and a pair runs several lists stacked one under the other, separated by a
+ * blank line with a new title under it. So the page rebuilds the lists and drops the
+ * gutters. Nothing is filtered and no row is summarised — every value the export carries
+ * still appears, just under the heading it was already sitting under.
+ *
+ * The gutters are found rather than hardcoded: a column is furniture only if it is empty
+ * in the header AND in all 21 rows. A sync that fills one in would keep it.
+ */
+const STATUS_HEADING = 'סטטוס';
+
+interface MissingEntry {
+  statusHe: string;
+  nameHe: string;
+}
+
+interface MissingSet {
+  titleHe: string;
+  statusLabelHe: string;
+  entries: MissingEntry[];
+}
+
+const cellAt = (row: readonly string[], column: number): string => row[column] ?? '';
+
+const usedColumns = missingList.headerHe
+  .map((_, column) => column)
+  .filter(
+    (column) =>
+      missingList.headerHe[column] !== '' ||
+      missingList.rows.some((row) => cellAt(row, column) !== ''),
+  );
+
+/**
+ * Pairs, walked in sheet order: a column headed סטטוס — or headed nothing at all, which is
+ * how the first one arrived — takes the column after it as its names. A column that is
+ * headed something else stands alone rather than being swallowed, so a reshaped sheet
+ * loses nothing here; it just renders as a list without statuses.
+ */
+const pairs: Array<{ status: number | null; name: number }> = [];
+for (let index = 0; index < usedColumns.length; index += 1) {
+  const column = usedColumns[index]!;
+  const header = missingList.headerHe[column] ?? '';
+  const next = usedColumns[index + 1];
+  if ((header === '' || header === STATUS_HEADING) && next !== undefined) {
+    pairs.push({ status: column, name: next });
+    index += 1;
+  } else {
+    pairs.push({ status: null, name: column });
+  }
+}
+
+const sets: MissingSet[] = [];
+for (const pair of pairs) {
+  const headerStatus = pair.status === null ? '' : (missingList.headerHe[pair.status] ?? '');
+  /* The sheet labels three of its four status columns סטטוס and left the fourth blank.
+     Calling that one what the sheet calls its own twins beats heading it "עמודה 1". */
+  let current: MissingSet = {
+    titleHe: missingList.headerHe[pair.name] ?? '',
+    statusLabelHe: headerStatus === '' ? STATUS_HEADING : headerStatus,
+    entries: [],
+  };
+  let afterBlank = false;
+
+  for (const row of missingList.rows) {
+    const statusHe = pair.status === null ? '' : cellAt(row, pair.status);
+    const nameHe = cellAt(row, pair.name);
+
+    if (statusHe === '' && nameHe === '') {
+      afterBlank = true;
+      continue;
+    }
+
+    /* A title inside a column, not an item: it follows a blank line AND its status cell is
+       either empty or the word סטטוס repeated as a fresh header. Both signals, because one
+       of them alone would eat a real row that happens to have no status recorded yet. */
+    if (afterBlank && (statusHe === '' || statusHe === STATUS_HEADING)) {
+      if (current.entries.length > 0) sets.push(current);
+      current = {
+        titleHe: nameHe,
+        statusLabelHe: statusHe === '' ? STATUS_HEADING : statusHe,
+        entries: [],
+      };
+      afterBlank = false;
+      continue;
+    }
+
+    afterBlank = false;
+    current.entries.push({ statusHe, nameHe });
+  }
+
+  if (current.entries.length > 0) sets.push(current);
+}
+
+/* A list where nobody wrote a single status gets no status column, the same way the empty
+   gutters get no column: an always-empty cell is not a fact, it is a layout leftover. */
+const rendered = sets.map((set) => ({
+  ...set,
+  hasStatus: set.entries.some((entry) => entry.statusHe !== ''),
+}));
+const hasRows = rendered.length > 0;
 ---
 
 <BaseLayout
@@ -29,48 +135,45 @@ const hasRows = missingList.headerHe.length > 0 && missingList.rows.length > 0;
 
   {
     hasRows ? (
-      <div
-        class="scroll-x missing-scroll"
-        role="region"
-        aria-labelledby="missing-caption"
-        tabindex="0"
-      >
-        <table class="missing-table">
-          {/* Short on purpose: the caption is as wide as the table, and the table is wider
-              than a phone. A long one gets cut off at the edge of the scrolling box. */}
-          <caption id="missing-caption">מה חסר לארכיון, שורה אחרי שורה</caption>
-          <thead>
-            <tr>
-              {missingList.headerHe.map((cell, column) => (
-                <th scope="col">
-                  {cell === '' ? (
-                    /* A column the sheet never named still needs a name here, or the
-                       header is an empty cell nobody can hear. The number is structure,
-                       not content: nothing is invented about what the column holds. */
-                    <span class="visually-hidden">{`עמודה ${String(column + 1)}`}</span>
-                  ) : (
-                    cell
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {missingList.rows.map((row) => (
-              <tr>
-                {row.map((cell) => (
-                  <td>{cell}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <>
+        <p class="missing-note">
+          פירקנו את הגיליון לרשימות, בדיוק כמו שהן יושבות שם. למה לא טבלה אחת ענקית כמו
+          במקור? כי בטלפון אף אחד לא הצליח לקרוא אותה.
+        </p>
+        <div class="missing-sets">
+          {rendered.map((set) => (
+            <div class="missing-set">
+              <table>
+                <caption>{set.titleHe}</caption>
+                {set.hasStatus && (
+                  <thead>
+                    <tr>
+                      {/* The corner above a column of row headers, empty on purpose and a
+                          td rather than a th: an empty header is a header nobody can hear,
+                          which is exactly what "עמודה 3" was. */}
+                      <td />
+                      <th scope="col">{set.statusLabelHe}</th>
+                    </tr>
+                  </thead>
+                )}
+                <tbody>
+                  {set.entries.map((entry) => (
+                    <tr>
+                      {entry.nameHe === '' ? <td /> : <th scope="row">{entry.nameHe}</th>}
+                      {set.hasStatus && <td>{entry.statusHe}</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      </>
     ) : (
       <p class="empty-archive">
         נו, איזה בושה: הרשימה עצמה לא פה כרגע. היא נמשכת מהגיליון של הארכיון בכל עדכון,
         וכאן היא עוד לא הגיעה. זה לא אומר שלא חסר כלום — זה אומר שאין לנו מה להראות לכם
-        ברגע זה, קיבינימאט.
+        ברגע זה.
       </p>
     )
   }
@@ -78,7 +181,7 @@ const hasRows = missingList.headerHe.length > 0 && missingList.rows.length > 0;
   {
     sourceItem !== null && (
       <p class="missing-source">
-        {hasRows ? 'הטבלה למעלה היא הגיליון של הארכיון, ותו לא. ' : 'בינתיים? '}
+        {hasRows ? 'הרשימות למעלה הן הגיליון של הארכיון, ותו לא. ' : 'בינתיים? '}
         <a href={sourceItem.viewUrl} target="_blank" rel="noopener noreferrer">
           הגיליון המקורי פתוח לכולם
         </a>
@@ -87,3 +190,74 @@ const hasRows = missingList.headerHe.length > 0 && missingList.rows.length > 0;
     )
   }
 </BaseLayout>
+
+<style>
+  /* Scoped to this page: nothing else on the site is a spreadsheet rebuilt as lists.
+     Each list is two columns at most, so it fits a phone without a scrolling box — the
+     box the old eleven-column table needed had no visual affordance that it scrolled,
+     so its cut-off last column read as missing data rather than as hidden data. */
+  .missing-note {
+    margin: 0 0 1.25rem;
+    color: var(--dim);
+    font-size: var(--t-s);
+  }
+
+  .missing-sets {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+    gap: 1rem;
+    align-items: start;
+  }
+
+  .missing-set {
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-s);
+    background: var(--raise);
+  }
+
+  .missing-set table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--t-s);
+  }
+
+  .missing-set caption {
+    padding: 0.85rem 1rem;
+    border-block-end: 1px solid var(--stroke);
+    text-align: start;
+    font-weight: 700;
+  }
+
+  .missing-set th,
+  .missing-set td {
+    /* No min-width here. The old table forced 9rem a column to keep Hebrew from breaking
+       two letters to a line, and two columns of that do not fit a 320px screen. Two
+       columns of free width do. */
+    min-width: 0;
+    padding: 0.6rem 1rem;
+    text-align: start;
+    vertical-align: top;
+    line-height: 1.6;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+  }
+
+  .missing-set thead th {
+    padding-block-end: 0.35rem;
+    color: var(--dim);
+    font-size: var(--t-2xs);
+    font-weight: 500;
+  }
+
+  .missing-set tbody td {
+    color: var(--dim);
+    /* One status in the sheet is two lines with a note on the second. It was written as two
+       lines and it stays two lines. */
+    white-space: pre-line;
+  }
+
+  .missing-set tbody tr + tr th,
+  .missing-set tbody tr + tr td {
+    border-block-start: 1px solid var(--stroke-soft);
+  }
+</style>

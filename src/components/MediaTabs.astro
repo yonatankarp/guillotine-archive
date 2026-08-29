@@ -46,14 +46,39 @@ const tabs = ORDER.filter((type) => (countByType.get(type) ?? 0) > 0).map((type)
   count: countByType.get(type) ?? 0,
   href: type === 'game' ? sitePath() : sitePath(`browse/type/${type}/`),
 }));
+
+/**
+ * A tab is the current page only when it is the current page. The games tab is the one
+ * that points home rather than at a filter, and /browse/type/game/ lists the same six
+ * releases — so on that route the type matched, the tab announced aria-current="page",
+ * and clicking it navigated away. The type alone cannot see that two routes show one
+ * type; the href against the URL being rendered can, and it needs no second route.
+ */
+const withSlash = (path: string): string => (path.endsWith('/') ? path : `${path}/`);
+/* Both sides are compared without the base path in front of them. sitePath() always puts
+   it there and the rendered URL may or may not, depending on how the site is built, and a
+   deploy under /guillotine-archive/ is not the place to discover which. */
+const stripBase = (path: string): string => {
+  const base = withSlash(import.meta.env.BASE_URL);
+  const full = withSlash(path);
+  return full.startsWith(base) ? `/${full.slice(base.length)}` : full;
+};
+const currentPath = stripBase(Astro.url.pathname);
 ---
 
 <nav class="media-tabs" aria-label="מדורי הארכיון">
-  <ul>
+  {/* WebKit drops the list role from a list styled list-style: none, and the count of
+      sections is the point of the strip. */}
+  <ul role="list">
     {
       tabs.map((tab) => (
         <li>
-          <a href={tab.href} aria-current={tab.type === active ? 'page' : undefined}>
+          <a
+            href={tab.href}
+            aria-current={
+              tab.type === active && stripBase(tab.href) === currentPath ? 'page' : undefined
+            }
+          >
             {tab.labelHe} <span class="mono">{tab.count}</span>
           </a>
         </li>

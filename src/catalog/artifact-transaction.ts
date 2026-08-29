@@ -26,11 +26,44 @@ const MAX_PID = 2_147_483_647;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const MANIFEST_TEMP_PATTERN =
   /^\.transaction-manifest-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.tmp$/u;
-const FIXED_ARTIFACTS = [
-  'src/generated/catalog.json',
-  'public/data/search-index.json',
-  'reports/curator-report.json',
-] as const;
+/**
+ * The single-file artifacts a build promotes. `buildCatalogWithLock` derives the
+ * paths it writes from this, and recovery derives what a journal may name from
+ * the same object, so the promote set and the recoverable set cannot drift. They
+ * did once: derivatives and logos were promoted while recovery still only knew
+ * about covers, so a rollback threw instead of rolling back and post-commit
+ * cleanup left seven scratch files in a commit.
+ */
+export const MANAGED_ARTIFACTS = {
+  catalog: 'src/generated/catalog.json',
+  searchIndex: 'public/data/search-index.json',
+  curatorReport: 'reports/curator-report.json',
+  missingList: 'src/generated/missing-list.json',
+} as const;
+
+/**
+ * The tail of every promote, in order. Recovery matches the last entries of a
+ * journal against this sequence, so the build must promote them in exactly this
+ * order; it iterates the same list rather than repeating it.
+ */
+export const FIXED_ARTIFACT_KEYS = ['catalog', 'searchIndex', 'curatorReport'] as const;
+const FIXED_ARTIFACTS: readonly string[] = FIXED_ARTIFACT_KEYS.map((key) => MANAGED_ARTIFACTS[key]);
+
+/**
+ * Directories a build promotes whole families of files into. `sweep` marks the
+ * one family a build may also delete from: covers get a stale sweep, logos and
+ * derivatives deliberately do not, because an empty selected set would delete
+ * every one of them. Journalling a delete anywhere else is rejected.
+ */
+export const MANAGED_ARTIFACT_DIRECTORIES = {
+  covers: { path: 'public/generated/covers', extensions: ['webp'], sweep: true },
+  logos: { path: 'public/generated/logos', extensions: ['webp'], sweep: false },
+  derivatives: {
+    path: 'public/generated/derivatives',
+    extensions: ['webp', 'opus', 'mp4'],
+    sweep: false,
+  },
+} as const;
 
 export interface BuildFaultInjection {
   failPostCommitCleanup?: boolean;
@@ -422,11 +455,41 @@ async function writeTransactionManifest(
   }
 }
 
+/**
+ * The safety property the target patterns carry, unchanged by widening them from
+ * covers to every promoted family: a basename may not contain a dot, a separator
+ * or anything outside the Drive file id charset, and must end in one extension
+ * the family actually emits. That is what keeps a journal from naming a
+ * `.catalog-transaction-*.stage` or `.backup` scratch file as an artifact, which
+ * is the one way `applyRollingBack` could be steered into renaming a backup over
+ * a live file. Traversal is bounded twice over: the patterns are anchored, and
+ * every resolved path is checked with `assertInsideRoot`.
+ */
+const MANAGED_DIRECTORY_PATTERNS = Object.values(MANAGED_ARTIFACT_DIRECTORIES).map((directory) => {
+  // The patterns below interpolate these, so they are literals or nothing.
+  if (!/^[A-Za-z0-9][A-Za-z0-9/_-]*$/u.test(directory.path))
+    throw new Error('managed artifact directory is not a literal path');
+  if (directory.extensions.some((extension) => !/^[a-z0-9]+$/u.test(extension)))
+    throw new Error('managed artifact extension is not a literal suffix');
+  return {
+    sweep: directory.sweep,
+    pattern: new RegExp(
+      `^${directory.path}/[A-Za-z0-9_-]+\\.(?:${directory.extensions.join('|')})$`,
+      'u',
+    ),
+  };
+});
+
+function managedDirectoryFor(path: string): { sweep: boolean } | undefined {
+  return MANAGED_DIRECTORY_PATTERNS.find((directory) => directory.pattern.test(path));
+}
+
+function isManagedFileArtifact(path: string): boolean {
+  return FIXED_ARTIFACTS.includes(path) || path === MANAGED_ARTIFACTS.missingList;
+}
+
 function isManagedArtifactTarget(path: string): boolean {
-  return (
-    FIXED_ARTIFACTS.includes(path as (typeof FIXED_ARTIFACTS)[number]) ||
-    /^public\/generated\/covers\/[A-Za-z0-9_-]+\.webp$/u.test(path)
-  );
+  return isManagedFileArtifact(path) || managedDirectoryFor(path) !== undefined;
 }
 
 function parseTransactionManifest(root: string, source: string): TransactionManifest {
@@ -434,23 +497,27 @@ function parseTransactionManifest(root: string, source: string): TransactionMani
   const portableTargets = new Set<string>();
   if (manifest.entries.length < FIXED_ARTIFACTS.length)
     throw new Error('transaction manifest is incomplete');
-  const coverEntries = manifest.entries.slice(0, -FIXED_ARTIFACTS.length);
+  const head = manifest.entries.slice(0, -FIXED_ARTIFACTS.length);
   const tail = manifest.entries.slice(-FIXED_ARTIFACTS.length);
   if (
     tail.some(
       (entry, index) => entry.kind !== 'write' || entry.target !== FIXED_ARTIFACTS[index],
     ) ||
-    coverEntries.some((entry) => !entry.target.startsWith('public/generated/covers/'))
+    head.some((entry) => FIXED_ARTIFACTS.includes(entry.target))
   ) {
     throw new Error('invalid transaction artifact sequence');
   }
-  let coverWritePhaseStarted = false;
-  for (const entry of coverEntries) {
-    if (entry.kind === 'delete') {
-      if (coverWritePhaseStarted) throw new Error('invalid transaction cover phase order');
-    } else {
-      coverWritePhaseStarted = true;
+  // Deletes are the stale cover sweep, which the build runs before it writes any
+  // cover, so a delete after a write is a journal that could not have been produced.
+  let writePhaseStarted = false;
+  for (const entry of head) {
+    if (entry.kind !== 'delete') {
+      writePhaseStarted = true;
+      continue;
     }
+    if (writePhaseStarted) throw new Error('invalid transaction delete phase order');
+    if (managedDirectoryFor(entry.target)?.sweep !== true)
+      throw new Error('invalid transaction delete target');
   }
   for (const [index, entry] of manifest.entries.entries()) {
     if (!isManagedArtifactTarget(entry.target)) throw new Error('invalid transaction target');

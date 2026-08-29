@@ -13,7 +13,15 @@ import { playwrightRuntime } from '../support/playwright-runtime';
 const expectedCatalog = loadCatalog('src/generated/catalog.json', false);
 const expectedReleases = expectedCatalog.releases;
 const { site } = playwrightRuntime;
-const searchIndexPattern = `**${site.route('data/search-index.json')}`;
+/*
+ * Trailing `*` so the pattern still matches once the URL carries a cache-busting query.
+ * ArchiveSearch appends `?v=<content hash>` — the index sits at a fixed name under a
+ * `max-age=600` that Pages will not let anyone configure, so without it a visitor searches
+ * a stale index for ten minutes after a sync. A pattern that stops at `.json` silently
+ * stops intercepting, and every failure-path test below then passes against the real index
+ * instead of the fault it meant to inject.
+ */
+const searchIndexPattern = `**${site.route('data/search-index.json')}*`;
 
 /** Items the curator filed into one named group of a collection. */
 function expectedGroupItems(collectionSlug: string, groupHe: string): CatalogItem[] {
@@ -276,6 +284,19 @@ test('complete archive browsing remains available without search', async ({ page
   await expect(
     page.getByRole('link', { name: `פתרונות, ${solutionCountLabel}` }),
   ).toBeVisible();
+
+  /* The catalog hands its categories over in Hebrew alphabetical order, which led this page
+     with אחר — one file — and buried the games in fourth. The shelf people came for leads;
+     everything else follows by weight, and every shelf is still here. */
+  const shelves = await page.locator('.category-grid > li strong').allTextContents();
+  expect(new Set(shelves), 'no shelf fell off the page').toEqual(
+    new Set(expectedCatalog.categories),
+  );
+  expect(shelves[0]).toBe('משחקים מלאים');
+  const sizes = shelves
+    .slice(1)
+    .map((shelf) => expectedCatalog.items.filter(({ category }) => category === shelf).length);
+  expect(sizes, 'the rest of the shelves run biggest first').toEqual([...sizes].sort((first, second) => second - first));
   await page.getByRole('link', { name: /משחקים מלאים/u }).click();
   await expect(page).toHaveURL(site.url('archive/games/'));
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
@@ -383,6 +404,33 @@ test('subject and year pages mark no tab current and never repeat the types as c
 
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   }
+});
+
+test('a tab claims the current page only where that tab leads', async ({ page }) => {
+  /* The games tab points home rather than at a filter, because home already is the games.
+     /browse/type/game/ lists the same six releases, so the tab matched by type there and
+     rendered aria-current="page" on a link that navigates away — a screen reader was told
+     the visitor was on a page the link leaves. Matching the type is not enough; the tab has
+     to point at the page it claims to be. */
+  for (const path of ['', 'browse/type/game/', 'browse/type/audio-cd/', 'games/']) {
+    await page.goto(site.route(path));
+    const tabs = page.getByRole('navigation', { name: 'מדורי הארכיון' });
+    await expect(tabs, `${path} shows the tab strip`).toBeVisible();
+
+    for (const marked of await tabs.locator('[aria-current="page"]').all()) {
+      await expect(marked, `${path} marks only a tab pointing at it`).toHaveAttribute(
+        'href',
+        site.route(path),
+      );
+    }
+  }
+
+  await page.goto(site.route('browse/type/game/'));
+  const gamesTab = page
+    .getByRole('navigation', { name: 'מדורי הארכיון' })
+    .getByRole('link', { name: /המשחקים/u });
+  await expect(gamesTab).toHaveAttribute('href', site.route());
+  await expect(gamesTab).not.toHaveAttribute('aria-current', 'page');
 });
 
 test('every filtered page keeps a route back to the all-releases page', async ({ page }) => {
@@ -505,6 +553,13 @@ test('Hebrew search ranks the collection before English-named files', async ({ p
   await expect(results.first()).toContainText('פיפוש 1');
   await expect(page.getByText('piposh1-english.exe', { exact: true })).toBeVisible();
   await expect(page.getByText('piposh1.exe', { exact: true })).toBeVisible();
+
+  /* Scanned here and nowhere else: /search/ is the one page whose rows are built in the
+     browser, so it is the one page an axe run over the pre-rendered output cannot reach.
+     Scanned with results on screen rather than on the empty shell, because the shell has
+     no result markup in it to find anything wrong with. */
+  await expect(results.first()).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
 test('Latin-only search is unsupported while mixed queries use their Hebrew words', async ({ page }) => {

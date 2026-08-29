@@ -30,9 +30,22 @@
   /* One message sitewide: this file will not play in a browser. It appears per file and
      once per media page, and nothing else may use it. */
   --warn: #d9822b;
-  /* Per-release, set inline from releaseAccent(). Washes, rules and dither ink only, never
-     a text colour, so a release cannot pick a hue that fails contrast. */
-  --accent: #4fa8c9;
+  /*
+   * Per-release, set inline from releaseAccent(). Washes, rules and dither ink only, never
+   * a text colour, so a release cannot pick a hue that fails contrast.
+   *
+   * The site-level fallback every page that sets no release gets — the homepage's
+   * .found-string among them. It is drawn from the same box-art palette as the per-release
+   * accents (release-view.ts), and it is deliberately NOT --link's cyan: an accent that
+   * equals the link colour makes the identity rule indistinguishable from every underline
+   * on the page. #d98b22 is out for the same reason against --warn, which leaves the
+   * magenta, the furthest thing on the palette from both.
+   *
+   * Constant across themes, like --mat and for the same reason: it is never text, so it
+   * has nothing to darken for. It measures 3.72:1 on the dark ground and 4.24:1 on the
+   * light one, both past the 3:1 a 2px rule needs.
+   */
+  --accent: #b7418c;
 
   /* Hebrew display serif. The container is dignified; the contents are not. */
   --f-display: "Suez One", "Frank Ruehl CLM", "David Libre", Georgia, serif;
@@ -54,6 +67,11 @@
 
   --radius: 0.5rem;
   --radius-s: 0.25rem;
+  /* Almost square, and deliberately its own step rather than --radius-s rounded down: a scan
+     is not a card. It is only ever the corner of a picture — a gallery frame, a video poster,
+     the duration chip riding on one — where a visible curve would read as a UI element wrapped
+     around the archive material instead of an edge belonging to it. */
+  --radius-xs: 2px;
 
   color: var(--text);
   background: var(--ground);
@@ -77,7 +95,8 @@
     --link: #166478;
     /* #d9822b reached only 2.45:1 on the light ground. */
     --warn: #96500b;
-    --accent: #166478;
+    /* --accent is not re-valued: it is never a text colour, so it has no AA floor to
+       clear here, and one constant hue is what makes it read as the site's own. */
   }
 }
 
@@ -92,7 +111,7 @@
   --faint: #818877;
   --link: #166478;
   --warn: #96500b;
-  --accent: #166478;
+  /* Constant, as above. */
 }
 
 * {
@@ -680,6 +699,19 @@ main {
   font-size: var(--t-2xs);
 }
 
+/* The curator's line about a release, shown only on the home grid. It reads BELOW the
+   title: unstyled it fell to body size on full --text and outranked the --t-l display
+   heading above it, which is the tile's hierarchy upside down. --t-s on --dim puts it
+   between the title and the facts, and the margin matches the facts' own 0.35rem so the
+   copy block keeps one rhythm instead of opening a 17px UA gap. Curator summaries are
+   capped at 120 characters, so this never runs past two or three lines in a cell. */
+.release-summary {
+  margin: 0.35rem 0 0;
+  color: var(--dim);
+  font-size: var(--t-s);
+  line-height: 1.55;
+}
+
 /* ---------- release room ---------- */
 
 .room-hero {
@@ -929,6 +961,30 @@ main {
   margin-top: 0.75rem;
 }
 
+/*
+ * Video only — <audio> wears this class too, and a 320px cap on a seek bar is not a
+ * player. The transcoded video derivatives are 320x240 and their posters 220x165, so an
+ * uncapped 100% put a 320px frame across an 1180px column: a 3.7x smear, the same failure
+ * the cover rule above refuses at 2.3x. 20rem IS 320px, the native width of 22 of the 23
+ * transcodes, so they play at 1:1 and nothing is invented; the one 240x180 outlier comes up
+ * 1.33x, which is under the 1.5x this file has tolerated elsewhere. The poster still shows
+ * at 1.45x, and that is the cheaper of the two upscales on offer — it is a pre-roll still,
+ * the video is the content, and shrinking the frame to the poster's 220px would take the
+ * browser's own controls below the width they stay usable at.
+ *
+ * The aspect ratio is measured, not assumed: every one of the 23 files is 4:3 (320x240, and
+ * the outlier 240x180). Stating it rather than waiting for it is what keeps each player off
+ * the UA's 2:1 default until its poster loads — 23 of those relaying out mid-load is the
+ * whole /watch/ page jumping. The mat behind it means a future non-4:3 transcode letterboxes
+ * on the same dark field the covers sit on rather than stretching.
+ */
+video.item-player {
+  max-width: 20rem;
+  aspect-ratio: 4 / 3;
+  height: auto;
+  background: var(--mat);
+}
+
 
 .item-player-note {
   margin: 0.6rem 0 0;
@@ -1156,11 +1212,23 @@ main {
   gap: 0.5rem;
 }
 
+/*
+ * --dim, not --stroke. A control's visual boundary is the one border on this site that has a
+ * measured floor under it: WCAG 2.1 SC 1.4.11 asks 3:1 against everything adjacent, and
+ * --stroke gave the field 1.33:1 against its own --ground fill in dark and 1.28:1 in light,
+ * while the fill itself sits 1.08:1 / 1.20:1 from the panel behind it — so the input was, in
+ * measurable terms, an unmarked rectangle. --dim carries 7.20:1 against the fill in dark and
+ * 5.55:1 in light, and 7.47:1 / 4.92:1 against the button's --sunk. axe has no non-text
+ * contrast rule, which is why the e2e gate never saw this; the numbers are the gate.
+ *
+ * A card's border stays --stroke. This is not a rule about hairlines, it is a rule about the
+ * three things on the page you are asked to type into.
+ */
 .archive-search input,
 .archive-search select,
 .archive-search button {
   min-height: 3rem;
-  border: 1px solid var(--stroke);
+  border: 1px solid var(--dim);
   border-radius: var(--radius-s);
   color: var(--text);
   font: inherit;
@@ -1188,8 +1256,9 @@ main {
   cursor: pointer;
 }
 
+/* --dim is the resting border now, so hover has to go past it or it says nothing. */
 .archive-search button:hover {
-  border-color: var(--dim);
+  border-color: var(--text);
 }
 
 .archive-search input:disabled,
@@ -1429,7 +1498,7 @@ main {
 
 .bundle-list .mono {
   color: var(--dim);
-  font-size: 0.78rem;
+  font-size: var(--t-xs);
 }
 
 /* Scans shown as artwork, one viewer per object that was scanned. A box, an instruction
@@ -1526,7 +1595,7 @@ main {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   margin-inline: auto;
   width: var(--frame-width, 100%);
   min-width: 7rem;
@@ -1618,7 +1687,7 @@ main {
   display: grid;
   gap: 0.1rem;
   margin: 0;
-  font-size: 0.78rem;
+  font-size: var(--t-xs);
   line-height: 1.35;
   overflow-wrap: anywhere;
   text-align: center;
@@ -1626,16 +1695,22 @@ main {
 
 .gallery-kind {
   color: var(--dim);
-  font-size: 0.72rem;
+  font-size: var(--t-2xs);
 }
 
-/* A frame from a video we do not host, with its duration. */
+/* A frame from a video we do not host, with its duration. 20rem is video.item-player's cap,
+   deliberately: this is the unplayable state of the same thing, and a video that plays must
+   not render at a different width from one that does not. No aspect-ratio here, unlike the
+   player — four of the 31 posters are 220x124 rather than 220x165, and all four belong to
+   items with no transcode, so they reach a visitor through THIS rule and a hardcoded 4:3
+   would pillarbox exactly the clips it was supposed to frame. The <img> carries the real
+   width and height from the catalog instead, which reserves the right box per poster. */
 .item-poster {
   position: relative;
   margin-top: 0.7rem;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
-  max-width: 22rem;
+  max-width: 20rem;
 }
 
 .item-poster img {
@@ -1649,10 +1724,10 @@ main {
   inset-block-end: 0.4rem;
   inset-inline-end: 0.4rem;
   padding: 0.1rem 0.35rem;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: rgb(7 9 7 / 82%);
   color: var(--mat-text);
-  font-size: 0.7rem;
+  font-size: var(--t-2xs);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1698,7 +1773,7 @@ main {
   padding: 0.55rem 0.85rem;
   border-block-end: 2px solid transparent;
   color: var(--dim);
-  font-size: 0.9rem;
+  font-size: var(--t-s);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -1715,7 +1790,7 @@ main {
 
 .media-tabs .mono {
   color: var(--dim);
-  font-size: 0.74rem;
+  font-size: var(--t-2xs);
 }
 
 /* A browse page's heading no longer repeats the section name its active tab

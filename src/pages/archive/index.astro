@@ -4,11 +4,34 @@ import { formatFileCount } from '../../lib/archive';
 import { catalog } from '../../lib/catalog';
 import { categoryRoutes, sitePath } from '../../lib/url';
 
-const routes = categoryRoutes(catalog.categories);
 const itemCountByCategory = new Map<string, number>();
 for (const item of catalog.items) {
   itemCountByCategory.set(item.category, (itemCountByCategory.get(item.category) ?? 0) + 1);
 }
+
+/**
+ * The catalog hands over its categories in Hebrew alphabetical order, which put אחר — one
+ * file, and its name means "other" — at the head of the shelf list and buried the games in
+ * fourth place. Alphabetical is not an editorial opinion, it is the absence of one.
+ *
+ * So: the one shelf that is the reason anyone opened the archive leads, and everything
+ * else follows by weight, biggest first. Same shape as the tab strip — a short named list
+ * of exceptions, then a rule that covers whatever the catalog holds — so a category a
+ * future sync invents lands by its own size instead of by its first letter, and no shelf
+ * can fall off this page for not being on a list.
+ */
+const LEAD: readonly string[] = ['משחקים מלאים'];
+const leadRank = (category: string): number => {
+  const place = LEAD.indexOf(category);
+  return place === -1 ? LEAD.length : place;
+};
+const itemCount = (category: string): number => itemCountByCategory.get(category) ?? 0;
+const routes = categoryRoutes(catalog.categories).sort((first, second) => {
+  const byLead = leadRank(first.category) - leadRank(second.category);
+  if (byLead !== 0) return byLead;
+  const bySize = itemCount(second.category) - itemCount(first.category);
+  return bySize !== 0 ? bySize : first.category.localeCompare(second.category, 'he');
+});
 ---
 
 <BaseLayout title="כל הארכיון — ארכיון גיליוטין">
@@ -18,9 +41,11 @@ for (const item of catalog.items) {
     <p>אלה המדפים המלאים, בדיוק כמו בקטלוג. כולל כל הקבצים שאף מהדורה לא טורחת להציג בעצמה — כי גם להם מגיע, קיבינימאט.</p>
   </header>
 
+  {/* role="list" spelled out on the grid below: WebKit answers list-style: none by dropping
+      the list role, and how many shelves there are is the point of this page. */}
   {
     routes.length > 0 ? (
-      <ul class="category-grid">
+      <ul class="category-grid" role="list">
         {routes.map(({ category, slug }) => {
           const count = itemCountByCategory.get(category) ?? 0;
           const countLabel = formatFileCount(count);

@@ -37,6 +37,18 @@ const UNKNOWN_TIME = '--:--';
 /** What the status line says once the album is actually running. */
 const PLAYING_LABEL = 'מתנגן עכשיו:';
 
+/** What the panel is served saying, and what it goes back to when the album runs out. */
+const READY_LABEL = 'מוכן לנגן:';
+
+/** A track that will not load. Said of the track still named beside it. */
+const FAILED_LABEL = 'לא הצלחנו לנגן:';
+
+/** Said of the track that took its place, once the album has stepped over a dead one. */
+const SKIPPED_LABEL = 'רצועה אחת לא נטענה, דילגנו עליה. מתנגן עכשיו:';
+
+/** A run of dead tracks this long stops the album instead of racing it to the end. */
+const FAILURE_LIMIT = 3;
+
 interface Track {
   readonly src: string;
   readonly nameHe: string;
@@ -151,6 +163,13 @@ function upgradeAlbum(album: Element): void {
   let current = 0;
   /* True between grabbing the bar and letting go, so playback cannot fight the drag. */
   let scrubbing = false;
+  /* True while the album is meant to be sounding, so a track that dies is replaced by one
+     playing when someone is listening and by one merely cued when nobody is. */
+  let running = false;
+  /* Dead tracks since the last one that actually played a sound. */
+  let failures = 0;
+  /* Set when a dead track has been stepped over, so the next `play` says so. */
+  let pendingSkip = false;
 
   const length = (): number => Number(seek.max);
 
@@ -284,23 +303,85 @@ function upgradeAlbum(album: Element): void {
     showPosition(player.currentTime);
   });
 
+  /* The one event that only fires when a sound is actually coming out, so it is the only
+     honest place to forget the failures that came before it. */
+  player.addEventListener('playing', () => {
+    failures = 0;
+  });
+
   player.addEventListener('play', () => {
+    running = true;
     panel.root.dataset.playing = 'true';
     panel.toggle.setAttribute('aria-label', 'עצור');
     /* The panel opens cued rather than playing, and it only starts saying so once it is. The
-       line stays on the track from then on: a pause is written on the button that caused it,
-       and re-announcing the line every time someone pauses is noise, not information. Writing
-       the same string back would be exactly that announcement, so it is written once. */
-    if (panel.nowLabel.textContent !== PLAYING_LABEL) panel.nowLabel.textContent = PLAYING_LABEL;
+       line then stays put: a pause is written on the button that caused it, and re-announcing
+       the line every time someone pauses is noise, not information. So the label is written
+       once per state the album is actually in, and having just stepped over a dead track is
+       one of those states — play() queues this event rather than firing it, so the error
+       handler cannot write that line itself without this one overwriting it. */
+    const label = pendingSkip ? SKIPPED_LABEL : PLAYING_LABEL;
+    pendingSkip = false;
+    if (panel.nowLabel.textContent !== label) panel.nowLabel.textContent = label;
   });
 
   player.addEventListener('pause', () => {
+    running = false;
     delete panel.root.dataset.playing;
     panel.toggle.setAttribute('aria-label', 'נגן');
   });
 
+  /**
+   * A track whose derivative 404s or will not decode used to end the album where it stood:
+   * play() rejects into the catch that swallows a refused autoplay, `ended` never fires, and
+   * every track after it is reachable only by clicking it one at a time. So a dead track says
+   * so, is marked on its own row, and the album steps over it.
+   *
+   * Only while someone is listening, and only for a short run of them: an album whose files
+   * are all gone has to stop rather than walk itself to the end asking for every one of them.
+   */
+  player.addEventListener('error', () => {
+    const track = tracks[current];
+    if (track === undefined) return;
+
+    /* An attribute, not a class: the row's own styling belongs to the stylesheet. */
+    track.button.dataset.trackFailed = 'true';
+    /* aria-disabled rather than disabled, so the button keeps its place in the tab order and
+       a track that failed once can still be tried again. */
+    track.button.setAttribute('aria-disabled', 'true');
+    failures += 1;
+
+    if (!running || failures >= FAILURE_LIMIT || current + 1 >= tracks.length) {
+      /* A media error fires no `pause` and leaves paused false, so the panel would go on
+         calling itself playing. Asking for the pause routes the toggle, the dataset and
+         `running` back through the one handler that owns them; it is a no-op if already
+         paused, which is the other way into this branch. */
+      player.pause();
+      seek.value = '0';
+      setLength(Number.NaN);
+      showPosition(0);
+      panel.nowLabel.textContent = FAILED_LABEL;
+      return;
+    }
+
+    pendingSkip = true;
+    select(current + 1, true);
+    const row = tracks[current]?.row;
+    if (row) reveal(row);
+  });
+
   player.addEventListener('ended', () => {
-    if (current + 1 >= tracks.length) return;
+    if (current + 1 >= tracks.length) {
+      /* The album is over, so the panel goes back to what it was served as instead of sitting
+         at the end of the last track still claiming to play it. Re-cueing the first track is
+         what makes the next press play the album rather than replay its tail, and the element
+         is preload="none", so cueing it asks the network for nothing. */
+      running = false;
+      select(0, false);
+      panel.nowLabel.textContent = READY_LABEL;
+      const first = tracks[0]?.row;
+      if (first) reveal(first);
+      return;
+    }
     select(current + 1, true);
     /* The one change no control made, so the playlist following it is the only thing that says
        where the album went — the status line says which track, this says where it is. */

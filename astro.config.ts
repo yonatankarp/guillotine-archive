@@ -4,6 +4,14 @@ export default defineConfig({
   output: 'static',
   site: process.env.SITE_URL ?? 'http://localhost:4321',
   base: process.env.BASE_PATH ?? '/',
+  /**
+   * Every internal link already ends in a slash and the build already emits directory-style
+   * pages, so this changes no emitted output. What it changes is the route pattern: 'always'
+   * compiles routes to require the slash, so the next link written without one 404s in dev
+   * instead of resolving locally and silently taking a 301 on GitHub Pages. Astro has no
+   * build-time check for this, so a failing dev-server request is the enforcement available.
+   */
+  trailingSlash: 'always',
   build: {
     /**
      * Inline the stylesheet into every page instead of linking one hashed file.

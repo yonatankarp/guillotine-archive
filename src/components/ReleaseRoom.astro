@@ -7,6 +7,7 @@ import { categorySlug, sitePath } from '../lib/url';
 import ItemRows from './ItemRows.astro';
 import MediaGallery from './MediaGallery.astro';
 import { audioUrl, hasThumbs, videoUrl } from './derivative';
+import { coverRenditions } from './cover-sources';
 import {
   creditedWorks,
   itemCountsByKind,
@@ -22,11 +23,25 @@ import {
 
 interface Props {
   release: Release;
+  /** Site-relative, forwarded to BaseLayout. Only for a route that aliases another one. */
+  canonical?: string;
 }
 
-const { release } = Astro.props;
+const { release, canonical } = Astro.props;
 const accent = releaseAccent(release);
 const cover = releaseCoverPath(release);
+/* Dropped entirely when the narrower rendition is not on disk, so the hero renders today's
+   single-file <img> before the sync that first writes the tiers, and both after it. */
+const coverSources = cover ? coverRenditions(cover) : [];
+const coverSrcset =
+  coverSources.length > 0
+    ? coverSources.map(({ path, width }) => `${sitePath(path)} ${width}w`).join(', ')
+    : undefined;
+/* `.room-cover img` is width: 100%, so the hero has none of the tile's intrinsic-size hazard
+   and this only has to be close. The cover column is minmax(13rem, 0.5fr) of a padded 1180px
+   hero, which tops out near 356px; under 900px the hero stacks and the column is capped at
+   16rem by `.room-cover`. */
+const COVER_SIZES = '(max-width: 900px) 16rem, 23rem';
 const items = releaseItems(release, itemById);
 const sections = releaseSections(items);
 const bundle = releaseBundle(items);
@@ -46,6 +61,13 @@ const mirrorHref = (of: readonly CatalogItem[]) => {
   return category ? sitePath(`archive/${categorySlug(category)}/`) : sitePath('archive/');
 };
 
+/* The shelf a release was filed on is the one fact the hero does not already print — the
+   back link and the facts line both carry the type. A release assembled across several
+   shelves has no single answer, and "אחר" names nothing; both cases drop the line and let
+   the h1 lead. 35 of the 42 releases name a shelf. */
+const filedShelf = sharedMirrorCategory(items);
+const shelf = filedShelf === 'אחר' ? null : filedShelf;
+
 const facts = [
   releaseTypeLabel(release.type),
   release.formatHe,
@@ -54,14 +76,18 @@ const facts = [
 ].filter((fact): fact is string => fact !== undefined);
 ---
 
-<BaseLayout title={`${release.titleHe} — ארכיון גיליוטין`}>
+<BaseLayout
+  title={`${release.titleHe} — ארכיון גיליוטין`}
+  image={cover ?? undefined}
+  canonical={canonical}
+>
   <article class="release-room" style={`--accent: ${accent};`}>
     <header class="room-hero">
       <div class="room-hero-copy">
         <a class="back-link" href={sitePath(`browse/type/${release.type}/`)}>
           עוד מהסוג הזה — {releaseTypeLabel(release.type)}
         </a>
-        <p class="eyebrow">משהו שנשמר</p>
+        {shelf && <p class="eyebrow">נשמר במדף {shelf}</p>}
         <h1>{release.titleHe}</h1>
         <p class="room-facts">{facts.join(' · ')}</p>
         {
@@ -75,11 +101,18 @@ const facts = [
       <div class="room-cover mat">
         {
           cover ? (
-            <img src={sitePath(cover)} alt={`עטיפת ${release.titleHe}`} width="720" height="960" />
+            <img
+              src={sitePath(cover)}
+              srcset={coverSrcset}
+              sizes={coverSrcset === undefined ? undefined : COVER_SIZES}
+              alt={`עטיפת ${release.titleHe}`}
+              width="720"
+              height="960"
+            />
           ) : (
-            <div class="release-placeholder dither" aria-hidden="true">
-              <strong>{release.titleHe}</strong>
-            </div>
+            /* Left empty on purpose: the h1 beside it already prints the title, so the mat
+               carries the dither and the corner tint instead of saying the name twice. */
+            <div class="release-placeholder dither" aria-hidden="true"></div>
           )
         }
       </div>
@@ -115,7 +148,7 @@ const facts = [
           )}
           {section.hiddenCount > 0 && (
             <p class="room-more">
-              יש פה עוד {section.hiddenCount} קבצים, ולא הצגנו אותם כדי לא למשוך את העמוד עד מחר.
+              יש פה עוד {section.hiddenCount} קבצים, ולא הצגנו אותם כדי לא למשוך את העמוד עד מחר.{' '}
               <a href={mirrorHref(section.items)}>לרשימה המלאה במדף</a>
             </p>
           )}
@@ -132,7 +165,9 @@ const facts = [
             תמונות של דמויות, קבצי נתונים. אנחנו סופרים אותם ולא מציגים אחד־אחד — כי ערימה של
             קבצי עזר זו לא תערוכה, זו עבודה.
           </p>
-          <ul class="bundle-list">
+          {/* WebKit drops the list role when list-style is none, and then VoiceOver never
+              announces how many rows there are. */}
+          <ul class="bundle-list" role="list">
             {bundle.map(({ kind, count, bytes }) => (
               <li>
                 <strong>{itemKindLabel(kind)}</strong>
@@ -154,9 +189,9 @@ const facts = [
           <h2 id="section-credits">מי בכלל עשה את זה</h2>
           <p class="room-note">
             את המשחקים האלה תייקו לפי היוצר, ולכן זה המקום היחיד בכל הארכיון שבו הקרדיט שרד.
-            בכל השאר הוא הלך לאיבוד. קיבינימאט.
+            בכל השאר הוא הלך לאיבוד.
           </p>
-          <ul class="credit-list">
+          <ul class="credit-list" role="list">
             {credits.map(({ author, items: works }) => (
               <li>
                 <strong>{author}</strong>
@@ -172,7 +207,7 @@ const facts = [
       <h2 id="section-all">כמה יש מכל דבר</h2>
       <details class="all-files">
         <summary>מה יש כאן, לפי סוג</summary>
-        <ul class="kind-counts">
+        <ul class="kind-counts" role="list">
           {
             kindCounts.map(([kind, count]) => (
               <li>

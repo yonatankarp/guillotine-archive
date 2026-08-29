@@ -15,6 +15,19 @@ interface Props {
 }
 
 const { items, heading, showCollectionLinks = false } = Astro.props;
+
+/*
+ * The shelf a file sits on, which is its path with the last segment taken off. The row above
+ * already prints that segment as the file's name, so printing the whole path under it said the
+ * filename twice — 94 times over on /archive/games/. Nothing is truncated and nothing is
+ * abbreviated: the same characters are still on the page, the name once and the folders once.
+ * The trailing separator goes with it, because a slash is bidi-neutral and would be flung to
+ * the far end of an RTL-inferred line rather than sitting where a path ends.
+ */
+function archiveFolder(path: string): string | null {
+  const lastSeparator = path.lastIndexOf('/');
+  return lastSeparator > 0 ? path.slice(0, lastSeparator) : null;
+}
 ---
 
 {heading && <h2>{heading}</h2>}
@@ -22,10 +35,13 @@ const { items, heading, showCollectionLinks = false } = Astro.props;
   items.length === 0 ? (
     <p class="empty-files">אין פה אף קובץ מקוטלג. מדור שלם, ריק, ואין לנו הסבר.</p>
   ) : (
-    <ul class="file-list" aria-label={heading ?? 'קבצים בארכיון'}>
+    /* list-style: none makes WebKit drop the list role, so VoiceOver never announces
+       "list, 94 items" on a shelf whose whole point is how much is on it. */
+    <ul class="file-list" role="list" aria-label={heading ?? 'קבצים בארכיון'}>
       {items.map((item) => {
         const actions = driveActions(item);
         const officialCollections = officialCollectionLinks(item);
+        const folder = archiveFolder(item.path);
 
         return (
           <li>
@@ -35,12 +51,14 @@ const { items, heading, showCollectionLinks = false } = Astro.props;
                 <span class="mono"><span class="visually-hidden">סוג קובץ: </span>{fileTypeLabel(item)}</span>
                 <span class="mono"><span class="visually-hidden">גודל קובץ: </span>{formatFileSize(item.size)}</span>
               </p>
-              <p class="file-path">
-                <span class="visually-hidden">נתיב בארכיון: </span>
-                <bdi dir="auto">{item.path}</bdi>
-              </p>
+              {folder !== null && (
+                <p class="file-path">
+                  <span class="visually-hidden">תיקייה בארכיון: </span>
+                  <bdi dir="auto">{folder}</bdi>
+                </p>
+              )}
               {showCollectionLinks && officialCollections.length > 0 && (
-                <ul class="collection-links" aria-label="שיוך למהדורות רשמיות">
+                <ul class="collection-links" role="list" aria-label="שיוך למהדורות רשמיות">
                   {officialCollections.map((link) => (
                     <li>
                       <a href={sitePath(`release/${link.slug}/`)}>

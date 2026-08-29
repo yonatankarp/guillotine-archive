@@ -125,10 +125,13 @@ describe('GitHub Pages deployment workflow', () => {
       'Install Chromium',
       'Verify the committed archive is present',
       'Run unit tests',
+      // Ahead of the build, which reads its `origin` and `base_path` outputs so the absolute
+      // canonical and og:url tags name the URL Pages actually serves — this site answers on a
+      // custom domain that the <owner>.github.io address only redirects to.
+      'Configure GitHub Pages',
       'Build production site',
       'Run browser tests',
       'Upload curator report',
-      'Configure GitHub Pages',
       'Upload Pages artifact',
     ]);
 
@@ -189,8 +192,8 @@ describe('GitHub Pages deployment workflow', () => {
 
     for (const stepName of ['Build production site', 'Run browser tests']) {
       expect(namedStep(buildSteps, stepName).env).toMatchObject({
-        SITE_URL: 'https://${{ github.repository_owner }}.github.io',
-        BASE_PATH: '/${{ github.event.repository.name }}',
+        SITE_URL: '${{ steps.pages.outputs.origin }}',
+        BASE_PATH: '${{ steps.pages.outputs.base_path }}',
       });
     }
   });
@@ -217,8 +220,8 @@ describe('GitHub Pages deployment workflow', () => {
     expect(namedStep(buildSteps, 'Run browser tests').run).toBe('npm run test:e2e');
     expect(namedStep(buildSteps, 'Run browser tests').env).toEqual({
       PLAYWRIGHT_USE_DIST: '1',
-      SITE_URL: 'https://${{ github.repository_owner }}.github.io',
-      BASE_PATH: '/${{ github.event.repository.name }}',
+      SITE_URL: '${{ steps.pages.outputs.origin }}',
+      BASE_PATH: '${{ steps.pages.outputs.base_path }}',
     });
   });
 });

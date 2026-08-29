@@ -22,9 +22,19 @@ const archivePagePath = (pageNumber: number) =>
       ? `archive/${slug}/`
       : `archive/${slug}/page/${pageNumber}/`,
   );
+
+/* One category can run to 17 pages, so the page number has to reach the tab, the history
+   entry and the search result — everywhere the <h1> does not. Page 1 keeps the bare title
+   because that is the page the category is known by. Each page stays its own canonical:
+   pointing them all at page 1 would hide the very items the numbering exists to separate. */
+const pageSuffix = page === 1 ? '' : ` — עמוד ${page}`;
+const pageDescriptionSuffix = page === 1 ? '' : ` עמוד ${page} מתוך ${pageCount}.`;
 ---
 
-<BaseLayout title={`${category} — ארכיון גיליוטין`}>
+<BaseLayout
+  title={`${category}${pageSuffix} — ארכיון גיליוטין`}
+  description={`${category} בארכיון גיליוטין: ${itemCountLabel}, בשמות ובנתיבים שבהם נשמרו.${pageDescriptionSuffix}`}
+>
   <header class="category-intro">
     <a class="back-link" href={sitePath('archive/')}>חזרה לכל המדפים</a>
     <h1>{category}</h1>

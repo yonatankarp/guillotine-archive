@@ -4,9 +4,16 @@ import ReleaseRoom from '../../components/ReleaseRoom.astro';
 import { releases } from '../../lib/releases';
 
 /**
- * The committed search index hard-codes /games/<slug>/ for the six game collections, and the
- * index is a build artifact this page cannot regenerate. So this route stays and renders the
- * same room as /release/<slug>/ rather than becoming a redirect.
+ * A legacy alias: nothing in the built site links here. The six game collections resolve to
+ * /release/<slug>/ everywhere, the committed search index included — every collection href in
+ * public/data/search-index.json is /release/<slug>/, so the older claim that the index still
+ * hard-codes /games/<slug>/ was simply wrong.
+ *
+ * The route stays anyway, because a deployed archive is a set of links other people already
+ * saved, and tests/e2e/archive.spec.ts pins the alias as still resolving. It renders the same
+ * room as /release/<slug>/, which makes these six pages exact duplicates of six others, so the
+ * canonical below points a crawler at the /release/ page rather than letting two URLs compete
+ * for the same content.
  */
 export const getStaticPaths = (() =>
   releases
@@ -19,4 +26,4 @@ export const getStaticPaths = (() =>
 const { release } = Astro.props;
 ---
 
-<ReleaseRoom release={release} />
+<ReleaseRoom release={release} canonical={`release/${release.slug}/`} />

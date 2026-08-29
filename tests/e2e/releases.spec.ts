@@ -596,13 +596,46 @@ test('listen and watch list the real material and say what cannot play', async (
   await page.goto(site.route('watch/'));
   await expect(page.getByRole('heading', { level: 1, name: 'סרטונים' })).toBeVisible();
   await expect(page.locator('.item-rows > li')).toHaveCount(videos.length);
-  /* A player appears exactly where a hosted rendition exists, the same rule the tracks
-     above follow. Today that is nowhere — 27 of the 31 are formats no browser decodes
-     whatever we convert to, and we host a poster and a duration instead of 6.4 GB — so
-     this asserts zero players from the data rather than from a hardcoded zero, and starts
-     asserting real ones the first time a sync produces a rendition. */
+  /*
+   * A <video> appears exactly where a hosted rendition exists, the same rule the tracks
+   * above follow — plus one stage per group that earned a screening player, exactly as an
+   * album adds one shared <audio> to its own tracklist.
+   *
+   * The element per rendition survives the upgrade rather than being removed: with the
+   * script running it stops being a player and becomes the queue row's still, which is why
+   * the controls assertion below is what separates the two roles. Both counts come from the
+   * catalog, so a sync that converts more of the 31 moves them together.
+   */
   const playableVideos = videos.filter(({ derivatives }) => derivatives?.video !== undefined);
-  await expect(page.locator('video')).toHaveCount(playableVideos.length);
+  const playableByRelease = new Map<string, number>();
+  const videosByRelease = new Map<string, number>();
+  for (const video of videos) {
+    videosByRelease.set(video.releaseSlug, (videosByRelease.get(video.releaseSlug) ?? 0) + 1);
+    if (video.derivatives?.video !== undefined) {
+      playableByRelease.set(video.releaseSlug, (playableByRelease.get(video.releaseSlug) ?? 0) + 1);
+    }
+  }
+  const screeningPlayers = [...playableByRelease.values()].filter((size) => size > 1).length;
+  /*
+   * A group whose videos are all too large to convert gets the reel: the same stage and queue,
+   * no play button, because there is nothing hosted to play. Its stage is still a <video> —
+   * carrying the poster and no src at all, so it paints the still and fetches nothing. That
+   * "no src" is the whole bandwidth argument: the eight files behind these three panels are
+   * 155MB to 2GB and we deliberately do not serve them.
+   */
+  const reelPanels = [...videosByRelease].filter(
+    ([slug, size]) => size > 1 && (playableByRelease.get(slug) ?? 0) === 0,
+  ).length;
+  await expect(page.locator('video')).toHaveCount(
+    playableVideos.length + screeningPlayers + reelPanels,
+  );
+  await expect(page.locator('.screening-player')).toHaveCount(screeningPlayers + reelPanels);
+  await expect(page.locator('.screening-player[data-reel]')).toHaveCount(reelPanels);
+  /* A reel never offers a control it cannot honour. */
+  await expect(page.locator('.screening-player[data-reel] [data-screen-toggle]')).toHaveCount(0);
+  await expect(page.locator('.screening-player[data-reel] [data-screen-video][src]')).toHaveCount(0);
+  /* The panel is the control now, so nothing in the list carries the browser's own. */
+  await expect(page.locator('.item-rows video[controls]')).toHaveCount(0);
   /* A poster stands in for a video that cannot play, and the row drops it the moment one
      can, so what is on the page is the videos with a still and no rendition — not every
      video with a still. */

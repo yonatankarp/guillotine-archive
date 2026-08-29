@@ -962,29 +962,145 @@ main {
 }
 
 /*
- * Video only — <audio> wears this class too, and a 320px cap on a seek bar is not a
- * player. The transcoded video derivatives are 320x240 and their posters 220x165, so an
- * uncapped 100% put a 320px frame across an 1180px column: a 3.7x smear, the same failure
- * the cover rule above refuses at 2.3x. 20rem IS 320px, the native width of 22 of the 23
- * transcodes, so they play at 1:1 and nothing is invented; the one 240x180 outlier comes up
- * 1.33x, which is under the 1.5x this file has tolerated elsewhere. The poster still shows
- * at 1.45x, and that is the cheaper of the two upscales on offer — it is a pre-roll still,
- * the video is the content, and shrinking the frame to the poster's 220px would take the
- * browser's own controls below the width they stay usable at.
+ * ---------- the screening mount ----------
  *
- * The aspect ratio is measured, not assumed: every one of the 23 files is 4:3 (320x240, and
- * the outlier 240x180). Stating it rather than waiting for it is what keeps each player off
- * the UA's 2:1 default until its poster loads — 23 of those relaying out mid-load is the
- * whole /watch/ page jumping. The mat behind it means a future non-4:3 transcode letterboxes
- * on the same dark field the covers sit on rather than stretching.
+ * A video row is not a text row with a picture under it. 23 of the 31 videos play from a
+ * 320x240 transcode and the other 8 show a 220x165 still, and either way the frame is under
+ * a third of the 1146px a row gets at full width. Capping it — which this file has to,
+ * because an uncapped 100% smeared a 320px frame across the column at 3.7x, the same failure
+ * .release-cover refuses at 2.3x — left a stamp adrift in a band of nothing with the two
+ * Drive links stranded at the far end of it.
+ *
+ * So the frame is mounted rather than merely capped. It is the argument .release-cover
+ * already makes about a 118x158 cover: the small thing sits at its true size on a designed
+ * field, and the field carries the difference. 2003 WMV captures out of a shareware studio
+ * are 320 pixels across. That is what they are, and the mount is built around it instead of
+ * around the room the page happens to have.
+ *
+ * The frame is stated in px, and that is deliberate. :root sets font-size: var(--t-m), and
+ * rem in that one declaration resolves against the initial 16px, so the root lands on 17px
+ * and 1rem is 17px everywhere on this site. A 20rem frame is therefore 340px, not 320 — a
+ * 1.0625x upscale of every transcode, which is exactly the thing this block refuses. (The
+ * cap that stood here before said "20rem IS 320px" and was measured at 376px on the built
+ * page. It was off by a sixteenth in the same direction the whole time.) 320 is a fact about
+ * the file, not a typographic measure, so it does not follow the type scale. Everything that
+ * surrounds it — mat, gutters, the name column — is rem, because all of that is.
  */
-video.item-player {
-  max-width: 20rem;
-  aspect-ratio: 4 / 3;
-  height: auto;
-  background: var(--mat);
+.screening {
+  /* 320px is the frame (below), 1rem the mat on each side, 2px the mount's own hairline:
+     356px. Narrower than that, the box takes what the row gives it and the mat pays first. */
+  width: min(100%, calc(320px + 2rem + 2px));
+  margin-top: 0.7rem;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-s);
+  /* The mat runs to the corners, so the mount is what rounds them. */
+  overflow: hidden;
 }
 
+/*
+ * The mat, and the only place the frame's width is decided. The padding is whatever the
+ * mount has spare, split in two: the frame comes out at exactly 320px, the native width of
+ * 22 of the 23 transcodes, so they play at 1:1 and nothing is invented — and the mat at
+ * exactly 1rem, 17px, which is the row's own padding and four cells of the 4px dither, the
+ * least that reads as texture rather than as dirt. Where the row is narrower than the mount
+ * wants (a 320px phone leaves it 263px) max() takes the mat to nothing before the frame
+ * gives up a pixel, and only then does the frame shrink. It never grows: an upscaled capture
+ * is the failure this whole block exists to fix.
+ */
+.screening-stage {
+  padding: max(0px, calc((100% - 320px) / 2));
+  /* The dither's second licensed home — see .dither: the mat behind a coverless release, and
+     the base of a video poster. It shows in the mat margin and in the bars behind a 16:9
+     still, which is exactly where the picture is not, so the field reads as archive stock
+     rather than as flat black. Same ink as .release-placeholder, for the same reason: at 31
+     frames on /watch/ a saturated one would turn the page into a colour chart. */
+  --dither-ink: color-mix(in oklab, var(--accent) 30%, #1a1f18);
+}
+
+/*
+ * Both states of the same video, one box. A video that plays and a video that does not are
+ * the same object on this site, so they are the same 320px across and the same 4:3 tall, and
+ * the mount around them is identical.
+ *
+ * The ratio is measured, not assumed: every one of the 23 transcodes is 4:3 (22 at 320x240,
+ * the outlier 240x180 coming up 1.33x, under the 1.5x this file has tolerated elsewhere) and
+ * 27 of the 31 posters are 220x165. Stating it rather than waiting for it keeps each frame
+ * off the UA's 2:1 default until its poster loads — 23 of those relaying out mid-load is the
+ * whole /watch/ page jumping.
+ *
+ * The four 220x124 stills letterbox onto the mat. An older note here refused a hardcoded 4:3
+ * for exactly those four, and it was right at the time: the poster WAS the frame then, and
+ * bars would have been shape nobody chose. There is a mat now, and bars are what a mat is
+ * for — .release-cover makes the same trade for covers that run 0.58 to 1.50.
+ */
+.screening-stage > .item-player,
+.screening-stage > .item-poster {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  height: auto;
+  margin: 0;
+}
+
+/* A future non-4:3 transcode letterboxes on the same dark field the covers sit on rather
+   than stretching. Flat, not dithered: the texture belongs to the mat around the frame, and
+   a moving picture with a pattern inside its own letterbox bars would read as a fault.
+   Block, because a video is inline by default and the descender space under an inline box
+   opens a gap below the frame that the mat's own padding does not account for. */
+video.item-player {
+  display: block;
+  background: var(--mat);
+  /* Redundant inside the mount, which already hands the frame exactly 320px, and kept
+     anyway: the cap is what stands between a 320px capture and the 3.7x smear, and it must
+     not depend on the element having landed in a particular box. */
+  max-width: 320px;
+}
+
+/* The still that stands in for a video with no transcode. Its geometry is the rule above;
+   this holds the duration chip and keeps the picture's own near-square corner. One grid
+   cell for the image, the way .room-cover holds a cover: it stretches the still to the box
+   the ratio has already reserved, and it closes the same inline gap the player closes. */
+.item-poster {
+  position: relative;
+  display: grid;
+  border-radius: var(--radius-xs);
+  overflow: hidden;
+}
+
+.item-poster img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* 220 across a 320 frame is 1.45x, and it is the same 1.45x the playable state's own
+     poster takes behind the controls, so the two states are not two sharpnesses either. It
+     is also the cheaper of the two upscales on offer: the still is pre-roll, the video is
+     the content, and shrinking the frame to 220 would take the browser's own controls below
+     the width they stay usable at. Contained, so the four 220x124 stills letterbox. */
+  object-fit: contain;
+}
+
+.item-duration {
+  position: absolute;
+  inset-block-end: 0.4rem;
+  inset-inline-end: 0.4rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: var(--radius-xs);
+  background: rgb(7 9 7 / 82%);
+  color: var(--mat-text);
+  font-size: var(--t-2xs);
+}
+
+/* The row's two Drive links, brought inside the mount. They act on the frame, so they sit
+   with it: at 1146px they used to be the far end of an empty band. The inline inset is the
+   mat's own, so a link's leading edge lines up with the frame's rather than with the
+   mount's. The floor is 0.25rem rather than anything larger so that it only ever engages
+   once the mat itself has run out — below about 388px of viewport — and the two insets agree
+   at every width where there is a mat to agree with. Nothing else about the links changes:
+   same chips, same 2.4rem hit area. */
+.screening > .file-actions {
+  justify-content: flex-start;
+  padding: 0.5rem max(0.25rem, calc((100% - 320px) / 2));
+  border-top: 1px solid var(--stroke);
+}
 
 .item-player-note {
   margin: 0.6rem 0 0;
@@ -997,6 +1113,237 @@ video.item-player {
   padding-inline-start: 0.65rem;
   border-inline-start: 2px solid var(--warn);
   color: var(--text);
+}
+
+/*
+ * ---------- the panel both players wear ----------
+ *
+ * The album player on /listen/ and the screening player on /watch/ are one instrument with
+ * two mounts: a cover and a hidden <audio> in one, a 320px stage in the other, and from the
+ * status line down every part is the same part. So it is written once, here, rather than
+ * twice in two scoped component sheets — src/scripts/media-queue.ts already drives both from
+ * one file, and a transport that drifted from the code driving it would be the same failure
+ * this site has already paid for once in its build pipeline.
+ *
+ * Each component keeps only what is actually its own: the grid the panel lays out on, and
+ * the frame it puts at the head of that grid. Those differ, because a cover and a film are
+ * different shapes. Nothing here is scoped and nothing here needs to be: no rule in this file
+ * competes with a .player- selector, and the rules that DO compete — a playlist row inside a
+ * panel — live in ItemRows.astro precisely so that its component attribute can outrank this
+ * file. --- The panel identifies itself with [data-media-panel], which is what those rules
+ * hook, so a third player would inherit the whole set by carrying one attribute.
+ */
+
+.player-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* The item is the headline of the panel. At label size the whole thing read as a toolbar with
+   a caption; the name carries it, and the state word stays small beside it. */
+.player-now {
+  margin: 0;
+  color: var(--dim);
+  font-size: var(--t-2xs);
+  line-height: 1.4;
+  /* Names are long, unbroken and Latin inside a Hebrew line. */
+  overflow-wrap: anywhere;
+}
+
+.player-now bdi {
+  unicode-bidi: isolate;
+  color: var(--text);
+  font-size: var(--t-m);
+  font-weight: 500;
+}
+
+.player-controls {
+  direction: ltr;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.player-seek {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.player-clock {
+  flex: 0 0 auto;
+  /* Wide enough for the longest thing either clock ever says, so the bar keeps its length
+     while the seconds tick. --faint is below AA at this size in both themes; the tokens
+     file says so, which is why this is --dim. */
+  min-width: 2.75rem;
+  color: var(--dim);
+  font-size: var(--t-2xs);
+}
+
+/* A range input has an intrinsic minimum width of its own, which is what pushes a 320px
+   page sideways when it sits in a row between two clocks. The height comes from padding
+   rather than a fixed box: the track then centres itself in the hit area in both engines
+   instead of relying on where each one decides to put it. */
+.player-range {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0.55rem 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+.player-range[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* Chromium has one track and no notion of a played part, so the fill is a gradient the
+   script moves through --played. Firefox has ::-moz-range-progress and fills it itself,
+   which is why the two engines are styled apart rather than made to share a rule. */
+.player-range::-webkit-slider-runnable-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--played, 0%),
+    var(--sunk) var(--played, 0%)
+  );
+}
+
+.player-range::-moz-range-track {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--sunk);
+}
+
+.player-range::-moz-range-progress {
+  height: 0.35rem;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.player-range::-webkit-slider-thumb {
+  width: 0.85rem;
+  height: 0.85rem;
+  /* Half the thumb above the 0.35rem track, so it rides the line instead of sitting on it. */
+  margin-top: -0.25rem;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  background: var(--text);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.player-range::-moz-range-thumb {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  background: var(--text);
+}
+
+.player-transport {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.player-button {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  background: var(--sunk);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.player-toggle {
+  min-width: 3rem;
+  min-height: 3rem;
+  background: color-mix(in oklab, var(--accent) 30%, var(--raise));
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--stroke));
+}
+
+.player-button:hover {
+  border-color: var(--dim);
+}
+
+.player-button[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.4;
+}
+
+/* A control that is currently ON, which on this panel is a view state rather than a command.
+   The fill is the one .player-toggle already carries, because "this button is the active one"
+   is the same thing being said — and it is a wash and a border, never the glyph, so nothing
+   rests on telling two hues apart. aria-pressed is the state; this only draws it. */
+.player-button[aria-pressed='true'] {
+  background: color-mix(in oklab, var(--accent) 30%, var(--raise));
+  border-color: color-mix(in oklab, var(--accent) 60%, var(--stroke));
+}
+
+/* The panel carries the playing state, so the icon swap is a class away rather than an
+   attribute that has to win a fight with [hidden]. */
+.icon-pause {
+  display: none;
+}
+
+[data-media-panel][data-playing] .icon-play {
+  display: none;
+}
+
+[data-media-panel][data-playing] .icon-pause {
+  display: block;
+}
+
+/* The queue runs the full width of the panel, under both the frame and the transport.
+   min-width: 0 because a grid item defaults to min-width: auto, and a 60-character Latin
+   filename would otherwise widen the whole card rather than wrap inside the row. */
+.player-list {
+  grid-column: 1 / -1;
+  min-width: 0;
+  align-self: stretch;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--stroke);
+}
+
+.player-list-note {
+  margin: 0 0 0.4rem;
+  color: var(--dim);
+  font-size: var(--t-2xs);
+  line-height: 1.5;
+}
+
+/* The plate the items sit on. The panel around it carries the accent wash, so the list drops
+   back to the plain raised surface — which is also what lets a row's own accent wash read as
+   the item that is playing instead of vanishing into the panel. */
+.player-queue {
+  min-width: 0;
+  /* 36 tracks is the longest album here, 15 videos the longest release, and 169 rows the
+     longest page. The list scrolls at about five rows so the player stays a player; block
+     padding leaves room for the 4px focus outline and its 3px offset, which the scrollport
+     would otherwise clip. */
+  max-height: min(60vh, 26rem);
+  overflow-y: auto;
+  padding: 0.5rem 0.4rem;
+  border-radius: var(--radius-s);
+  background: var(--raise);
+}
+
+@media (max-width: 30rem) {
+  .player-queue {
+    padding-inline: 0.25rem;
+  }
 }
 
 .item-text {
@@ -1407,6 +1754,72 @@ video.item-player {
   }
 }
 
+/*
+ * Above the width where .item-head stops stacking, the mount stands beside the row's own
+ * line instead of under it, and the row reads as a name on one side and the thing itself on
+ * the other, sharing a top edge. Under it they stack, which at that width is the only thing
+ * that fits and is also what every other row on the site does.
+ *
+ * 681px is not a new number: it is where .item-head above is already a line rather than a
+ * stack. It is also the narrowest width that works. Item rows are always a full-width child
+ * of main (both consumers put them in .room-section, which nothing constrains), so at 681px
+ * the row's inner width is 611px — the 356px mount and a 1.25rem gutter leave the head 234px,
+ * clear of the 13rem basis below. Under a narrower measure still — a classic scrollbar takes
+ * about 15px — the head shrinks off its basis rather than pushing the mount out, which is
+ * what the min-width below is for.
+ */
+@media (min-width: 681px) {
+  /* Column gap only. The note and the excerpt keep their own top margins, which are tuned to
+     the rules they carry; a row gap here would be added on top of both. */
+  .video-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0 1.25rem;
+  }
+
+  /*
+   * The name column, and it stops at the width of the frame it names.
+   *
+   * Growing to fill was wrong the moment the row had more width than either part wanted: at
+   * 1180px it left the filename hard against one edge and the mount hard against the other
+   * with 650px of nothing between them, which is the same complaint the mount was built to
+   * answer, only larger. A name and the thing it names have to be adjacent or they are two
+   * objects.
+   *
+   * 13rem is the shortest column this file lets text sit in — .room-hero and .credit-list
+   * both bottom out there — and it is what the head keeps at the 681px boundary. The cap is
+   * the mount's own width, deliberately: past about 900px every head is capped, so the name
+   * column and the frame are one measure repeated twice and the frames line up down the page
+   * in a single strip. What the row has left over falls after the pair, at the end, where it
+   * reads as the margin of a card rather than as a hole between two things — and the title
+   * stays where every other row on the site starts its title, at the leading edge.
+   *
+   * min-width: 0 because a filename with no break opportunity would otherwise hold the head
+   * at its min-content width and push the mount out of the row.
+   */
+  .video-row > .item-head {
+    flex: 1 1 13rem;
+    max-width: calc(320px + 2rem + 2px);
+    min-width: 0;
+  }
+
+  /* Never narrower than the frame it holds, and no top margin: it starts level with the
+     name rather than below where the name would have been. */
+  .video-row > .screening {
+    flex: 0 0 auto;
+    margin-top: 0;
+  }
+
+  /* Why a format will not play, and any extracted text, belong to the row rather than to the
+     frame — a 356px mount is the wrong column for a sentence. They take a line of their own
+     under both. */
+  .video-row > .item-player-note,
+  .video-row > .item-text {
+    flex: 1 1 100%;
+  }
+}
+
 @media (max-width: 520px) {
   .site-header,
   main {
@@ -1698,37 +2111,9 @@ video.item-player {
   font-size: var(--t-2xs);
 }
 
-/* A frame from a video we do not host, with its duration. 20rem is video.item-player's cap,
-   deliberately: this is the unplayable state of the same thing, and a video that plays must
-   not render at a different width from one that does not. No aspect-ratio here, unlike the
-   player — four of the 31 posters are 220x124 rather than 220x165, and all four belong to
-   items with no transcode, so they reach a visitor through THIS rule and a hardcoded 4:3
-   would pillarbox exactly the clips it was supposed to frame. The <img> carries the real
-   width and height from the catalog instead, which reserves the right box per poster. */
-.item-poster {
-  position: relative;
-  margin-top: 0.7rem;
-  border-radius: var(--radius-xs);
-  overflow: hidden;
-  max-width: 20rem;
-}
-
-.item-poster img {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.item-duration {
-  position: absolute;
-  inset-block-end: 0.4rem;
-  inset-inline-end: 0.4rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: var(--radius-xs);
-  background: rgb(7 9 7 / 82%);
-  color: var(--mat-text);
-  font-size: var(--t-2xs);
-}
+/* .item-poster, .item-duration and the mount around them moved up beside video.item-player:
+   the still is the unplayable state of the player, not a gallery frame, and the two rules
+   only stay in step if they sit together. */
 
 @media (prefers-reduced-motion: reduce) {
   .gallery-frame img {

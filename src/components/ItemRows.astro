@@ -2,6 +2,7 @@
 import type { CatalogItem } from '../catalog/types';
 import { driveActions, formatFileSize, officialCollectionLinks } from '../lib/archive';
 import AlbumPlayer from './AlbumPlayer.astro';
+import ScreeningPlayer from './ScreeningPlayer.astro';
 import { formatDuration, posterUrl } from './derivative';
 import { creditedAuthor, itemKindLabel, neverPlayable, textExcerpt } from './release-view';
 
@@ -40,11 +41,47 @@ const {
 const audioSrc = (item: CatalogItem): string | null =>
   item.kind === 'track' || item.kind === 'sound' ? mediaSrc(item) : null;
 
+/** The same predicate for "this row gets a <video>", and the screening player reads it too. */
+const videoSrc = (item: CatalogItem): string | null =>
+  item.kind === 'video' ? mediaSrc(item) : null;
+
+/**
+ * A video the page has something to show for: a transcode to play, or a still standing in for
+ * one. Both are the same object in two states, both get the same mount below, and both belong
+ * on the same queue — which is the whole of what the screening player had to learn.
+ */
+const framedVideo = (item: CatalogItem): boolean =>
+  item.kind === 'video' && (videoSrc(item) !== null || posterUrl(item) !== null);
+
 /* The playlist is the audio rows in the order they are rendered. Two or more of them earn one
    player for the lot; a single track is already a player for the whole album, so it is left
    as the plain row it has always been. */
 const playlist = items.filter((item) => audioSrc(item) !== null);
 const hasAlbumPlayer = playlist.length > 1;
+
+/*
+ * And the same bargain for video, counted over everything the page can put on a stage rather
+ * than over what it can play. Eight of the thirty-one videos are past the pipeline's source
+ * cap and have a still and no rendition, and three whole releases are made of nothing else —
+ * counting only the playable ones left those three as a stack of large poster cards under two
+ * compact panels, which is two designs on one page. A still is what those files ARE here, so
+ * it earns its place on the queue and the panel is honest about what it can do with it.
+ *
+ * One list, one destination. The scripts MOVE the single rendered <ul class="item-rows"> into
+ * whichever panel is present, so a wrapper that somehow held both would have two panels
+ * pulling at one list. It cannot happen from the call sites we have — a section is music or
+ * video, never both — and the gate says so out loud rather than leaving it to be true by luck.
+ */
+const screening = items.filter(framedVideo);
+const hasScreeningPlayer = !hasAlbumPlayer && screening.length > 1;
+
+/* What the panel may claim to do. None of them playable makes it a reel: no play button and
+   no bar, because there would be nothing behind either. */
+const screeningPlayable = screening.filter((item) => videoSrc(item) !== null);
+const firstVideoPlayable = screening[0] !== undefined && videoSrc(screening[0]) !== null;
+
+/** Whichever panel is up, the rows below it become a queue: numbered, with a play handle. */
+const hasQueue = hasAlbumPlayer || hasScreeningPlayer;
 
 /**
  * Tracklist position, counted over the rows rather than over the playlist: a release whose
@@ -67,10 +104,23 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
     )
   }
 
+  {
+    hasScreeningPlayer && (
+      <ScreeningPlayer
+        labelHe={labelHe}
+        firstVideoNameHe={screening[0]!.name}
+        videoCount={screening.length}
+        playableCount={screeningPlayable.length}
+        firstVideoPlayable={firstVideoPlayable}
+      />
+    )
+  }
+
   {/* One list, rendered once. It is served here, below the panel, and that is what a visitor
-      with no JavaScript keeps: numbered rows, each with its own <audio controls> and its own
-      view and download links. Where the panel exists, audio-queue.ts moves this exact element
-      into it and it becomes the playlist — same rows, same links, same order. */}
+      with no JavaScript keeps: numbered rows, each with its own <audio controls> or
+      <video controls> and its own view and download links. Where a panel exists,
+      src/scripts/media-queue.ts moves this exact element into it and it becomes the queue —
+      same rows, same links, same order. */}
   {/* Same reason as .file-list: list-style: none removes the list role in WebKit, and a
       47-track playlist that never announces its length is a worse playlist. */}
   <ul class="item-rows" role="list" aria-label={labelHe}>
@@ -92,35 +142,84 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
         /* The curator's own grouping of a release is the only editorial label on an item, so it
            travels with the row rather than disappearing into the kind sections. */
         const group = officialCollectionLinks(item).find((link) => link.groupHe !== undefined)?.groupHe;
+        /* A video that has something to show — a transcode to play or a still standing in
+           for one. Both get the same mount, because they are the same object in two states.
+           Posters are built for videos and nothing else (31 of 31 in the catalog carry one),
+           so the kind test costs nothing today and keeps the mount off an audio row if that
+           ever changes. */
+        const framed = framedVideo(item);
+        /* A row the panel above it will take: an audio row under an album player, a framed
+           video row under a screening player. Both get the same handle and the same number,
+           because from the panel's side they are the same row. */
+        const queued = (audio !== null && hasAlbumPlayer) || (framed && hasScreeningPlayer);
+        /* On the queue with nothing to play: the archive has a picture of this file and not
+           the file. The handle still selects it — that is what puts its still on the stage —
+           so what has to change is what the handle SAYS it will do. */
+        const stillOnly = queued && audio === null && source === null;
+        /* Rendered once and placed twice: at the end of the row's own line, or inside the
+           mount below the frame. Same links, same labels, same hit area either way. */
+        const actionList =
+          actions.length > 0 ? (
+            <div class="file-actions">
+              {actions.map((action) => (
+                <a
+                  class:list={['file-action', action.kind]}
+                  href={action.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={action.label}
+                >
+                  {action.kind === 'view' ? 'צפייה' : 'הורדה'}
+                </a>
+              ))}
+            </div>
+          ) : null;
 
         return (
-          <li>
+          <li class:list={{ 'video-row': framed }}>
             <div class="item-head">
               {/* Handle and name are one line at every width. The head itself stacks under
                   680px, and a tracklist whose play button lands on its own row above the
                   track is not a tracklist. */}
               <div class="item-line">
-                {audio !== null && hasAlbumPlayer && (
-                  /* The row's handle on the album player. Hidden until the script has taken
-                     the per-row players away and has somewhere else to send the track. It
-                     only ever means "play this one": pausing is the panel's job, so the
-                     button never claims to do something it is not doing. */
+                {queued && (
+                  /* The row's handle on the panel above. Hidden until the script has taken the
+                     per-row controls away and has somewhere else to send the file. It only
+                     ever means "play this one": pausing is the panel's job, so the button
+                     never claims to do something it is not doing. */
                   <button
                     class="track-play"
                     type="button"
-                    aria-label={`נגן את ${item.name}`}
+                    aria-label={stillOnly ? `הצג את ${item.name}` : `נגן את ${item.name}`}
                     data-track-play
                     data-track={item.name}
                     hidden
                   >
-                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
-                      <path fill="currentColor" d="M8 5v14l11-7z" />
-                    </svg>
+                    {stillOnly ? (
+                      /* A frame, not a triangle. The one stroked glyph on the site: every
+                         other icon here is a solid polygon, and a picture frame drawn that way
+                         needs its inside to be a hole, which depends on which direction two
+                         subpaths happen to wind. A stroke draws the same shape and cannot be
+                         got wrong. */
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                        <path
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linejoin="round"
+                          d="M4 5h16v14H4zM4 16l4.5-5 3 3.5L15 11l5 5"
+                        />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                        <path fill="currentColor" d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
                   </button>
                 )}
                 <div class="item-identity">
                   <strong>
-                    {hasAlbumPlayer && (
+                    {hasQueue && (
                       <span class="track-number mono">{String(trackNumber.get(item.id) ?? 0).padStart(2, '0')}</span>
                     )}
                     <bdi dir="auto">{item.name}</bdi>
@@ -131,7 +230,7 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
                     {/* Drive reports a duration for video and for nothing else, so every one
                         of the 169 tracks arrives here without one. The script writes it in
                         once the browser has loaded that track and knows how long it is. */}
-                    {audio !== null && hasAlbumPlayer ? (
+                    {queued ? (
                       <span class="mono track-time" data-track-time>{duration}</span>
                     ) : (
                       duration && <span class="mono">{duration}</span>
@@ -145,51 +244,46 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
                   </p>
                 </div>
               </div>
-              {actions.length > 0 && (
-                <div class="file-actions">
-                  {actions.map((action) => (
-                    <a
-                      class:list={['file-action', action.kind]}
-                      href={action.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={action.label}
-                    >
-                      {action.kind === 'view' ? 'צפייה' : 'הורדה'}
-                    </a>
-                  ))}
-                </div>
-              )}
+              {/* A framed row hands these to the mount below, where they belong to the
+                  thing they act on. Every other row keeps them at the end of its line. */}
+              {!framed && actionList}
             </div>
 
-            {/* Only where no player carries the still itself. A poster derivative is built for
-                videos and nothing else, so this is the posterless-player fallback. */}
-            {poster !== null && source === null && (
-              <div class="item-poster mat">
-                {/* Decorative. The row's own heading above it already names this video, so
-                    an alt here only makes a Hebrew voice read a Latin filename aloud. */}
-                <img
-                  src={poster}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  width={posterSize?.width}
-                  height={posterSize?.height}
-                />
-                {duration && <span class="item-duration mono">{duration}</span>}
+            {framed && (
+              /* The mount: mat, frame, and the row's two links along the bottom of one box.
+                 Which of the two states is inside it is the only difference between a video
+                 that plays and a video that does not — the box is the same box. */
+              <div class="screening">
+                <div class="screening-stage mat dither">
+                  {source !== null ? (
+                    /* preload="none" paints nothing until play, so without the poster the
+                       frame is a blank rectangle for a video that is ready to play. */
+                    <video
+                      class="item-player"
+                      controls
+                      preload="none"
+                      poster={poster ?? undefined}
+                      src={source}
+                    ></video>
+                  ) : (
+                    <div class="item-poster">
+                      {/* Decorative. The row's own heading above it already names this video,
+                          so an alt here only makes a Hebrew voice read a Latin filename
+                          aloud. */}
+                      <img
+                        src={poster!}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        width={posterSize?.width}
+                        height={posterSize?.height}
+                      />
+                      {duration && <span class="item-duration mono">{duration}</span>}
+                    </div>
+                  )}
+                </div>
+                {actionList}
               </div>
-            )}
-
-            {item.kind === 'video' && source !== null && (
-              /* preload="none" paints nothing until play, so without the poster the row is a
-                 blank rectangle for a video that is ready to play. */
-              <video
-                class="item-player"
-                controls
-                preload="none"
-                poster={poster ?? undefined}
-                src={source}
-              ></video>
             )}
 
             {audio !== null && <audio class="item-player" controls preload="none" src={audio}></audio>}
@@ -311,32 +405,37 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
   /* ---------- the same rows, once the album player has them ---------- */
 
   /*
-   * audio-queue.ts moves this list inside the panel, and these rules are keyed on where it
+   * media-queue.ts moves this list inside the panel, and these rules are keyed on where it
    * lands rather than on a class the script has to remember to add: the styling cannot drift
-   * from the structure. They live here rather than in global.css or in AlbumPlayer.astro
+   * from the structure. They live here rather than in global.css or in the panel components
    * because of how the cascade actually falls. Astro scopes with [data-astro-cid-…] attribute
    * selectors, which ADD specificity to every compound they touch, so a rule written here
    * outranks both `.item-rows > li` in global.css and the current-row rule above — neither of
-   * which a plain `.album-player .item-rows > li` in global.css can beat.
+   * which a plain `[data-media-panel] .item-rows > li` in global.css can beat.
    *
-   * :global() is what keeps the panel's own class out of that scoping. Without it Astro would
-   * compile `.album-player` with this component's attribute, which the panel does not carry,
-   * and none of this would match anything.
+   * :global() is what keeps the panel's own hook out of that scoping. Without it Astro would
+   * compile `[data-media-panel]` with this component's attribute, which the panel does not
+   * carry, and none of this would match anything.
+   *
+   * The hook is an attribute rather than either panel's class on purpose: the album player
+   * and the screening player put the same rows on the same plate, so one set of rules serves
+   * both. Keying on `.album-player` and then copying the set for `.screening-player` is the
+   * drift this file already argues against everywhere else.
    */
-  :global(.album-player) .item-rows {
+  :global([data-media-panel]) .item-rows {
     gap: 0;
   }
 
   /* A row of a playlist, not a card in a list of cards: the plate is the box now, so the row
      gives up its border and its background and takes a hairline off its neighbour instead. */
-  :global(.album-player) .item-rows > li {
+  :global([data-media-panel]) .item-rows > li {
     padding: 0.45rem 0.55rem;
     border: 0;
     border-radius: 0;
     background: none;
   }
 
-  :global(.album-player) .item-rows > li + li {
+  :global([data-media-panel]) .item-rows > li + li {
     border-top: 1px solid var(--stroke-soft);
   }
 
@@ -345,7 +444,7 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
      one, which still clears AA for the row's --dim meta at every accent in the palette in both
      themes. The bar down the leading edge is a shape rather than a hue, and the number goes
      bold and the handle fills in beside it, so nothing rests on telling two colours apart. */
-  :global(.album-player) .item-rows > li:has(.track-play[aria-current='true']) {
+  :global([data-media-panel]) .item-rows > li:has(.track-play[aria-current='true']) {
     border-color: var(--stroke-soft);
     border-inline-start: 2px solid var(--accent);
     padding-inline-start: calc(0.55rem - 2px);
@@ -385,7 +484,7 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
     background: var(--sunk);
   }
 
-  :global(.album-player) .item-rows > li:has(.track-play[data-track-failed]) {
+  :global([data-media-panel]) .item-rows > li:has(.track-play[data-track-failed]) {
     border-inline-start: 2px dotted var(--faint);
     padding-inline-start: calc(0.55rem - 2px);
     background: none;
@@ -394,14 +493,14 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
   /* Down one step from --text, not two: --dim measures 6.66:1 on --raise in dark and 6.64:1
      in light, so the row whose name a visitor most needs in order to go find the file by
      hand stays well past AA. */
-  :global(.album-player) .item-rows > li:has(.track-play[data-track-failed]) .item-identity strong,
-  :global(.album-player) .item-rows > li:has(.track-play[data-track-failed]) .track-number {
+  :global([data-media-panel]) .item-rows > li:has(.track-play[data-track-failed]) .item-identity strong,
+  :global([data-media-panel]) .item-rows > li:has(.track-play[data-track-failed]) .track-number {
     color: var(--dim);
   }
 
   /* Undoing the current-track bold, not adding weight of its own: the number goes back to
      the 400 every other row on the playlist carries. */
-  :global(.album-player) .item-rows > li:has(.track-play[data-track-failed]) .track-number {
+  :global([data-media-panel]) .item-rows > li:has(.track-play[data-track-failed]) .track-number {
     font-weight: 400;
   }
 
@@ -409,7 +508,7 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
      untouched, because the panel took the rendered rows rather than writing new ones. They
      just stop being two filled chips per row, forty-seven rows deep, and go back to looking
      like what they are: links out to Drive. They keep the site's 2.4rem hit area. */
-  :global(.album-player) .file-action {
+  :global([data-media-panel]) .file-action {
     padding: 0.25rem 0.35rem;
     border-color: transparent;
     background: none;
@@ -419,20 +518,112 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
     text-decoration: underline;
   }
 
-  :global(.album-player) .file-action:hover {
+  :global([data-media-panel]) .file-action:hover {
     border-color: var(--stroke);
     background: var(--sunk);
+  }
+
+  /* ---------- a framed row, once the screening player has the list ---------- */
+
+  /*
+   * Out on the page a video row is a name beside a 320px frame, and global.css argues that
+   * frame at length: 320 is what the transcodes ARE, and nothing is ever upscaled past it.
+   * Inside the panel the 320px frame is the stage above, so a queue row keeps only the part
+   * that tells one film from another — the still, at 96px.
+   *
+   * 96 is a DOWNSCALE of the 220px poster, which is the one direction .screening-stage has
+   * ever permitted: it refuses growth, not reduction. It is also what makes a queue a queue.
+   * 96px of 4:3 is 72px of picture, so a row lands near 87px with its own padding, and the
+   * 26rem scrollport shows about five of them — the same five rows the album playlist shows,
+   * which is the number the shared .player-queue comment already commits to.
+   *
+   * display: contents on the mount is what lets one flex line hold the still, the name and
+   * the two Drive links. At 96px the mount's border and rounding are drawing a box around a
+   * thumbnail, which is exactly what a playlist row gave up its own border to stop doing;
+   * dropping the box drops them. Its two children become the row's own flex items, so nothing
+   * has to be moved and every link is still the link the server rendered.
+   */
+  :global([data-media-panel]) .video-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.7rem;
+  }
+
+  :global([data-media-panel]) .video-row > .screening {
+    display: contents;
+  }
+
+  /*
+   * Leads the row, which in RTL puts it on the right — the same place the play handle leads a
+   * track row from. The mat has no margin to draw at this size: 96px IS the frame, so the
+   * padding that would centre a 320px picture inside a wider mount goes to nothing.
+   *
+   * The dither goes with it, and that is a decision rather than a consequence — the texture
+   * is a background-image and would happily survive the padding. It shows in the letterbox
+   * bars of the four 220x124 stills, which at 96px are about 9px deep: two cells of a 4px
+   * pattern, where .screening-stage puts the floor at four and calls anything less dirt. So
+   * the bars fall back to flat mat, the same call video.item-player already makes for its
+   * own letterbox and for the same reason.
+   */
+  :global([data-media-panel]) .video-row .screening-stage {
+    order: -1;
+    flex: 0 0 96px;
+    padding: 0;
+    background-image: none;
+    border-radius: var(--radius-xs);
+    overflow: hidden;
+  }
+
+  /* Out on the page the head stops at the width of the frame it names, so a name and its
+     film stay adjacent across 1146px of row. In a 96px strip there is nothing to be adjacent
+     across, and the name takes what is left. */
+  :global([data-media-panel]) .video-row > .item-head {
+    flex: 1 1 8rem;
+    min-width: 0;
+    max-width: none;
+  }
+
+  /* The mount's own footer rule and gutter belonged to the box that just stopped existing. */
+  :global([data-media-panel]) .video-row .screening > .file-actions {
+    flex: 0 0 auto;
+    padding: 0;
+    border-top: 0;
+  }
+
+  /* Any extracted text belongs to the row rather than to the thumbnail. global.css gives it a
+     line of its own past 681px; inside the panel the row is a flex line at every width, so it
+     needs one at every width too. */
+  :global([data-media-panel]) .video-row > .item-text {
+    flex: 1 1 100%;
+  }
+
+  /* Why a format will not play is said once by the panel and not once per row. A release room
+     serves that note on every video row, which is right for a shelf of files and wrong for a
+     queue: eight warn-ruled paragraphs down a scrollport read as eight faults, and the panel
+     has already said the same thing twice — in its own note above the queue, and in the
+     status line, which names the file it cannot play at the moment it is selected. The note
+     is still on the served page for a visitor with no script, and still on the shelves. */
+  :global([data-media-panel]) .video-row > .item-player-note {
+    display: none;
+  }
+
+  /* The chip says the length over the still because a still has no other way to say it. The
+     row's own meta line is right there saying the same thing, and at 96px the two of them
+     are the same sentence twice in half the space. */
+  :global([data-media-panel]) .video-row .item-duration {
+    display: none;
   }
 
   /* Under 390px global.css gives every row's actions a full-width column each, which is right
      for a file shelf and wrong for a playlist: it made one track 167px tall and left two and a
      half of them on a phone screen. As links they fit on one line of their own. */
   @media (max-width: 390px) {
-    :global(.album-player) .file-actions {
+    :global([data-media-panel]) .file-actions {
       display: flex;
     }
 
-    :global(.album-player) .file-action {
+    :global([data-media-panel]) .file-action {
       justify-content: flex-start;
       white-space: nowrap;
     }

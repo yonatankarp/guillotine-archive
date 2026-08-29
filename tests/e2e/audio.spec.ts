@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { loadCatalog } from '../../src/lib/catalog';
-import { releaseCoverPath } from '../../src/components/release-view';
+import { releaseCoverPath, releaseSections } from '../../src/components/release-view';
 import { playwrightRuntime } from '../support/playwright-runtime';
 
 const expectedCatalog = loadCatalog('src/generated/catalog.json', false);
@@ -346,13 +346,35 @@ test('cueing an album fetches nothing', async ({ page }) => {
   expect(fetched, 'the upgrade cues every album and downloads none of them').toEqual([]);
 });
 
-test('a list with no audio is left exactly as it was', async ({ page }) => {
-  /* The wrapper goes around every rendered list, including the video ones, and must add
-     nothing at all to a list that has nothing to play. */
-  await page.goto(site.route('watch/'));
+test('a list with nothing playable is left exactly as it was', async ({ page }) => {
+  /*
+   * The wrapper goes around every rendered list and must add nothing at all to one that has
+   * nothing to play. This used to point at /watch/, on the grounds that video lists were
+   * never upgraded — that is no longer the product: a release group of videos now gets a
+   * screening player of its own, the same way an album of tracks does. So the case this
+   * test exists to protect is now a list of neither, and the release is derived rather than
+   * named, so a sync that re-files the material cannot quietly turn this into a no-op.
+   */
+  const playableRelease = new Set(
+    expectedCatalog.items
+      .filter((item) => item.derivatives?.audio !== undefined || item.derivatives?.video !== undefined)
+      .map((item) => item.releaseSlug),
+  );
+  /* The gallery section is a carousel, not a list, so a release of nothing but scans never
+     renders the wrapper at all and would prove nothing here. Ask releaseSections which
+     sections the release actually gets, rather than restating the kind mapping. */
+  const silent = expectedCatalog.releases.find((release) => {
+    if (playableRelease.has(release.slug)) return false;
+    const items = expectedCatalog.items.filter((item) => item.releaseSlug === release.slug);
+    return releaseSections(items).some((section) => section.id !== 'gallery');
+  });
+  expect(silent, 'the catalog holds a release that renders rows but nothing playable').toBeDefined();
+
+  await page.goto(site.route(`release/${silent!.slug}/`));
 
   await expect(page.locator('.album')).not.toHaveCount(0);
   await expect(page.locator('.album-player')).toHaveCount(0);
+  await expect(page.locator('.screening-player')).toHaveCount(0);
   await expect(page.locator('.track-play')).toHaveCount(0);
   await expect(page.getByRole('status')).toHaveCount(0);
 });

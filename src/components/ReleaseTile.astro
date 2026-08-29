@@ -2,6 +2,7 @@
 import type { Release } from '../catalog/types';
 import { formatFileCount } from '../lib/archive';
 import { sitePath } from '../lib/url';
+import { coverRenditions } from './cover-sources';
 import { releaseAccent, releaseCoverPath, releaseTypeLabel } from './release-view';
 
 interface Props {
@@ -13,6 +14,31 @@ interface Props {
 const { release, itemCount, showSummary = false } = Astro.props;
 const accent = releaseAccent(release);
 const cover = releaseCoverPath(release);
+/*
+ * `undefined` and not '' when there is nothing to choose between, so Astro drops the attribute
+ * and the tile emits exactly the <img> it emitted before the tiers existed.
+ */
+const renditions = cover ? coverRenditions(cover) : [];
+const srcset =
+  renditions.length > 0
+    ? renditions.map(({ path, width }) => `${sitePath(path)} ${width}w`).join(', ')
+    : undefined;
+
+/*
+ * `sizes` has to be an UPPER bound on the box, not an estimate, and this is the part that is
+ * easy to get wrong. With w descriptors the browser replaces the image's intrinsic width with
+ * whatever `sizes` resolves to, and `.release-cover img` sizes itself from that intrinsic
+ * width under `max-width: 100%`. Name a value under the real box and every cover shrinks and
+ * starts showing mat around it.
+ *
+ * main is min(1180px, 100vw - 2rem) and `.release-grid` is auto-fill over 15rem columns, so
+ * the widest box is the two-column step, (760 - 20) / 2 = 370px, and every step above it is
+ * narrower. 24rem clears that; below 34rem the grid is one column and the box is the column,
+ * which is 100vw less the page gutter. Both are over the truth, so the clamp still comes from
+ * the container and every tile lays out exactly where it lays out today. Stated in rem rather
+ * than px so it tracks `.release-grid`'s own 15rem column if the reader has scaled their text.
+ */
+const COVER_SIZES = '(max-width: 34rem) 100vw, 24rem';
 const facts = [releaseTypeLabel(release.type), release.formatHe, release.year?.toString()].filter(
   (fact): fact is string => fact !== undefined,
 );
@@ -34,11 +60,22 @@ const facts = [releaseTypeLabel(release.type), release.formatHe, release.year?.t
     <div class="release-cover mat">
       {
         cover ? (
-          <img src={sitePath(cover)} alt={`עטיפת ${release.titleHe}`} loading="lazy" width="720" height="960" />
+          <img
+            src={sitePath(cover)}
+            srcset={srcset}
+            sizes={srcset === undefined ? undefined : COVER_SIZES}
+            alt={`עטיפת ${release.titleHe}`}
+            loading="lazy"
+            width="720"
+            height="960"
+          />
         ) : (
-          <div class="release-placeholder dither" aria-hidden="true">
-            <strong>{release.titleHe}</strong>
-          </div>
+          /* Deliberately empty. The mat is a frame, not a caption: the <h3> a few pixels
+             below already carries the title, and .release-facts beside it already carries
+             the type label and the file count, so anything printed here echoes the tile.
+             The dither, the accent's corner tint (::after) and the inner rule (::before)
+             all paint with no child, and they are what says "filed, not missing". */
+          <div class="release-placeholder dither" aria-hidden="true" />
         )
       }
     </div>

@@ -1,0 +1,38 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { sitePath } from '../lib/url';
+---
+
+<BaseLayout
+  title="אין פה דף — ארכיון גיליוטין"
+  description="הדף הזה לא קיים בארכיון גיליוטין. מכאן חוזרים לדף הבית, לארכיון או לחיפוש."
+>
+  <article class="reading-page">
+    <header>
+      <p class="eyebrow">שגיאה 404, וזאת כל המחלקה</p>
+      <h1>אין פה דף</h1>
+      <p class="lead">
+        מה קרה כאן? כלום. אולי הדף היה ועבר, אולי הקישור הועתק חצי, אולי מישהו הקליד לפי
+        השמיעה. הבדיקה הפנימית הסתיימה, והמסקנה המלאה שלה היא: כי ככה.
+      </p>
+    </header>
+
+    <section aria-labelledby="loss-heading">
+      <h2 id="loss-heading">אז מה איבדנו?</h2>
+      <p>
+        שום דבר! הערמה בדיוק באותו גודל, אף קובץ לא זז, ובנוסף יצא לנו דף שגיאה שלא היה לנו
+        קודם. סופרים את זה ויוצא רווח נקי.
+      </p>
+    </section>
+
+    <section aria-labelledby="where-heading">
+      <h2 id="where-heading">ולאן הולכים עכשיו?</h2>
+      <p>
+        אפשר <a href={sitePath()}>לדף הבית</a>, אפשר ישר{' '}
+        <a href={sitePath('archive/')}>לכל הקבצים לפי מדף</a>, ואם אתם יודעים מה אתם מחפשים —{' '}
+        <a href={sitePath('search/')}>החיפוש</a> כאן. אחד מהשלושה יעבוד. הבטחנו?
+        לא. אבל יעבוד.
+      </p>
+    </section>
+  </article>
+</BaseLayout>

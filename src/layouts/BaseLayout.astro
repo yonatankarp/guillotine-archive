@@ -6,12 +6,83 @@ import '../styles/global.css';
 interface Props {
   title: string;
   description?: string;
+  /** Site-relative, exactly what sitePath() takes: `generated/covers/<id>.webp`. */
+  image?: string;
+  /** Site-relative. Only pass it on a page that is an alias of another one. */
+  canonical?: string;
 }
 
 const {
   title,
-  description = 'כל מה שגיליוטין הוציאה, ולא זרקנו. תיק ציבורי, פתוח לכולם.',
+  description = 'מה שגיליוטין הוציאה ולא זרקנו — כמעט הכל, ומה שחסר רשום אצלנו. תיק ציבורי, פתוח לכולם.',
+  image = 'assets/covers/piposh-revolution.webp',
+  canonical,
 } = Astro.props;
+
+/**
+ * Astro.site is the deployment origin, not the site root: the workflow sets SITE_URL to
+ * https://<owner>.github.io while the site lives under /<repo>/. So it is never used on
+ * its own — every absolute URL here is composed from a path that already carries the base
+ * path, which is Astro.url.pathname for the current page and sitePath() for anything else.
+ * That also survives a repository rename, which a hardcoded SITE_URL would not.
+ */
+const absoluteUrl = (path: string) => new URL(path, Astro.site).href;
+const canonicalUrl = absoluteUrl(
+  canonical === undefined ? Astro.url.pathname : sitePath(canonical),
+);
+const imageUrl = absoluteUrl(sitePath(image));
+
+/**
+ * The fonts are served from this origin, not from Google.
+ *
+ * The stylesheet link this replaces cost 22KB of render-blocking CSS on all 106 pages and
+ * then a *second* cross-origin connection to fonts.gstatic.com before the first font byte
+ * could be requested, because the file URLs are only discoverable once that CSS has parsed.
+ * preconnect cannot remove that round trip, only warm it. Self-hosting deletes both hops.
+ *
+ * These rules live in the layout rather than in global.css because a plain stylesheet has no
+ * way to call sitePath(). The site deploys under /<repo>/, so a literal `url(/fonts/…)` would
+ * resolve to the domain root and 404 in production. global.css is inlined into every page
+ * anyway (astro.config.ts, `inlineStylesheets: 'always'`), so moving these few rules into the
+ * document head adds no request and no per-page cost that inlining was not already paying.
+ *
+ * Only the Hebrew and Latin subsets are kept, verbatim from Google's own unicode-range
+ * values. The cyrillic, cyrillic-ext, vietnamese, latin-ext, math and symbols ranges are
+ * dropped: this archive renders Hebrew prose plus Latin file names, sizes and mime types,
+ * and nothing that would reach any of them.
+ */
+const HEBREW_RANGE = 'U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F';
+const LATIN_RANGE =
+  'U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, ' +
+  'U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD';
+
+const fontFace = (family: string, weight: string, file: string, range: string) => `@font-face {
+  font-family: "${family}";
+  font-style: normal;
+  font-weight: ${weight};
+  font-display: swap;
+  src: url("${sitePath('fonts/' + file)}") format("woff2");
+  unicode-range: ${range};
+}`;
+
+const fontFaces = [
+  /* Heebo is variable: Google serves one file per subset covering the whole 300-700 axis, so
+     the four weights this site uses (300/400/500/700) cost two files rather than eight. That
+     was checked, not assumed — requesting wght@300..700 returns the same two file names. */
+  fontFace('Heebo', '300 700', 'heebo-hebrew.woff2', HEBREW_RANGE),
+  fontFace('Heebo', '300 700', 'heebo-latin.woff2', LATIN_RANGE),
+  fontFace('Suez One', '400', 'suez-one-hebrew.woff2', HEBREW_RANGE),
+  /* Headings carry release names and years, so the display face needs Latin and digits. */
+  fontFace('Suez One', '400', 'suez-one-latin.woff2', LATIN_RANGE),
+  /* Karantina is Hebrew-only here. It styles one pull-quote of quoted speech, whose only
+     non-Hebrew character in the archive's own strings is a hyphen; that single glyph falls
+     through to Heebo 700, which is already loaded, rather than costing another 14KB file. */
+  fontFace('Karantina', '700', 'karantina-hebrew.woff2', HEBREW_RANGE),
+  /* IBM Plex Mono has no Hebrew cut at all, and .mono content is Latin by construction.
+     Weight 500 is genuinely reached: .facet-chip and the current media tab both set it. */
+  fontFace('IBM Plex Mono', '400', 'ibm-plex-mono-400-latin.woff2', LATIN_RANGE),
+  fontFace('IBM Plex Mono', '500', 'ibm-plex-mono-500-latin.woff2', LATIN_RANGE),
+].join('\n');
 ---
 
 <!doctype html>
@@ -22,12 +93,42 @@ const {
     <meta name="description" content={description} />
     <meta name="theme-color" content="#0f1210" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#edebe1" media="(prefers-color-scheme: light)" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ארכיון גיליוטין" />
+    <meta property="og:locale" content="he_IL" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:image" content={imageUrl} />
+    {/* Every image the archive can offer is a portrait cover (720×960) or the portrait
+        mascot. summary_large_image crops those to a landscape band through the middle,
+        so the square thumbnail of `summary` is the one that shows the actual artwork. */}
+    <meta name="twitter:card" content="summary" />
+    {/* Only the two Hebrew faces the first screen cannot be painted without: body text and
+        the h1. The other five are deliberately left to be discovered — Latin subsets carry
+        digits and file names that `swap` renders in the fallback for a few frames without
+        reflowing the Hebrew around them, the mono data sits inside lists further down, and
+        Karantina styles a single quote. These two are 19KB; preloading all seven would put
+        the full 97KB in direct competition with the HTML that decides what to paint at all,
+        which is worse than preloading nothing. `crossorigin` is required though same-origin:
+        fonts are always fetched in CORS mode, and a preload whose mode does not match the
+        eventual request is discarded and the file fetched a second time. */}
     <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&family=Karantina:wght@700&family=Suez+One&display=swap"
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href={sitePath('fonts/heebo-hebrew.woff2')}
+      crossorigin
     />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href={sitePath('fonts/suez-one-hebrew.woff2')}
+      crossorigin
+    />
+    <style is:inline set:html={fontFaces}></style>
     <title>{title}</title>
   </head>
   <body>

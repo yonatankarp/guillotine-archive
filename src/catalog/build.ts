@@ -4,6 +4,9 @@ import {
   acquireArtifactBuildLock,
   ArtifactTransactionFailure,
   canonicalizeArtifactRoot,
+  FIXED_ARTIFACT_KEYS,
+  MANAGED_ARTIFACT_DIRECTORIES,
+  MANAGED_ARTIFACTS,
   managedTargetStatus,
   portableTargetKey,
   promoteArtifactTransaction,
@@ -23,7 +26,7 @@ import {
   isTextExtractable,
   needsExternalDecoder,
   opusBitrateFor,
-  optimizeCover,
+  optimizeCoverVariants,
   optimizeLogo,
   remuxToStreamableMp4,
   resizeImage,
@@ -218,6 +221,13 @@ async function extractCatalogText(
   }
 }
 
+/**
+ * Keyed by emitted basename rather than by file id, because a cover is now several files: the
+ * 720 the page names in `src`, and a narrower `<id>-480` beside it for `srcset`. The stale
+ * sweep matches basenames against exactly this key set, so a tier missing from the map is a
+ * tier deleted on the next sync — which is why the srcset renditions are keyed here and not
+ * tracked on the side.
+ */
 async function prepareCovers(
   catalog: Catalog,
   report: ReturnType<typeof validateCatalog>,
@@ -240,7 +250,12 @@ async function prepareCovers(
     try {
       const source = await input.download(coverFileId);
       sourceCache.set(coverFileId, source);
-      coverBuffers.set(coverFileId, await optimizeCover(source, crop));
+      const { base, narrower } = await optimizeCoverVariants(source, crop);
+      coverBuffers.set(coverFileId, base);
+      // A Drive id may itself end in `-480`, so this can in principle collide with a real
+      // cover's basename. The transaction refuses duplicate targets, so it fails the sync
+      // loudly rather than writing one cover over another.
+      for (const [width, data] of narrower) coverBuffers.set(`${coverFileId}-${width}`, data);
     } catch {
       const message = `failed to process cover ${coverFileId} for collection ${slug}`;
       report.errors.push(message);
@@ -680,8 +695,8 @@ function coverWriteArtifacts(
   coverBuffers: ReadonlyMap<string, Buffer>,
   remainingStaleCovers: Artifact[],
 ): Array<WriteArtifact | ReplaceCaseArtifact> {
-  return [...coverBuffers].map(([coverFileId, data]) => {
-    const target = join(coverDirectory, `${coverFileId}.webp`);
+  return [...coverBuffers].map(([basename, data]) => {
+    const target = join(coverDirectory, `${basename}.webp`);
     const portableTarget = portableTargetKey(target);
     const aliasIndexes = remainingStaleCovers.flatMap((candidate, index) =>
       portableTargetKey(candidate.target) === portableTarget ? [index] : [],
@@ -696,13 +711,12 @@ function coverWriteArtifacts(
 }
 
 async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> {
-  const catalogPath = join(input.root, 'src/generated/catalog.json');
-  const missingListPath = join(input.root, 'src/generated/missing-list.json');
-  const searchPath = join(input.root, 'public/data/search-index.json');
-  const reportPath = join(input.root, 'reports/curator-report.json');
-  const coverDirectory = join(input.root, 'public/generated/covers');
-  const logoDirectory = join(input.root, 'public/generated/logos');
-  const derivativeDirectory = join(input.root, 'public/generated/derivatives');
+  const catalogPath = join(input.root, MANAGED_ARTIFACTS.catalog);
+  const missingListPath = join(input.root, MANAGED_ARTIFACTS.missingList);
+  const reportPath = join(input.root, MANAGED_ARTIFACTS.curatorReport);
+  const coverDirectory = join(input.root, MANAGED_ARTIFACT_DIRECTORIES.covers.path);
+  const logoDirectory = join(input.root, MANAGED_ARTIFACT_DIRECTORIES.logos.path);
+  const derivativeDirectory = join(input.root, MANAGED_ARTIFACT_DIRECTORIES.derivatives.path);
   await recoverArtifactTransaction(input.root);
   const localPreviousCount = await previousCatalogCount(input.root, catalogPath);
   const persistedPreviousCount = input.previousFileCount ?? 0;
@@ -759,6 +773,14 @@ async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> 
       target: join(logoDirectory, `${logoFileId}.webp`),
       data,
     }));
+    // The last three artifacts are the fixed tail recovery matches a journal
+    // against, so they are emitted by iterating the same ordered list it reads
+    // rather than by repeating those three paths in this order a second time.
+    const fixedArtifactData: Record<(typeof FIXED_ARTIFACT_KEYS)[number], string> = {
+      catalog: prettyJson(catalog),
+      searchIndex: serializedSearch,
+      curatorReport: prettyJson(report),
+    };
     const artifacts: Artifact[] = [
       ...remainingStaleCovers,
       ...coverArtifacts,
@@ -766,9 +788,13 @@ async function buildCatalogWithLock(input: BuildCatalogInput): Promise<Catalog> 
       ...derivativeArtifacts,
       ...posterArtifacts,
       ...missingListArtifacts,
-      { kind: 'write', target: catalogPath, data: prettyJson(catalog) },
-      { kind: 'write', target: searchPath, data: serializedSearch },
-      { kind: 'write', target: reportPath, data: prettyJson(report) },
+      ...FIXED_ARTIFACT_KEYS.map(
+        (key): WriteArtifact => ({
+          kind: 'write',
+          target: join(input.root, MANAGED_ARTIFACTS[key]),
+          data: fixedArtifactData[key],
+        }),
+      ),
     ];
     // Scale is the first thing worth knowing when a promote fails: with audio and
     // image derivatives every artifact is buffered here before any of it lands.

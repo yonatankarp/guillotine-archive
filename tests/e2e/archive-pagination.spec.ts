@@ -47,8 +47,21 @@ test('large categories are fully covered by linked static pages capped at 100 it
     );
     await expect(fileItems).toHaveCount(expectedPageItems.length);
     expect(expectedPageItems.length).toBeLessThanOrEqual(EXPECTED_PAGE_SIZE);
+    /*
+     * A row prints its path in two halves: the name in the heading, the folders under it, so
+     * that the filename is not written twice. Rejoining them here keeps this assertion on the
+     * whole path — the page still promises the path exactly as it was saved — and reads both
+     * halves off the same <li> so a row without a folder cannot shift one list against the
+     * other. Only 'מה חסר?' sits at the archive root and has no folder half.
+     */
     renderedPaths.push(
-      ...(await page.locator('.file-path bdi').allTextContents()).map((path) => path.trim()),
+      ...(await fileItems.evaluateAll((rows) =>
+        rows.map((row) => {
+          const name = row.querySelector('.file-copy > strong bdi')?.textContent?.trim() ?? '';
+          const folder = row.querySelector('.file-path bdi')?.textContent?.trim();
+          return folder ? `${folder}/${name}` : name;
+        }),
+      )),
     );
     renderedViewUrls.push(
       ...(await page.locator('.file-action.view').evaluateAll((links) =>

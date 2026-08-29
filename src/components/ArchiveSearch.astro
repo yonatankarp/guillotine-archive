@@ -1,4 +1,7 @@
 ---
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { catalog } from '../lib/catalog';
 import { searchFilterValues } from '../catalog/search';
 import { sitePath } from '../lib/url';
@@ -6,6 +9,36 @@ import { itemKindLabel } from './release-view';
 import type { ItemKind } from '../catalog/types';
 
 const filterValues = searchFilterValues(catalog);
+
+const SEARCH_INDEX_PATH = 'data/search-index.json';
+
+/**
+ * The index is 2.5 MB at a URL that never changes while its contents change on every sync, and
+ * Pages serves it with a `max-age=600` that cannot be configured. A visitor who searched
+ * before a sync therefore searches the old index for ten minutes afterwards and is quietly
+ * told the new releases do not exist. A content hash in the query string ends that: the URL
+ * moves exactly when the bytes move, and not otherwise.
+ *
+ * A query string rather than a hashed filename, and for the reason `astro.config.ts` already
+ * documents for the stylesheet: renaming a file under `max-age=600` means cached HTML asks for
+ * a name that has been deleted, and that 404 was reported in the wild. Here the file keeps its
+ * name, so a stale page asking for `?v=<old>` still gets served the current index — slightly
+ * newer data than the page expected, never a miss. It also needs nothing from the sync
+ * pipeline, so it works on the tree as committed rather than after the next Drive run.
+ *
+ * The hash is of the committed artifact, which is what ships: both workflows build after the
+ * sync that writes it, never before.
+ */
+function searchIndexUrl(): string {
+  try {
+    const index = readFileSync(join(process.cwd(), 'public', SEARCH_INDEX_PATH));
+    return `${SEARCH_INDEX_PATH}?v=${createHash('sha256').update(index).digest('hex').slice(0, 12)}`;
+  } catch {
+    // Unhashed is the behaviour this replaces, so an unreadable artifact costs the
+    // cache-busting and nothing else. `search-client.ts` still fetches a URL that resolves.
+    return SEARCH_INDEX_PATH;
+  }
+}
 
 /* The kinds worth filtering by. game-data and noise are engine droppings: real, catalogued,
    and not something anyone browses for. */
@@ -27,7 +60,7 @@ const kindFilters: ItemKind[] = [
 <section
   class="archive-search"
   data-search-root
-  data-index-url={sitePath('data/search-index.json')}
+  data-index-url={sitePath(searchIndexUrl())}
   data-base-url={import.meta.env.BASE_URL}
   aria-busy="false"
 >

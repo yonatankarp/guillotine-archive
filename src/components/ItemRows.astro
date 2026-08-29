@@ -71,7 +71,9 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
       with no JavaScript keeps: numbered rows, each with its own <audio controls> and its own
       view and download links. Where the panel exists, audio-queue.ts moves this exact element
       into it and it becomes the playlist — same rows, same links, same order. */}
-  <ul class="item-rows" aria-label={labelHe}>
+  {/* Same reason as .file-list: list-style: none removes the list role in WebKit, and a
+      47-track playlist that never announces its length is a worse playlist. */}
+  <ul class="item-rows" role="list" aria-label={labelHe}>
     {
       items.map((item) => {
         const actions = driveActions(item);
@@ -79,6 +81,10 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
         const source = mediaSrc(item);
         const audio = audioSrc(item);
         const poster = posterUrl(item);
+        /* The catalog measured every poster, and four of the 31 are 16:9 rather than 4:3.
+           Passing the real numbers through is what lets the row reserve the right box before
+           the image lands, instead of one ratio guessed for all of them. */
+        const posterSize = item.derivatives?.poster;
         const duration = formatDuration(item.derivatives?.durationMillis);
         const isMedia = item.kind === 'track' || item.kind === 'sound' || item.kind === 'video';
         const rawText = showText ? item.extractedTextHe?.trim() : undefined;
@@ -160,7 +166,16 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
                 videos and nothing else, so this is the posterless-player fallback. */}
             {poster !== null && source === null && (
               <div class="item-poster mat">
-                <img src={poster} alt={`תמונה מתוך ${item.name}`} loading="lazy" decoding="async" />
+                {/* Decorative. The row's own heading above it already names this video, so
+                    an alt here only makes a Hebrew voice read a Latin filename aloud. */}
+                <img
+                  src={poster}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  width={posterSize?.width}
+                  height={posterSize?.height}
+                />
                 {duration && <span class="item-duration mono">{duration}</span>}
               </div>
             )}
@@ -181,15 +196,27 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
 
             {isMedia && source === null && showMediaNote && (
               <p class:list={['item-player-note', { unplayable: neverPlayable(item) }]}>
-                {neverPlayable(item)
-                  ? `${item.mimeType} לא מתנגן בדפדפן כמו שהוא, ועוד אין פה גרסה מומרת. כי ככה. הקובץ עצמו נפתח בלשונית חדשה.`
-                  : 'עוד אין פה גרסה שמתנגנת. בינתיים הקובץ עצמו מחכה בלשונית חדשה.'}
+                {/* The mime type is the one Latin token on the site that used to sit in
+                    Hebrew prose bare. It happens to reorder correctly today, which is luck,
+                    not a rule — .mono isolates it the way every filename here is isolated. */}
+                {neverPlayable(item) ? (
+                  <>
+                    <bdi class="mono">{item.mimeType}</bdi>
+                    {' לא מתנגן בדפדפן כמו שהוא, ועוד אין פה גרסה מומרת. כי ככה. הקובץ עצמו נפתח בלשונית חדשה.'}
+                  </>
+                ) : (
+                  'עוד אין פה גרסה שמתנגנת. בינתיים הקובץ עצמו מחכה בלשונית חדשה.'
+                )}
               </p>
             )}
 
             {text && (
               <div class="item-text">
-                <p>{text.textHe}</p>
+                {/* Arbitrary archival text, and some of it is Latin-primary — a URL-heavy
+                    excerpt on fan-disc-69541b3e put its sentence-final period at the far
+                    left, so the paragraph read as opening with a full stop. dir="auto" lets
+                    each excerpt take direction from its own first strong character. */}
+                <p dir="auto">{text.textHe}</p>
                 {text.truncated && (
                   <p class="item-excerpt-note">זו רק ההתחלה של המסמך. השאר בקובץ עצמו — לא הצלחנו לדחוס עשרים אלף תווים לעמוד אחד.</p>
                 )}
@@ -323,6 +350,59 @@ const trackNumber = new Map(items.map((item, index) => [item.id, index + 1]));
     border-inline-start: 2px solid var(--accent);
     padding-inline-start: calc(0.55rem - 2px);
     background: color-mix(in oklab, var(--accent) 14%, var(--raise));
+  }
+
+  /*
+   * A track whose rendition would not load. audio-queue.ts marks the row's own handle with
+   * data-track-failed and steps over it, and these rules are keyed on that attribute for the
+   * same reason the current-track rules above are keyed on aria-current: the state lives on
+   * the row, so the styling cannot drift from it, and it survives after the album has moved
+   * on to the next track.
+   *
+   * They sit AFTER the current-track rules deliberately. The two selectors are the same
+   * shape and so the same specificity, and when a failure stops the album the dead row is
+   * still the current one — a track that did not load must not go on looking like a track
+   * that is playing, so failure wins the tie on order.
+   *
+   * The register is "did not load", not "gone", and not "unavailable". Only the derivative
+   * is missing: the file is still on Drive, the row's own view and download links still
+   * reach it, and the handle is still live — audio-queue.ts registers one click listener per
+   * track and never gates it on this attribute, precisely so a track that failed once can be
+   * tried again. So the handle keeps its pointer and its full-strength glyph. It is NOT
+   * dimmed the way the panel's transport buttons are: --text at 40% over --raise composites
+   * to 3.34:1 in dark and 2.57:1 in light, and that exemption belongs to controls that are
+   * actually inactive, which this one is not. Nothing is struck through either — a line
+   * through a filename would claim the thing is gone when it is one click away in the row.
+   *
+   * Nothing here rests on hue: the leading edge carries a dotted rule where the playing
+   * track carries a solid one. Same place, same weight, different shape.
+   */
+
+  /* Only to undo the playing fill. A track that died while current must stop looking like a
+     track that is running; it must not stop looking like a button. */
+  .track-play[data-track-failed] {
+    border-color: var(--stroke);
+    background: var(--sunk);
+  }
+
+  :global(.album-player) .item-rows > li:has(.track-play[data-track-failed]) {
+    border-inline-start: 2px dotted var(--faint);
+    padding-inline-start: calc(0.55rem - 2px);
+    background: none;
+  }
+
+  /* Down one step from --text, not two: --dim measures 6.66:1 on --raise in dark and 6.64:1
+     in light, so the row whose name a visitor most needs in order to go find the file by
+     hand stays well past AA. */
+  :global(.album-player) .item-rows > li:has(.track-play[data-track-failed]) .item-identity strong,
+  :global(.album-player) .item-rows > li:has(.track-play[data-track-failed]) .track-number {
+    color: var(--dim);
+  }
+
+  /* Undoing the current-track bold, not adding weight of its own: the number goes back to
+     the 400 every other row on the playlist carries. */
+  :global(.album-player) .item-rows > li:has(.track-play[data-track-failed]) .track-number {
+    font-weight: 400;
   }
 
   /* The file still opens and still downloads from inside the playlist — the same two links,

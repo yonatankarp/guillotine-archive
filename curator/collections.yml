@@ -28,7 +28,7 @@ collections:
   - slug: piposh-2
     titleHe: פיפוש 2
     type: game
-    summaryHe: אז עשינו עוד אחד. מה, חשבתם שנעצור? קיבינימאט, פיפוש לא יודע מתי לרדת מהבמה.
+    summaryHe: אז עשינו עוד אחד. מה, חשבתם שנעצור? פיפוש לא יודע מתי לרדת מהבמה.
     coverFileId: 0Bwqx7RiWdM3YcnVNS09PUGR4aFk
     # The whole panel. This scan is the front and nothing else, so any inset here slices
     # artwork — the old 533-wide rectangle cut through the פיפוש lettering.

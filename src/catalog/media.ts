@@ -250,9 +250,33 @@ export interface ImageDerivativeTier {
   edge: number;
 }
 
-const COVER_WIDTH = 720;
+export const COVER_WIDTH = 720;
 const COVER_HEIGHT = 960;
 const COVER_QUALITY = 82;
+
+/**
+ * Extra, narrower renditions of the same cover, for `srcset`.
+ *
+ * 720 is roughly double what a tile ever gets: the widest box `.release-grid` produces is the
+ * two-column step, 370 CSS px, and above it the columns only get narrower. The six covers on
+ * the front page and /games/ are 653,216 bytes at 720 and 268,792 at 480, so the second tier
+ * is 59% off the only images either page loads.
+ *
+ * 480 and no lower, because a candidate narrower than the box it lands in would be enlarged by
+ * the browser instead of the pipeline, and enlarging a cover is the thing this file refuses to
+ * do everywhere else. 480 clears 370 with room for the gap arithmetic to move.
+ */
+const COVER_NARROW_WIDTHS: readonly number[] = [480];
+
+export interface CoverRenditions {
+  /** What `src` names. Up to COVER_WIDTH wide, and — without a crop — never enlarged to it. */
+  base: Buffer;
+  /**
+   * Narrower renditions keyed by their exact rendered width, which is also the `w` descriptor
+   * and the filename suffix. Empty whenever `base` did not reach COVER_WIDTH.
+   */
+  narrower: ReadonlyMap<number, Buffer>;
+}
 const LOGO_QUALITY = 90;
 
 /**
@@ -390,11 +414,24 @@ export function cropInSource(
  * then enlarged 2x to fill the frame, which adds no detail and blurs what was there.
  */
 export async function optimizeCover(data: Buffer, crop?: CropRegion): Promise<Buffer> {
+  return renderCover(data, COVER_WIDTH, COVER_HEIGHT, crop);
+}
+
+/**
+ * The frame is a parameter only so a second, narrower rendition can be cut from the same
+ * source. The rectangle is still measured against 720x960 — `fittedCoverSize` is deliberately
+ * fixed to that frame, because that is the space every hand-measured crop was read in and a
+ * rectangle re-measured against 480x640 would land somewhere else on the artwork.
+ */
+async function renderCover(
+  data: Buffer,
+  width: number,
+  height: number,
+  crop?: CropRegion,
+): Promise<Buffer> {
   if (!crop) {
     return finishCover(
-      sharp(data)
-        .rotate()
-        .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'inside', withoutEnlargement: true }),
+      sharp(data).rotate().resize(width, height, { fit: 'inside', withoutEnlargement: true }),
     );
   }
 
@@ -412,8 +449,43 @@ export async function optimizeCover(data: Buffer, crop?: CropRegion): Promise<Bu
        * wrap, and squaring it to 3:4 sliced the פיפוש lettering off both sides. A cover matted
        * in its frame is right; a cover with its title cut off is not.
        */
-      .resize(COVER_WIDTH, COVER_HEIGHT, { fit: 'inside', withoutEnlargement: false }),
+      .resize(width, height, { fit: 'inside', withoutEnlargement: false }),
   );
+}
+
+/**
+ * Every rendition of one cover: the 720 that ships today, plus the narrower tiers.
+ *
+ * A tier is emitted only when `base` actually reached COVER_WIDTH, which is the whole
+ * no-upscale rule in one condition. פיפוש המהפכה's only surviving art is 118x158, so its base
+ * is 118 wide, a 480 tier would be a 4x smear of it, and it gets none — the tier is SKIPPED,
+ * never invented. A base that reached 720 is 3:4 or wider by construction, so fitting the same
+ * source into 480x640 is width-bound and lands on exactly 480; that is what lets the filename
+ * carry the `w` descriptor. The width is re-measured anyway, and a rendition that missed its
+ * tier is dropped rather than described wrongly, because a wrong descriptor is worse for the
+ * browser's choice than no candidate at all.
+ */
+export async function optimizeCoverVariants(
+  data: Buffer,
+  crop?: CropRegion,
+): Promise<CoverRenditions> {
+  const base = await optimizeCover(data, crop);
+  const narrower = new Map<number, Buffer>();
+  const { width: baseWidth } = await sharp(base).metadata();
+  if (baseWidth !== COVER_WIDTH) return { base, narrower };
+
+  for (const tier of COVER_NARROW_WIDTHS) {
+    const rendition = await renderCover(
+      data,
+      tier,
+      Math.round((tier * COVER_HEIGHT) / COVER_WIDTH),
+      crop,
+    );
+    const { width } = await sharp(rendition).metadata();
+    if (width === tier) narrower.set(tier, rendition);
+  }
+
+  return { base, narrower };
 }
 
 /**
@@ -604,6 +676,21 @@ export function opusBitrateFor(kind: string): string {
   return kind === 'track' ? TRACK_OPUS_BITRATE : SOUND_OPUS_BITRATE;
 }
 
+/**
+ * `-bitexact` is here for git, not for the listener.
+ *
+ * Ogg stamps every stream with a random serial number, and the page CRCs follow it, so two
+ * encodes of the same source differ in about 40 bytes out of 23,000 while decoding to the
+ * identical MD5. Opus is already compressed, so git stores each of those as a fresh full
+ * blob and delta compression recovers nothing: the 2026-08-28 sync rewrote 1,233 unchanged
+ * audio derivatives and put 279MB into history for no change a visitor could hear.
+ *
+ * `-bitexact` fixes the serial and drops the encoder version string from OpusTags, so an
+ * unchanged source re-encodes to the same bytes and git sees no modification at all. Verified
+ * both ways: byte-identical output across runs, and an unchanged decoded MD5.
+ *
+ * The video path does not need this — MP4 output is already reproducible here.
+ */
 export async function transcodeToOpus(
   data: Buffer,
   binary: string,
@@ -620,6 +707,7 @@ export async function transcodeToOpus(
       '-b:a', bitrate,
       '-vbr', 'on',
       '-application', 'audio',
+      '-bitexact',
       '-f', 'ogg',
       'pipe:1',
     ],

@@ -1,4 +1,7 @@
 import { Buffer } from 'node:buffer';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import sharp from 'sharp';
@@ -21,6 +24,8 @@ import {
   extractText,
   isTextExtractable,
   optimizeCover,
+  optimizeCoverVariants,
+  transcodeToOpus,
 } from '../../src/catalog/media';
 
 const MAX_TEXT_BYTES = 10 * 1024 * 1024;
@@ -456,5 +461,87 @@ describe('optimizeCover', () => {
 
     expect(metadata.width).toBe(100);
     expect(metadata.height).toBe(100);
+  });
+
+  /*
+   * Ogg stamps a random serial number on every stream and the page CRCs follow it, so without
+   * -bitexact two encodes of one unchanged source differ in ~40 bytes while decoding identically.
+   * Opus does not delta-compress, so git stores each as a fresh full blob: the 2026-08-28 sync
+   * rewrote 1,233 unchanged derivatives and put 279MB into history for nothing anyone can hear.
+   * The flag is invisible in the output, which is exactly why it needs a test to survive.
+   */
+  test('encodes opus reproducibly, so an unchanged source does not churn the repository', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'guillotine-opus-args-'));
+    const argsPath = join(directory, 'args');
+    const binary = join(directory, 'stub');
+    /* Drain stdin, record argv, then emit a byte: runExternalTool rejects empty output. */
+    writeFileSync(
+      binary,
+      `#!/bin/sh\ncat > /dev/null\nprintf '%s\\n' "$@" > '${argsPath}'\nprintf 'ok'\n`,
+      'utf8',
+    );
+    chmodSync(binary, 0o755);
+
+    await transcodeToOpus(Buffer.from('source audio'), binary, '96k');
+
+    const args = readFileSync(argsPath, 'utf8').split('\n').filter(Boolean);
+    expect(args).toContain('-bitexact');
+    expect(args.indexOf('-bitexact')).toBeLessThan(args.indexOf('-f'));
+  });
+});
+
+describe('optimizeCoverVariants', () => {
+  async function solidCover(width: number, height: number): Promise<Buffer> {
+    return sharp({ create: { width, height, channels: 3, background: '#3a5f8a' } })
+      .png()
+      .toBuffer();
+  }
+
+  test('cuts a 480 rendition beside the one that ships, from the same source', async () => {
+    const source = await solidCover(1500, 2000);
+
+    const { base, narrower } = await optimizeCoverVariants(source);
+
+    // The base is the existing rendition unchanged, so adding a tier cannot move the file
+    // every page already names in src.
+    expect(base).toEqual(await optimizeCover(source));
+    expect([...narrower.keys()]).toEqual([480]);
+    expect(await sharp(narrower.get(480)!).metadata()).toMatchObject({
+      format: 'webp',
+      width: 480,
+      height: 640,
+    });
+  });
+
+  /*
+   * The whole no-upscale rule in one condition: a tier exists only when the source could fill
+   * the 720 frame. Both cases below are real — פיפוש המהפכה's surviving art is 118x158, and a
+   * source taller than 3:4 fits by its height and never reaches the full width — and in both
+   * the tier is SKIPPED rather than invented at a size the artwork does not have.
+   */
+  test('skips the tier for a cover too small to fill the frame', async () => {
+    const { base, narrower } = await optimizeCoverVariants(await solidCover(118, 158));
+
+    expect(await sharp(base).metadata()).toMatchObject({ width: 118, height: 158 });
+    expect(narrower.size).toBe(0);
+  });
+
+  test('skips the tier for a cover too tall to reach the full width', async () => {
+    const { base, narrower } = await optimizeCoverVariants(await solidCover(1200, 1800));
+
+    expect(await sharp(base).metadata()).toMatchObject({ width: 640, height: 960 });
+    expect(narrower.size).toBe(0);
+  });
+
+  test('measures a curated crop against the 720 frame for every rendition', async () => {
+    const source = await solidCover(3000, 4000);
+    const crop = { left: 60, top: 80, width: 600, height: 800 };
+
+    const { base, narrower } = await optimizeCoverVariants(source, crop);
+
+    // The rectangle is read off the 720x960 fitted view whatever width is being written, so
+    // the 480 is the same picture as the 720 and not a rectangle re-measured somewhere else.
+    expect(base).toEqual(await optimizeCover(source, crop));
+    expect(await sharp(narrower.get(480)!).metadata()).toMatchObject({ width: 480, height: 640 });
   });
 });

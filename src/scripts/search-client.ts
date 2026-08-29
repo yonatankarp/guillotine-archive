@@ -4,11 +4,17 @@ import {
   extractHebrewTokens,
   getSearchOptions,
   isReleaseType,
+  resultsAnsweringWholeQuery,
   type ArchiveSearchResult,
   type SearchDocument,
 } from '../catalog/search';
 import { deriveKind } from '../catalog/kind';
 import { releaseTypeLabel } from '../components/release-view';
+/* archive.ts imports nothing but types, so sharing its formatter costs the bundle nothing and
+   keeps a size rendered here identical to the same size rendered by FileList and ItemRows.
+   url.ts is the module that cannot come along: it reaches for node:crypto, which is why
+   browser-url.ts exists beside it. */
+import { formatFileSize } from '../lib/archive';
 import { externalHttpUrl, sitePathForBrowserBase } from '../lib/browser-url';
 
 const EMPTY_STATUS = 'נו? כתבו משהו בעברית. אנחנו לא הולכים לנחש בשבילכם.';
@@ -162,14 +168,6 @@ function appendExternalAction(
   parent.append(link);
 }
 
-function formatSize(size: number | null): string {
-  if (size === null) return 'גודל לא ידוע';
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 ** 2) return `${(size / 1024).toFixed(1)} KB`;
-  if (size < 1024 ** 3) return `${(size / 1024 ** 2).toFixed(1)} MB`;
-  return `${(size / 1024 ** 3).toFixed(1)} GB`;
-}
-
 /**
  * A collection card opens a release room, so it names the release. 'משחק שלם' rather than the
  * plainer 'משחק' because it is the counterweight to 'קובץ בודד' on a file card. An index built
@@ -220,9 +218,13 @@ function renderFile(result: ArchiveSearchResult, baseUrl: string): HTMLLIElement
   heading.append(strong);
 
   const meta = appendText(item, 'p', '', 'result-meta');
-  for (const value of [result.category, result.mimeType, formatSize(result.size)]) {
-    appendText(meta, 'span', value);
-  }
+  /* The category is Hebrew and belongs to the RTL line. The type and the size do not: left
+     bare, the bidi algorithm resolves the space inside '4.9 MB' to the surrounding RTL level
+     and the browser paints 'MB 4.9'. .mono isolates them LTR, which is exactly what FileList
+     and ItemRows already do with the same two values on the server. */
+  appendText(meta, 'span', result.category);
+  appendText(meta, 'span', result.mimeType, 'mono');
+  appendText(meta, 'span', formatFileSize(result.size), 'mono');
   const path = appendText(item, 'p', '', 'result-path');
   const pathText = document.createElement('bdi');
   pathText.dir = 'auto';
@@ -421,9 +423,19 @@ async function start(root: HTMLElement): Promise<void> {
   if (!elements) return;
 
   initializeQuery(elements);
+  /* initializeQuery drops a category or kind that names no option, but nothing runs until the
+     first submit, so the address bar went on advertising a filter that was not applied — and
+     copying that URL passed the lie on. Writing the accepted state back settles it at once. */
+  updateLocation(elements);
   const parkedFocus = beginLoading(elements);
   try {
-    const response = await fetch(elements.indexUrl, { credentials: 'same-origin' });
+    /* beginLoading disables every control, and only endLoading gives them back. A request that
+       hangs instead of failing never settles, so without a deadline the form stays locked for
+       the rest of the page's life. The catch below already treats an abort as a load failure. */
+    const response = await fetch(elements.indexUrl, {
+      credentials: 'same-origin',
+      signal: AbortSignal.timeout(20_000),
+    });
     if (!response.ok) throw new Error('search index request failed');
     const serialized = await response.text();
     const engine = createSearchEngine(
@@ -452,11 +464,13 @@ async function start(root: HTMLElement): Promise<void> {
           throw new Error('invalid stored search metadata');
         }
         const selected = filterByKind(matches, elements.kind.value);
-        const rendered = selected.slice(0, RESULT_LIMIT).map((result) =>
+        /* After the kind filter, so the count describes the population actually on screen. */
+        const answering = resultsAnsweringWholeQuery(selected);
+        const rendered = answering.slice(0, RESULT_LIMIT).map((result) =>
           renderResult(result, elements.baseUrl),
         );
         elements.list.append(...rendered);
-        elements.status.textContent = resultStatus(selected.length);
+        elements.status.textContent = resultStatus(answering.length);
       } catch {
         showFailure(elements);
       }

@@ -187,6 +187,45 @@ function bestMatchTier(result: Pick<SearchResult, 'match'>): number {
   return bestTier;
 }
 
+/**
+ * The results that answer the whole query rather than one word of it.
+ *
+ * MiniSearch combines query terms with OR, so on the shipped index `פיפוש` returns 1807 and
+ * `פיפוש 1` returns 1937: adding a word WIDENS the search, because every document holding a
+ * bare `1` joins it. Ranking already buries them — `פיפוש 1` still puts the collection first —
+ * so retrieval is left exactly as it is. What cannot stand is the count built on top of it,
+ * which promised 1800 further relevant items when 135 exist.
+ *
+ * The bar is the terms the query actually retrieved anything with, not the terms typed: a word
+ * present in no document would otherwise make every result incomplete and empty the page. For
+ * the same reason a query no document answers in full keeps everything it found — a partial
+ * answer beats none.
+ */
+export function resultsAnsweringWholeQuery(
+  results: readonly ArchiveSearchResult[],
+): readonly ArchiveSearchResult[] {
+  const retrieved = new Set<string>();
+
+  for (const result of results) {
+    for (const term of result.queryTerms ?? []) {
+      retrieved.add(term);
+    }
+  }
+
+  /* One term is answered in full by everything that matched it, so there is nothing to cut. */
+  if (retrieved.size < 2) {
+    return results;
+  }
+
+  const complete = results.filter((result) => {
+    const matched = new Set(result.queryTerms ?? []);
+
+    return [...retrieved].every((term) => matched.has(term));
+  });
+
+  return complete.length > 0 ? complete : results;
+}
+
 function compareResultIds(left: string, right: string): number {
   if (left === right) {
     return 0;

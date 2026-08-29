@@ -67,8 +67,11 @@ const named = groups.length > 1;
             <bdi>{group.headingHe}</bdi>
           </h3>
         )}
+        {/* role="list" spelled out: WebKit takes the list role away from a list styled
+            list-style: none, and how many scans an object has is the point of the track. */}
         <ul
           class="carousel-track"
+          role="list"
           aria-labelledby={named ? group.id : undefined}
           aria-label={named ? undefined : labelHe}
         >
@@ -99,9 +102,20 @@ const named = groups.length > 1;
                 tabindex="-1"
                 style={aspect === null ? cap || undefined : `--tile-aspect: ${aspect.toFixed(3)}; ${cap}`}
               >
+                {/* The link carries the name, the picture does not. alt={item.name} put a
+                    Latin filename through a Hebrew voice and the caption below then read it
+                    out a second time, twice per slide across a forty-page booklet. The alt
+                    cannot simply be emptied: the picture is the whole link, so its alt was
+                    the link's name and without it the link is called בגדול and nothing else.
+                    So the name moves onto the anchor, where it belongs and is said once, and
+                    the caption stays visible and unhidden — it also carries the kind, which
+                    is real information an aria-hidden caption would take away. This also
+                    names the slides whose scan never decoded, which had no picture to
+                    borrow a name from at all. */}
                 <a
                   class="viewer-shot"
                   href={href}
+                  aria-label={`בגדול — ${item.name}`}
                   target={full === null ? '_blank' : undefined}
                   rel={full === null ? 'noopener noreferrer' : undefined}
                 >
@@ -111,7 +125,7 @@ const named = groups.length > 1;
                     ) : (
                       <img
                         src={thumb}
-                        alt={item.name}
+                        alt=""
                         width={scan?.width}
                         height={scan?.height}
                         loading={index === 0 ? 'eager' : 'lazy'}

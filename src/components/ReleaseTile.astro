@@ -9,9 +9,11 @@ interface Props {
   release: Release;
   itemCount: number;
   showSummary?: boolean;
+  /** The grid decides: a year is worth printing only where more than one tile has one. */
+  showYear?: boolean;
 }
 
-const { release, itemCount, showSummary = false } = Astro.props;
+const { release, itemCount, showSummary = false, showYear = false } = Astro.props;
 const accent = releaseAccent(release);
 const cover = releaseCoverPath(release);
 /*
@@ -39,9 +41,11 @@ const srcset =
  * than px so it tracks `.release-grid`'s own 15rem column if the reader has scaled their text.
  */
 const COVER_SIZES = '(max-width: 34rem) 100vw, 24rem';
-const facts = [releaseTypeLabel(release.type), release.formatHe, release.year?.toString()].filter(
-  (fact): fact is string => fact !== undefined,
-);
+const facts = [
+  releaseTypeLabel(release.type),
+  release.formatHe,
+  showYear ? release.year?.toString() : undefined,
+].filter((fact): fact is string => fact !== undefined);
 ---
 
 <li

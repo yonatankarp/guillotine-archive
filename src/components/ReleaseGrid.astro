@@ -26,6 +26,22 @@ const {
   showSummary = false,
 } = Astro.props;
 
+/*
+ * A year is printed on a tile only when this grid knows more than one of them.
+ *
+ * The curator has filled in exactly one year across all 42 releases — piposh-1, 1999 — so a
+ * grid of six games showed `משחק · 1999` on that tile and a bare `משחק` on the other five,
+ * which reads as a rendering fault rather than as the one thing we happen to know. The room
+ * still prints it: on a page about a single release a lone known fact is information, and
+ * there is nothing beside it to look inconsistent against.
+ *
+ * Derived rather than switched off, so filling in a second year in curator/collections.yml
+ * turns this back on by itself and nobody has to remember this rule exists. Counted over the
+ * grid's own releases, since a browse page narrowed to one year is not the home page.
+ */
+const knownYears = releases.filter((release) => release.year !== undefined).length;
+const showYear = knownYears > 1;
+
 const itemCountBySlug = new Map<string, number>();
 for (const item of catalog.items) {
   itemCountBySlug.set(item.releaseSlug, (itemCountBySlug.get(item.releaseSlug) ?? 0) + 1);
@@ -110,6 +126,7 @@ const chips: Chip[] = [
         release={release}
         itemCount={itemCountBySlug.get(release.slug) ?? 0}
         showSummary={showSummary}
+        showYear={showYear}
       />
     ))
   }

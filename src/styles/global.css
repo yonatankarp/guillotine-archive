@@ -641,10 +641,47 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(1.25rem, 4vw, 2rem);
+  /* The frame's own inner rule (::before) sits at 0.6rem, and matching it here makes the rule
+     you can see the bounds of the label inside it, so a wrapped title never crosses its own
+     frame. It replaces a clamp(1.25rem, 4vw, 2rem) that was viewport-derived on a box that is
+     not: .release-grid is auto-fill, so a tile is 270px wide at a 1440 viewport and 499px at
+     520, and that padding took a quarter of the narrow one and a twentieth of the wide one. */
+  padding: 0.6rem;
+  /* Everything inside sizes off the mat rather than the viewport, for the reason above. */
+  container-type: inline-size;
+  /* Stated rather than left to stretch, and this is load-bearing with the line above it:
+     inline-size containment computes this box's own inline size without looking at what is
+     in it, and .room-cover is a grid with no declared tracks. An explicit 100% of the grid
+     area is the same width the stretch resolved to and can never depend on the containment
+     resolving first. */
+  inline-size: 100%;
   /* The dither comes from the .dither utility on the element; this layer only adds the
      accent's corner tint above it. */
   --dither-ink: color-mix(in oklab, var(--accent) 30%, #1a1f18);
+  /*
+   * Artwork for a release the archive has no picture of, and never will: 29 of the 33 contain
+   * no image file at all. Rings off an off-centre point — the burn ring of the CD-R the release
+   * is — with the geometry seeded from the slug by coverlessArt() and the colour mixed here, so
+   * the drawing follows the release's accent and the mat without that function knowing either.
+   *
+   * Three layers, painted top to bottom: the site's own 4px dither, then a vignette that pulls
+   * the mat back up under the label so a title always has ground to sit on, then the rings. The
+   * .dither utility sets background-image too and this rule is 400 lines later in the file, so
+   * the cascade lands here — the dither is restated as the first layer rather than lost.
+   *
+   * Not an image on purpose. No canvas, no data URI, no generated file: this costs nothing at
+   * build time, makes no request, holds up with scripting off, and cannot go missing from
+   * public/ the way a written artifact can.
+   */
+  background-image:
+    repeating-conic-gradient(var(--dither-ink, currentColor) 0 25%, transparent 0 50%),
+    radial-gradient(ellipse 58% 34% at 50% 50%, color-mix(in oklab, var(--mat) 88%, transparent) 0%, transparent 70%),
+    repeating-radial-gradient(
+      circle at var(--art-x, 50%) var(--art-y, 42%),
+      color-mix(in oklab, var(--accent) 72%, var(--mat)) 0 2px,
+      color-mix(in oklab, var(--accent) 14%, var(--mat)) 2px var(--art-step, 11px)
+    );
+  background-size: 4px 4px, auto, auto;
   background-color: var(--mat);
   color: var(--mat-text);
   text-align: center;
@@ -670,13 +707,72 @@ main {
   border: 1px solid rgb(237 233 221 / 14%);
 }
 
+/*
+ * The scrawl, and the reason the mat is no longer empty.
+ *
+ * 33 of the 42 releases are a burned CD-R with the name written on it in marker, and nothing
+ * else. So the mat is that disc and this is what was written on it. It printed the title once
+ * before and was removed for good reason: at var(--t-l) in var(--f-display) it was the <h3>
+ * 13px below set a second time, identically, which reads as a rendering fault rather than as
+ * a cover. A depicted object does not have that problem — פיפוש 1's real cover art has פיפוש
+ * printed on it and the <h3> under it says פיפוש 1, and nobody reads that as a repetition.
+ *
+ * So every property this shares with that heading is moved, and it is the whole set that does
+ * the work, not any one of them: 2x to 4.2x its size for 31 of the 33 titles, tilted off the
+ * baseline, tracked ten times as open, and absorbed into the mat instead of standing on it at
+ * full text contrast. The face is the one thing held in common — --f-voice is fenced to lines
+ * someone actually says, which is one blockquote on the home page, and a title is a label.
+ *
+ * The other two are Vegimon_Beta1.0 and שאלונים\משחקונים, single unbroken tokens of 15 and 16
+ * characters. scrawlSize() has to fit those to one line, which lands them at 1.1x and 1.2x —
+ * near enough the heading to lose the depicted-object read. No sizing rule can rescue them:
+ * 15 characters across a 250px line is 24px whatever the rule says. Only a break opportunity
+ * inside the token would, and there is deliberately none here yet.
+ */
 .release-placeholder strong {
+  /* Above ::after, which tints the corner across the whole mat. */
   position: relative;
+  /* 88% and not 100%: the rotation below swings the corners of the block outward, and a
+     centred ragged label wants slack at the ends rather than a hard column. */
+  max-inline-size: 88%;
   font-family: var(--f-display);
-  font-size: var(--t-l);
+  /* The read where cq units are not supported. Stated first so the clamp below simply wins
+     where they are, and nothing is lost where they are not. */
+  font-size: var(--t-xl);
+  /* --scrawl is per-title, set inline from scrawlSize(), which sizes the label so its longest
+     WORD fits the line below. Nothing here may raise that number: a lower bound in this clamp
+     is what put a 16-character word back over the line width and sliced it, so the floor lives
+     in scrawlSize(), stated in the cqi the word rule is actually computed in. Only the ceiling
+     survives, and it only ever shrinks — 5.2rem is where a three-letter title on the 499px
+     single-column tile would otherwise become a monogram. The 12cqi default is unreachable
+     while the component sets --scrawl, and small enough not to slice if it ever did not. */
+  font-size: min(var(--scrawl, 12cqi), 5.2rem);
   font-weight: 400;
-  line-height: 1.25;
+  /* Above the 1.18 h1/h2/h3 get. This line is tilted, so ק, ן and ץ hang toward the line under
+     them at an angle and reach further than the upright setting that number was tuned for. */
+  line-height: 1.3;
+  /* Ten times the 0.005em display type gets on this site. A marker does not set type tightly,
+     and open tracking is the cheapest thing that stops this scanning as the caption again. */
+  letter-spacing: 0.05em;
+  /* Ink absorbed into the mat rather than laid on top of it. --accent is never a text colour;
+     --mat-dim is tuned for small secondary text and reads green at display size; so it is the
+     mat's own text colour mixed 78% toward the mat — #b3b1a7, 9.3:1 on the mat against the
+     <h3>'s 15.5:1 on the ground. Constant in both themes, because the mat is. */
+  color: color-mix(in oklab, var(--mat-text) 78%, var(--mat));
+  /* Upright. A tilt was tried — one angle for every mat, then one per release from the slug —
+     and both read as text that had slipped rather than as a hand writing on a disc. The label
+     carries the mat on its own: the size is set from the longest word, the ink is mixed from
+     --mat-text, and the dither behind it is what says this is an object and not a caption. */
   text-wrap: balance;
+  /* `break-word` and emphatically NOT the `anywhere` this file uses everywhere else. That is
+     the right rule for a 400-character filename, where any break beats a blown-out column;
+     it is the wrong rule for a display label, because it turns "too big" into "sliced" and
+     Hebrew has no hyphen to explain the cut — דמואים came out as דמוא / ים and read as a
+     rendering fault. `anywhere` also feeds soft-wrap opportunities into min-content sizing,
+     so it breaks words eagerly rather than only when one truly does not fit. `break-word`
+     does neither, and scrawlSize() has already sized the longest word to fit the line, so
+     this is only the last resort for a run past the 6% floor — see that function. */
+  overflow-wrap: break-word;
 }
 
 .release-copy {

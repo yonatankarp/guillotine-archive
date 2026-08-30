@@ -1,9 +1,18 @@
 ---
 import type { Release } from '../catalog/types';
 import { formatFileCount } from '../lib/archive';
+import { itemById } from '../lib/catalog';
 import { sitePath } from '../lib/url';
 import { coverRenditions } from './cover-sources';
-import { releaseAccent, releaseCoverPath, releaseTypeLabel } from './release-view';
+import {
+  coverlessArt,
+  releaseAccent,
+  releaseCoverPath,
+  releaseItems,
+  releaseStandInCover,
+  releaseTypeLabel,
+  scrawlSize,
+} from './release-view';
 
 interface Props {
   release: Release;
@@ -15,12 +24,29 @@ interface Props {
 
 const { release, itemCount, showSummary = false, showYear = false } = Astro.props;
 const accent = releaseAccent(release);
+/* Ring geometry for the mat behind a release with no cover; see coverlessArt(). */
+const art = coverlessArt(release.slug);
 const cover = releaseCoverPath(release);
 /*
- * `undefined` and not '' when there is nothing to choose between, so Astro drops the attribute
- * and the tile emits exactly the <img> it emitted before the tiers existed.
+ * Only for a release with no cover of its own, so the five curated ones never pay for the
+ * itemIds lookup, and the 33 that end at the placeholder pay it once at build time.
  */
-const renditions = cover ? coverRenditions(cover) : [];
+const standIn = cover === null ? releaseStandInCover(releaseItems(release, itemById)) : null;
+/*
+ * One object, so a branch that has a path also has the box to reserve for it and the template
+ * cannot emit a src without its dimensions. The ratio is not always 3:4: a curated cover is
+ * cropped to 720x960, but a stand-in keeps whatever it was scanned at, and בטשת מואב's is
+ * landscape. Naming the wrong one reserves the wrong box and shifts the grid when it lands.
+ */
+const image: { path: string; width: number; height: number } | null = cover
+  ? { path: cover, width: 720, height: 960 }
+  : standIn;
+/*
+ * `undefined` and not '' when there is nothing to choose between, so Astro drops the attribute
+ * and the tile emits exactly the <img> it emitted before the tiers existed. A stand-in names
+ * the two derivative tiers it already has rather than the cover tiers, which it does not.
+ */
+const renditions = cover ? coverRenditions(cover) : (standIn?.renditions ?? []);
 const srcset =
   renditions.length > 0
     ? renditions.map(({ path, width }) => `${sitePath(path)} ${width}w`).join(', ')
@@ -41,6 +67,13 @@ const srcset =
  * than px so it tracks `.release-grid`'s own 15rem column if the reader has scaled their text.
  */
 const COVER_SIZES = '(max-width: 34rem) 100vw, 24rem';
+/*
+ * A stand-in is decorative and says so. The heading below already names the release, and
+ * calling the first page of a comic "עטיפת קומיקס" describes a thing that is not there; the
+ * honest alternative, "the first page of the comic", is what a sighted visitor reads off the
+ * tile anyway. Only a real cover is announced.
+ */
+const alt = cover ? `עטיפת ${release.titleHe}` : '';
 const facts = [
   releaseTypeLabel(release.type),
   release.formatHe,
@@ -63,23 +96,29 @@ const facts = [
   >
     <div class="release-cover mat">
       {
-        cover ? (
+        image ? (
           <img
-            src={sitePath(cover)}
+            src={sitePath(image.path)}
             srcset={srcset}
             sizes={srcset === undefined ? undefined : COVER_SIZES}
-            alt={`עטיפת ${release.titleHe}`}
+            alt={alt}
             loading="lazy"
-            width="720"
-            height="960"
+            width={image.width}
+            height={image.height}
           />
         ) : (
-          /* Deliberately empty. The mat is a frame, not a caption: the <h3> a few pixels
-             below already carries the title, and .release-facts beside it already carries
-             the type label and the file count, so anything printed here echoes the tile.
-             The dither, the accent's corner tint (::after) and the inner rule (::before)
-             all paint with no child, and they are what says "filed, not missing". */
-          <div class="release-placeholder dither" aria-hidden="true" />
+          /* The mat is the disc. These are burned CD-Rs with the name written on them in
+             marker, and the placeholder is that object rather than an empty frame — the
+             .release-placeholder block in global.css carries the argument for why a depicted
+             label is not the heading printed twice. --scrawl is per-title because a marker's
+             size is a function of how much there is to write, which no CSS length can be. */
+          <div
+            class="release-placeholder dither"
+            aria-hidden="true"
+            style={`--scrawl: ${scrawlSize(release.titleHe)}cqi; --art-x: ${art.x}%; --art-y: ${art.y}%; --art-step: ${art.step}px;`}
+          >
+            <strong>{release.titleHe}</strong>
+          </div>
         )
       }
     </div>

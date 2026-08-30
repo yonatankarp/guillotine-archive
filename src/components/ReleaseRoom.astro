@@ -12,12 +12,15 @@ import {
   creditedWorks,
   itemCountsByKind,
   itemKindLabel,
+  coverlessArt,
   releaseAccent,
   releaseCoverPath,
   releaseBundle,
   releaseItems,
   releaseSections,
+  releaseStandInCover,
   releaseTypeLabel,
+  scrawlSize,
   sharedMirrorCategory,
 } from './release-view';
 
@@ -29,10 +32,21 @@ interface Props {
 
 const { release, canonical } = Astro.props;
 const accent = releaseAccent(release);
+/* Ring geometry for the mat behind a release with no cover; see coverlessArt(). */
+const art = coverlessArt(release.slug);
+const items = releaseItems(release, itemById);
 const cover = releaseCoverPath(release);
+/* An image the release already owns, standing in for the cover it never had. Only two rules
+   feed this and both read `kind` — see releaseStandInCover. */
+const standIn = cover === null ? releaseStandInCover(items) : null;
+/* One object, so a branch that has a path also has the box to reserve for it. A curated cover
+   is cropped to 720x960; a stand-in keeps whatever shape it was scanned at. */
+const heroImage: { path: string; width: number; height: number } | null = cover
+  ? { path: cover, width: 720, height: 960 }
+  : standIn;
 /* Dropped entirely when the narrower rendition is not on disk, so the hero renders today's
    single-file <img> before the sync that first writes the tiers, and both after it. */
-const coverSources = cover ? coverRenditions(cover) : [];
+const coverSources = cover ? coverRenditions(cover) : (standIn?.renditions ?? []);
 const coverSrcset =
   coverSources.length > 0
     ? coverSources.map(({ path, width }) => `${sitePath(path)} ${width}w`).join(', ')
@@ -42,7 +56,9 @@ const coverSrcset =
    hero, which tops out near 356px; under 900px the hero stacks and the column is capped at
    16rem by `.room-cover`. */
 const COVER_SIZES = '(max-width: 900px) 16rem, 23rem';
-const items = releaseItems(release, itemById);
+/* Decorative when it is a stand-in: the h1 beside it names the release, and the first page of
+   a comic is not "עטיפת קומיקס". Only a real cover is announced. */
+const heroAlt = cover ? `עטיפת ${release.titleHe}` : '';
 const sections = releaseSections(items);
 const bundle = releaseBundle(items);
 
@@ -100,19 +116,26 @@ const facts = [
       </div>
       <div class="room-cover mat">
         {
-          cover ? (
+          heroImage ? (
             <img
-              src={sitePath(cover)}
+              src={sitePath(heroImage.path)}
               srcset={coverSrcset}
               sizes={coverSrcset === undefined ? undefined : COVER_SIZES}
-              alt={`עטיפת ${release.titleHe}`}
-              width="720"
-              height="960"
+              alt={heroAlt}
+              width={heroImage.width}
+              height={heroImage.height}
             />
           ) : (
-            /* Left empty on purpose: the h1 beside it already prints the title, so the mat
-               carries the dither and the corner tint instead of saying the name twice. */
-            <div class="release-placeholder dither" aria-hidden="true"></div>
+            /* The same object as the tile at a different size: the mat is the burned CD-R and
+               the title is what was written on it. Beside a --t-4xl h1 the scrawl lands at
+               about 0.6x its size, so the hero still reads h1 first. */
+            <div
+              class="release-placeholder dither"
+              aria-hidden="true"
+              style={`--scrawl: ${scrawlSize(release.titleHe)}cqi; --art-x: ${art.x}%; --art-y: ${art.y}%; --art-step: ${art.step}px;`}
+            >
+              <strong>{release.titleHe}</strong>
+            </div>
           )
         }
       </div>

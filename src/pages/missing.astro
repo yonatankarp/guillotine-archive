@@ -35,7 +35,6 @@ interface MissingEntry {
 
 interface MissingSet {
   titleHe: string;
-  statusLabelHe: string;
   entries: MissingEntry[];
 }
 
@@ -70,12 +69,8 @@ for (let index = 0; index < usedColumns.length; index += 1) {
 
 const sets: MissingSet[] = [];
 for (const pair of pairs) {
-  const headerStatus = pair.status === null ? '' : (missingList.headerHe[pair.status] ?? '');
-  /* The sheet labels three of its four status columns סטטוס and left the fourth blank.
-     Calling that one what the sheet calls its own twins beats heading it "עמודה 1". */
   let current: MissingSet = {
     titleHe: missingList.headerHe[pair.name] ?? '',
-    statusLabelHe: headerStatus === '' ? STATUS_HEADING : headerStatus,
     entries: [],
   };
   let afterBlank = false;
@@ -94,11 +89,7 @@ for (const pair of pairs) {
        of them alone would eat a real row that happens to have no status recorded yet. */
     if (afterBlank && (statusHe === '' || statusHe === STATUS_HEADING)) {
       if (current.entries.length > 0) sets.push(current);
-      current = {
-        titleHe: nameHe,
-        statusLabelHe: statusHe === '' ? STATUS_HEADING : statusHe,
-        entries: [],
-      };
+      current = { titleHe: nameHe, entries: [] };
       afterBlank = false;
       continue;
     }
@@ -110,13 +101,77 @@ for (const pair of pairs) {
   if (current.entries.length > 0) sets.push(current);
 }
 
-/* A list where nobody wrote a single status gets no status column, the same way the empty
+/**
+ * The status was a column, repeated on every list, and reading it meant reading all 63
+ * cells one at a time. It is a mark at the head of the row now, learned once from the
+ * legend and then recognised at a glance.
+ *
+ * Three marks, matched by prefix rather than by equality, because the sheet qualifies some
+ * of its answers: "יש (חסר סריקה של ספר הסברים)" is still a yes, and the parenthesis is
+ * still the interesting half. So a value that is not exactly the mark's own word keeps its
+ * whole text on the row, verbatim — the mark says which shelf it sits on, the text says
+ * what the sheet actually wrote. A value that matches no prefix at all keeps its text too
+ * and simply gets no mark, the same way a list with no statuses gets no marks.
+ */
+const MARKS = {
+  have: {
+    glyph: '✅',
+    labelHe: 'יש',
+    glossHe: 'אצלנו, סרוק, אפשר להמשיך הלאה.',
+  },
+  scan: {
+    glyph: '📷',
+    labelHe: 'צריך לסרוק',
+    glossHe: 'החפץ אצלנו. הסורק עוד לא פגש אותו.',
+  },
+  gone: {
+    glyph: '❌',
+    labelHe: 'חסר',
+    glossHe: 'אין לנו. אם יש לכם, זה בדיוק הרגע.',
+  },
+} as const;
+
+type MarkKey = keyof typeof MARKS;
+
+const MARK_ORDER: readonly MarkKey[] = ['have', 'scan', 'gone'];
+
+const markFor = (statusHe: string): MarkKey | null =>
+  MARK_ORDER.find((key) => statusHe.startsWith(MARKS[key].labelHe)) ?? null;
+
+const markCounts: Record<MarkKey, number> = { have: 0, scan: 0, gone: 0 };
+let unmarkedCount = 0;
+let totalRows = 0;
+
+/* A list where nobody wrote a single status gets no mark column, the same way the empty
    gutters get no column: an always-empty cell is not a fact, it is a layout leftover. */
 const rendered = sets.map((set) => ({
-  ...set,
+  titleHe: set.titleHe,
   hasStatus: set.entries.some((entry) => entry.statusHe !== ''),
+  entries: set.entries.map((entry) => {
+    const mark = markFor(entry.statusHe);
+    totalRows += 1;
+    if (mark === null) {
+      if (entry.statusHe !== '') unmarkedCount += 1;
+    } else {
+      markCounts[mark] += 1;
+    }
+    return {
+      nameHe: entry.nameHe,
+      glyph: mark === null ? '' : MARKS[mark].glyph,
+      /* Read after the name, so every row is announced the same way whether its status is
+         the bare word or the sheet's own longer sentence. The comma is the pause. */
+      spokenHe: mark === null ? '' : `, ${MARKS[mark].labelHe}`,
+      noteHe: mark !== null && entry.statusHe === MARKS[mark].labelHe ? '' : entry.statusHe,
+    };
+  }),
 }));
 const hasRows = rendered.length > 0;
+
+/* The page is titled "מה עוד חסר לנו" and most of it says יש. Counted rather than written
+   down, so a sync that changes the sheet changes the sentence with it. */
+const leftoverHe =
+  unmarkedCount > 0 ? ` ועוד ${unmarkedCount} שורות שלא נכנסו לאף מגירה.` : '';
+const summaryHe = `רגע לפני הרשימות, כי מגיע לכם לדעת: בגיליון ${totalRows} שורות, ומתוכן ${markCounts.have} כבר אצלנו, ${markCounts.scan} מונחות פה ומחכות לסורק, ו-${markCounts.gone} באמת חסרות.${leftoverHe} כן, דף שנקרא ״מה עוד חסר לנו״ הוא בעיקרו רשימה של מה שיש לנו. גם אנחנו שמנו לב. לא נתנצל.`;
 ---
 
 <BaseLayout
@@ -137,36 +192,52 @@ const hasRows = rendered.length > 0;
   {
     hasRows ? (
       <>
+        <p class="missing-summary">{summaryHe}</p>
         <p class="missing-note">
           פירקנו את הגיליון לרשימות, בדיוק כמו שהן יושבות שם. למה לא טבלה אחת ענקית כמו
           במקור? כי בטלפון אף אחד לא הצליח לקרוא אותה.
         </p>
-        <div class="missing-sets">
+        <div class="missing-legend">
+          <p class="missing-legend-intro">
+            העמודה שנקראה סטטוס הפכה כאן לשלושה סימנים, וזה כל מה שצריך לדעת:
+          </p>
+          <ul>
+            {MARK_ORDER.map((key) => (
+              <li>
+                {/* The glyph is hidden from the reading order and the word next to it is
+                    the accessible name, so nobody hears an emoji described in English. */}
+                <span class="missing-mark" aria-hidden="true">
+                  {MARKS[key].glyph}
+                </span>
+                <span class="missing-legend-word">{MARKS[key].labelHe}</span>
+                <span class="missing-legend-gloss">{MARKS[key].glossHe}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div class="missing-groups">
           {rendered.map((set) => (
-            <div class="missing-set">
-              <table>
-                <caption>{set.titleHe}</caption>
-                {set.hasStatus && (
-                  <thead>
-                    <tr>
-                      {/* The corner above a column of row headers, empty on purpose and a
-                          td rather than a th: an empty header is a header nobody can hear,
-                          which is exactly what "עמודה 3" was. */}
-                      <td />
-                      <th scope="col">{set.statusLabelHe}</th>
-                    </tr>
-                  </thead>
-                )}
-                <tbody>
-                  {set.entries.map((entry) => (
-                    <tr>
-                      {entry.nameHe === '' ? <td /> : <th scope="row">{entry.nameHe}</th>}
-                      {set.hasStatus && <td>{entry.statusHe}</td>}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <section class="missing-group">
+              <h2>{set.titleHe}</h2>
+              <ul class={set.hasStatus ? undefined : 'no-marks'}>
+                {set.entries.map((entry) => (
+                  <li>
+                    {set.hasStatus && (
+                      <span class="missing-mark" aria-hidden="true">
+                        {entry.glyph}
+                      </span>
+                    )}
+                    <span class="missing-row">
+                      <span class="missing-name">{entry.nameHe}</span>
+                      {entry.spokenHe !== '' && entry.noteHe === '' && (
+                        <span class="visually-hidden">{entry.spokenHe}</span>
+                      )}
+                      {entry.noteHe !== '' && <span class="missing-qualifier">{entry.noteHe}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
         </div>
       </>
@@ -194,71 +265,122 @@ const hasRows = rendered.length > 0;
 
 <style>
   /* Scoped to this page: nothing else on the site is a spreadsheet rebuilt as lists.
-     Each list is two columns at most, so it fits a phone without a scrolling box — the
-     box the old eleven-column table needed had no visual affordance that it scrolled,
-     so its cut-off last column read as missing data rather than as hidden data. */
+     Ten bordered cards were ten things competing for attention; a heading with a rule
+     under it groups just as well and lets the page read as one document. */
+  .missing-summary {
+    max-width: 62ch;
+    margin: 0 0 1.1rem;
+    font-size: var(--t-m);
+    line-height: 1.7;
+  }
+
   .missing-note {
-    margin: 0 0 1.25rem;
+    max-width: 62ch;
+    margin: 0 0 1.5rem;
     color: var(--dim);
     font-size: var(--t-s);
   }
 
-  .missing-sets {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
-    gap: 1rem;
-    align-items: start;
+  .missing-legend {
+    margin: 0 0 clamp(2rem, 4vw, 2.75rem);
+    padding: 1.1rem 0;
+    border-block: 1px solid var(--stroke);
   }
 
-  .missing-set {
-    border: 1px solid var(--stroke);
-    border-radius: var(--radius-s);
-    background: var(--raise);
-  }
-
-  .missing-set table {
-    width: 100%;
-    border-collapse: collapse;
+  .missing-legend-intro {
+    margin: 0 0 0.9rem;
+    color: var(--dim);
     font-size: var(--t-s);
   }
 
-  .missing-set caption {
-    padding: 0.85rem 1rem;
-    border-block-end: 1px solid var(--stroke);
-    text-align: start;
+  .missing-legend ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: 0.9rem 1.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .missing-legend li,
+  .missing-group li {
+    /* The mark gets a column of its own rather than sitting loose in the line. Emoji are
+       bidi-neutral and drift to the wrong end of an RTL run when they do; a grid track is
+       a box, and a box cannot drift. Column 1 is the start edge, which is the right. */
+    display: grid;
+    grid-template-columns: 1.6rem 1fr;
+    gap: 0 0.55rem;
+    align-items: baseline;
+  }
+
+  .missing-mark {
+    /* Named explicitly so the Hebrew text face is never asked to draw an emoji, and
+       isolated as a belt to the grid track's braces. */
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    text-align: center;
+    unicode-bidi: isolate;
+  }
+
+  .missing-legend-word {
+    font-size: var(--t-s);
     font-weight: 700;
   }
 
-  .missing-set th,
-  .missing-set td {
-    /* No min-width here. The old table forced 9rem a column to keep Hebrew from breaking
-       two letters to a line, and two columns of that do not fit a 320px screen. Two
-       columns of free width do. */
-    min-width: 0;
-    padding: 0.6rem 1rem;
-    text-align: start;
-    vertical-align: top;
-    line-height: 1.6;
-    font-weight: 400;
+  .missing-legend-gloss {
+    grid-column: 2;
+    color: var(--dim);
+    font-size: var(--t-xs);
+    line-height: 1.55;
+  }
+
+  .missing-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    gap: clamp(1.75rem, 3.5vw, 2.5rem) 2.5rem;
+    align-items: start;
+  }
+
+  .missing-group h2 {
+    margin: 0 0 0.35rem;
+    padding-block-end: 0.5rem;
+    border-block-end: 1px solid var(--stroke);
+    font-size: var(--t-m);
+  }
+
+  .missing-group ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .missing-group li {
+    padding-block: 0.35rem;
+    font-size: var(--t-s);
+    line-height: 1.55;
+  }
+
+  /* A list the sheet never gave a status to has no marks to line up, so it has no track
+     for them either — an empty column is the same layout leftover as an empty gutter. */
+  .missing-group ul.no-marks li {
+    grid-template-columns: 1fr;
+  }
+
+  .missing-name {
+    /* No min-width anywhere: the old table forced 9rem a column to keep Hebrew from
+       breaking two letters to a line, and two columns of that do not fit a 320px screen. */
     overflow-wrap: anywhere;
   }
 
-  .missing-set thead th {
-    padding-block-end: 0.35rem;
+  .missing-qualifier {
+    display: block;
+    margin-block-start: 0.1rem;
     color: var(--dim);
-    font-size: var(--t-2xs);
-    font-weight: 500;
-  }
-
-  .missing-set tbody td {
-    color: var(--dim);
-    /* One status in the sheet is two lines with a note on the second. It was written as two
-       lines and it stays two lines. */
+    font-size: var(--t-xs);
+    /* One status in the sheet is two lines with a note on the second. It was written as
+       two lines and it stays two lines. */
     white-space: pre-line;
-  }
-
-  .missing-set tbody tr + tr th,
-  .missing-set tbody tr + tr td {
-    border-block-start: 1px solid var(--stroke-soft);
+    overflow-wrap: anywhere;
   }
 </style>
